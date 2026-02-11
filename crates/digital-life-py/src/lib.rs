@@ -79,6 +79,12 @@ fn bootstrap_entities(
 }
 
 fn checked_total_agents(num_organisms: usize, agents_per_organism: usize) -> Result<usize, String> {
+    if num_organisms > u16::MAX as usize {
+        return Err(format!(
+            "num_organisms ({num_organisms}) exceeds maximum organism count ({})",
+            u16::MAX
+        ));
+    }
     let total_agents = num_organisms
         .checked_mul(agents_per_organism)
         .ok_or_else(|| "num_organisms * agents_per_organism overflows usize".to_string())?;
@@ -107,6 +113,12 @@ mod tests {
     #[test]
     fn checked_total_agents_rejects_overflow() {
         let result = checked_total_agents(usize::MAX, 2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn checked_total_agents_rejects_excess_organism_count() {
+        let result = checked_total_agents(u16::MAX as usize + 1, 1);
         assert!(result.is_err());
     }
 
