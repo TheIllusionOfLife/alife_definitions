@@ -1,5 +1,6 @@
 use crate::agent::Agent;
 use rstar::{RTree, RTreeObject, AABB};
+use std::collections::HashSet;
 
 /// Lightweight position-only struct for spatial indexing to avoid cloning full agents.
 #[derive(Clone, Debug)]
@@ -38,10 +39,9 @@ pub fn count_neighbors(
     world_size: f64,
 ) -> usize {
     let mut count = 0usize;
-    for id in query_neighbors(tree, center, radius, self_id, world_size) {
-        let _ = id;
+    for_each_unique_neighbor(tree, center, radius, self_id, world_size, |_| {
         count += 1;
-    }
+    });
     count
 }
 
@@ -59,14 +59,49 @@ pub fn query_neighbors(
         world_size.is_finite() && world_size > 0.0,
         "world_size must be positive and finite"
     );
+    let mut result = Vec::new();
+    for_each_unique_neighbor(tree, center, radius, self_id, world_size, |id| {
+        result.push(id);
+    });
+    result.sort_unstable();
+    result
+}
 
-    let x_offsets = wrap_offsets(center[0], radius, world_size);
-    let y_offsets = wrap_offsets(center[1], radius, world_size);
+fn for_each_unique_neighbor(
+    tree: &RTree<AgentLocation>,
+    center: [f64; 2],
+    radius: f64,
+    self_id: u32,
+    world_size: f64,
+    mut visitor: impl FnMut(u32),
+) {
+    let (x_offsets, x_len) = wrap_offsets(center[0], radius, world_size);
+    let (y_offsets, y_len) = wrap_offsets(center[1], radius, world_size);
     let r_sq = radius * radius;
-    let mut result: Vec<u32> = Vec::new();
 
-    for &xoff in &x_offsets {
-        for &yoff in &y_offsets {
+    // Fast path: no boundary wrapping means no duplicate candidates across envelopes.
+    if x_len == 1 && y_len == 1 {
+        let envelope = AABB::from_corners(
+            [center[0] - radius, center[1] - radius],
+            [center[0] + radius, center[1] + radius],
+        );
+        for loc in tree.locate_in_envelope(&envelope) {
+            if loc.id == self_id {
+                continue;
+            }
+            let dx = loc.position[0] - center[0];
+            let dy = loc.position[1] - center[1];
+            if dx * dx + dy * dy <= r_sq {
+                visitor(loc.id);
+            }
+        }
+        return;
+    }
+
+    let mut seen = HashSet::new();
+
+    for &xoff in &x_offsets[..x_len] {
+        for &yoff in &y_offsets[..y_len] {
             let translated = [center[0] + xoff, center[1] + yoff];
             let envelope = AABB::from_corners(
                 [translated[0] - radius, translated[1] - radius],
@@ -74,29 +109,31 @@ pub fn query_neighbors(
             );
 
             for loc in tree.locate_in_envelope(&envelope) {
-                if loc.id == self_id || result.contains(&loc.id) {
+                if loc.id == self_id {
                     continue;
                 }
                 let dx = wrapped_delta(loc.position[0] - center[0], world_size);
                 let dy = wrapped_delta(loc.position[1] - center[1], world_size);
-                if dx * dx + dy * dy <= r_sq {
-                    result.push(loc.id);
+                if dx * dx + dy * dy <= r_sq && seen.insert(loc.id) {
+                    visitor(loc.id);
                 }
             }
         }
     }
-    result
 }
 
-fn wrap_offsets(coord: f64, radius: f64, world_size: f64) -> Vec<f64> {
-    let mut offsets = vec![0.0];
+fn wrap_offsets(coord: f64, radius: f64, world_size: f64) -> ([f64; 3], usize) {
+    let mut offsets = [0.0; 3];
+    let mut len = 1usize;
     if coord < radius {
-        offsets.push(world_size);
+        offsets[len] = world_size;
+        len += 1;
     }
     if coord + radius >= world_size {
-        offsets.push(-world_size);
+        offsets[len] = -world_size;
+        len += 1;
     }
-    offsets
+    (offsets, len)
 }
 
 fn wrapped_delta(delta: f64, world_size: f64) -> f64 {
@@ -119,8 +156,7 @@ mod tests {
             make_agent(2, 50.0, 50.0), // far away
         ];
         let tree = build_index(&agents);
-        let mut result = query_neighbors(&tree, [5.0, 5.0], 2.0, u32::MAX, 100.0);
-        result.sort();
+        let result = query_neighbors(&tree, [5.0, 5.0], 2.0, u32::MAX, 100.0);
         assert_eq!(result, vec![0, 1]);
     }
 
@@ -144,8 +180,7 @@ mod tests {
     fn query_returns_agent_ids_not_indices() {
         let agents = vec![make_agent(42, 1.0, 1.0), make_agent(99, 1.5, 1.0)];
         let tree = build_index(&agents);
-        let mut result = query_neighbors(&tree, [1.0, 1.0], 2.0, u32::MAX, 100.0);
-        result.sort();
+        let result = query_neighbors(&tree, [1.0, 1.0], 2.0, u32::MAX, 100.0);
         assert_eq!(result, vec![42, 99]);
     }
 
@@ -174,5 +209,17 @@ mod tests {
         let tree = build_index(&agents);
         let result = query_neighbors(&tree, [0.2, 0.2], 1.0, 0, 100.0);
         assert_eq!(result, vec![1]);
+    }
+
+    #[test]
+    fn query_neighbors_returns_sorted_unique_ids() {
+        let agents = vec![
+            make_agent(10, 0.2, 50.0),
+            make_agent(2, 99.9, 50.0),
+            make_agent(7, 0.4, 50.0),
+        ];
+        let tree = build_index(&agents);
+        let result = query_neighbors(&tree, [0.1, 50.0], 1.0, u32::MAX, 100.0);
+        assert_eq!(result, vec![2, 7, 10]);
     }
 }

@@ -4,6 +4,7 @@ use crate::metabolism::{MetabolicState, ToyMetabolism};
 use crate::nn::NeuralNet;
 use crate::spatial;
 use std::time::Instant;
+use std::{error::Error, fmt};
 
 #[derive(Clone, Debug)]
 pub struct StepTimings {
@@ -21,51 +22,94 @@ pub struct World {
     metabolism: ToyMetabolism,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorldInitError {
+    InvalidWorldSize,
+    InvalidDt,
+    InvalidMaxSpeed,
+    InvalidSensingRadius,
+    InvalidNeighborNorm,
+    NumOrganismsMismatch { expected: usize, actual: usize },
+    InvalidOrganismId,
+}
+
+impl fmt::Display for WorldInitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WorldInitError::InvalidWorldSize => write!(f, "world_size must be positive and finite"),
+            WorldInitError::InvalidDt => write!(f, "dt must be positive and finite"),
+            WorldInitError::InvalidMaxSpeed => write!(f, "max_speed must be positive and finite"),
+            WorldInitError::InvalidSensingRadius => {
+                write!(f, "sensing_radius must be non-negative and finite")
+            }
+            WorldInitError::InvalidNeighborNorm => {
+                write!(f, "neighbor_norm must be positive and finite")
+            }
+            WorldInitError::NumOrganismsMismatch { expected, actual } => write!(
+                f,
+                "num_organisms ({expected}) must match nns.len() ({actual})"
+            ),
+            WorldInitError::InvalidOrganismId => {
+                write!(f, "all agent organism_ids must be valid indices into nns")
+            }
+        }
+    }
+}
+
+impl Error for WorldInitError {}
+
 impl World {
     pub fn new(agents: Vec<Agent>, nns: Vec<NeuralNet>, config: SimConfig) -> Self {
-        assert!(
-            config.world_size.is_finite() && config.world_size > 0.0,
-            "world_size must be positive and finite"
-        );
-        assert!(
-            config.dt.is_finite() && config.dt > 0.0,
-            "dt must be positive and finite"
-        );
-        assert!(
-            config.max_speed.is_finite() && config.max_speed > 0.0,
-            "max_speed must be positive and finite"
-        );
-        assert!(
-            config.sensing_radius.is_finite() && config.sensing_radius >= 0.0,
-            "sensing_radius must be non-negative and finite"
-        );
-        assert!(
-            config.neighbor_norm.is_finite() && config.neighbor_norm > 0.0,
-            "neighbor_norm must be positive and finite"
-        );
-        assert!(
-            config.num_organisms == nns.len(),
-            "num_organisms ({}) must match nns.len() ({})",
-            config.num_organisms,
-            nns.len()
-        );
-        assert!(
-            agents.iter().all(|a| (a.organism_id as usize) < nns.len()),
-            "all agent organism_ids must be valid indices into nns"
-        );
+        Self::try_new(agents, nns, config).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    pub fn try_new(
+        agents: Vec<Agent>,
+        nns: Vec<NeuralNet>,
+        config: SimConfig,
+    ) -> Result<Self, WorldInitError> {
+        if !(config.world_size.is_finite() && config.world_size > 0.0) {
+            return Err(WorldInitError::InvalidWorldSize);
+        }
+        if !(config.dt.is_finite() && config.dt > 0.0) {
+            return Err(WorldInitError::InvalidDt);
+        }
+        if !(config.max_speed.is_finite() && config.max_speed > 0.0) {
+            return Err(WorldInitError::InvalidMaxSpeed);
+        }
+        if !(config.sensing_radius.is_finite() && config.sensing_radius >= 0.0) {
+            return Err(WorldInitError::InvalidSensingRadius);
+        }
+        if !(config.neighbor_norm.is_finite() && config.neighbor_norm > 0.0) {
+            return Err(WorldInitError::InvalidNeighborNorm);
+        }
+        if config.num_organisms != nns.len() {
+            return Err(WorldInitError::NumOrganismsMismatch {
+                expected: config.num_organisms,
+                actual: nns.len(),
+            });
+        }
+        if !agents.iter().all(|a| (a.organism_id as usize) < nns.len()) {
+            return Err(WorldInitError::InvalidOrganismId);
+        }
 
         let metabolic_states = vec![MetabolicState::default(); nns.len()];
-        Self {
+        Ok(Self {
             agents,
             nns,
             config,
             metabolic_states,
             metabolism: ToyMetabolism::default(),
-        }
+        })
     }
 
     pub fn metabolic_state(&self, organism_id: usize) -> &MetabolicState {
-        &self.metabolic_states[organism_id]
+        self.try_metabolic_state(organism_id)
+            .expect("organism_id out of range for metabolic_state")
+    }
+
+    pub fn try_metabolic_state(&self, organism_id: usize) -> Option<&MetabolicState> {
+        self.metabolic_states.get(organism_id)
     }
 
     pub fn step(&mut self) -> StepTimings {
@@ -239,6 +283,22 @@ mod tests {
     }
 
     #[test]
+    fn try_new_returns_structured_error() {
+        let agents = vec![Agent::new(0, 0, [0.0, 0.0])];
+        let nn = NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+        let mut cfg = make_config(100.0, 0.1);
+        cfg.num_organisms = 2;
+        match World::try_new(agents, vec![nn], cfg) {
+            Err(WorldInitError::NumOrganismsMismatch {
+                expected: 2,
+                actual: 1,
+            }) => {}
+            Err(other) => panic!("unexpected error: {other}"),
+            Ok(_) => panic!("expected try_new to fail for mismatched organism count"),
+        }
+    }
+
+    #[test]
     fn internal_state_stays_clamped() {
         let mut world = make_world(1, 100.0);
         // Run many steps — state should remain in [0, 1]
@@ -275,5 +335,11 @@ mod tests {
             world.step();
         }
         assert!(world.metabolic_state(0).energy > 0.0);
+    }
+
+    #[test]
+    fn try_metabolic_state_returns_none_for_out_of_range() {
+        let world = make_world(1, 100.0);
+        assert!(world.try_metabolic_state(10).is_none());
     }
 }
