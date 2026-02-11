@@ -355,10 +355,28 @@ impl World {
     }
 
     fn collect_step_metrics(&self, step: usize) -> StepMetrics {
-        let orgs = self.metabolic_states.len().max(1) as f32;
-        let energy_mean = self.metabolic_states.iter().map(|s| s.energy).sum::<f32>() / orgs;
-        let waste_mean = self.metabolic_states.iter().map(|s| s.waste).sum::<f32>() / orgs;
-        let boundary_mean = self.boundary_integrity.iter().sum::<f32>() / orgs;
+        let alive_count = self.alive_count().max(1) as f32;
+        let energy_mean = self
+            .metabolic_states
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(s, alive)| alive.then_some(s.energy))
+            .sum::<f32>()
+            / alive_count;
+        let waste_mean = self
+            .metabolic_states
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(s, alive)| alive.then_some(s.waste))
+            .sum::<f32>()
+            / alive_count;
+        let boundary_mean = self
+            .boundary_integrity
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(b, alive)| alive.then_some(*b))
+            .sum::<f32>()
+            / alive_count;
         let resource_total = self.resource_field.total();
         StepMetrics {
             step,
@@ -571,7 +589,7 @@ impl World {
                         .take(center[0], center[1], flux.consumed_external);
                 }
                 if state.energy <= self.config.death_energy_threshold
-                    || self.boundary_integrity[org_id] <= self.config.death_boundary_threshold
+                    || self.boundary_integrity[org_id] <= self.config.boundary_collapse_threshold
                 {
                     self.organism_alive[org_id] = false;
                     self.boundary_integrity[org_id] = 0.0;

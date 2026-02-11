@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Per-organism metabolic state.
 #[derive(Clone, Debug)]
@@ -107,7 +108,7 @@ impl ToyMetabolism {
 
 const DEFAULT_EDGE_TRANSFER_EFFICIENCY: f32 = 0.98;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct GraphMetabolism {
     pub graph: MetabolicGraph,
     pub entry_node_id: u16,
@@ -119,6 +120,7 @@ pub struct GraphMetabolism {
     pub waste_decay_rate: f32,
     pub max_waste: f32,
     pub edge_transfer_efficiency: f32,
+    node_index_cache: OnceLock<HashMap<u16, usize>>,
 }
 
 impl Default for GraphMetabolism {
@@ -135,18 +137,39 @@ impl Default for GraphMetabolism {
             waste_decay_rate: toy.waste_decay_rate,
             max_waste: toy.max_waste,
             edge_transfer_efficiency: DEFAULT_EDGE_TRANSFER_EFFICIENCY,
+            node_index_cache: OnceLock::new(),
         }
     }
 }
 
 impl GraphMetabolism {
-    fn node_index_by_id(&self) -> HashMap<u16, usize> {
-        self.graph
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| (node.id, idx))
-            .collect()
+    fn node_index_by_id(&self) -> &HashMap<u16, usize> {
+        self.node_index_cache.get_or_init(|| {
+            self.graph
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(idx, node)| (node.id, idx))
+                .collect()
+        })
+    }
+}
+
+impl Clone for GraphMetabolism {
+    fn clone(&self) -> Self {
+        Self {
+            graph: self.graph.clone(),
+            entry_node_id: self.entry_node_id,
+            uptake_rate: self.uptake_rate,
+            conversion_efficiency: self.conversion_efficiency,
+            waste_ratio: self.waste_ratio,
+            energy_loss_rate: self.energy_loss_rate,
+            max_energy: self.max_energy,
+            waste_decay_rate: self.waste_decay_rate,
+            max_waste: self.max_waste,
+            edge_transfer_efficiency: self.edge_transfer_efficiency,
+            node_index_cache: OnceLock::new(),
+        }
     }
 }
 
@@ -222,12 +245,11 @@ impl GraphMetabolism {
             terminal_product += produced - allocated;
         }
 
-        let retained_intermediate = next.iter().sum::<f32>();
-        state.resource += retained_intermediate;
         state.graph_pool = next;
 
         state.energy += terminal_product * self.conversion_efficiency.clamp(0.0, 1.0);
-        let produced_waste = uptake * self.waste_ratio + inefficiency_loss;
+        let produced_waste = inefficiency_loss
+            + terminal_product * (1.0 - self.conversion_efficiency.clamp(0.0, 1.0));
         state.waste += produced_waste;
         state.waste = (state.waste - self.waste_decay_rate * dt).clamp(0.0, self.max_waste);
 
@@ -498,7 +520,7 @@ mod tests {
         };
         let _ = metabolism.step(&mut state, 1.0, 1.0);
         assert!(
-            state.resource > 0.0,
+            state.graph_pool.iter().sum::<f32>() > 0.0,
             "cycle intermediates should be retained, not lost"
         );
     }
