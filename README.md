@@ -20,9 +20,7 @@ cargo build --workspace
 ### Test and Lint
 
 ```bash
-cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-targets --all-features
+./scripts/check.sh
 ```
 
 ### Run the Feasibility Spike

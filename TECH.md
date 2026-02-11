@@ -15,9 +15,7 @@
 
 ## Tooling Standards
 
-- Formatting: `cargo fmt --all --check`
-- Linting: `cargo clippy --all-targets --all-features -- -D warnings`
-- Testing: `cargo test --all-targets --all-features`
+- Quality gate (format + lint + tests): `./scripts/check.sh`
 - Python packaging/build flow: `uv run maturin ...`
 
 ## Technical Constraints

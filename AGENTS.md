@@ -9,7 +9,7 @@ Build and evolve the Digital Life simulation with reproducible, testable changes
 ## High-Confidence Commands
 
 - Build workspace: `cargo build --workspace`
-- Run full checks: `cargo fmt --all --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-targets --all-features`
+- Run full checks: `./scripts/check.sh`
 - Run spike benchmark: `cargo run -p digital-life-spike --release`
 - Build Python extension: `uv run maturin develop --manifest-path crates/digital-life-py/Cargo.toml`
 
@@ -22,10 +22,7 @@ Build and evolve the Digital Life simulation with reproducible, testable changes
 
 ## Testing Instructions
 
-- Baseline gate for all changes:
-  - `cargo fmt --all --check`
-  - `cargo clippy --all-targets --all-features -- -D warnings`
-  - `cargo test --all-targets --all-features`
+- Baseline gate for all changes: `./scripts/check.sh`
 - For Python-binding changes, always run Rust tests in `crates/digital-life-py/src/lib.rs` through the full test command.
 
 ## Repository Etiquette
