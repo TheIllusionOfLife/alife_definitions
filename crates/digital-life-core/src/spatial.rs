@@ -29,6 +29,24 @@ pub fn build_index(agents: &[Agent]) -> RTree<AgentLocation> {
     RTree::bulk_load(locations)
 }
 
+/// Build an R*-tree from only active organisms.
+pub fn build_index_active(agents: &[Agent], organism_alive: &[bool]) -> RTree<AgentLocation> {
+    let locations: Vec<AgentLocation> = agents
+        .iter()
+        .filter(|a| {
+            organism_alive
+                .get(a.organism_id as usize)
+                .copied()
+                .unwrap_or(false)
+        })
+        .map(|a| AgentLocation {
+            id: a.id,
+            position: a.position,
+        })
+        .collect();
+    RTree::bulk_load(locations)
+}
+
 /// Count neighbors within `radius` of `center` (excludes agent with `self_id`).
 /// Avoids allocation — returns count only.
 pub fn count_neighbors(
@@ -221,5 +239,13 @@ mod tests {
         let tree = build_index(&agents);
         let result = query_neighbors(&tree, [0.1, 50.0], 1.0, u32::MAX, 100.0);
         assert_eq!(result, vec![2, 7, 10]);
+    }
+
+    #[test]
+    fn build_index_active_excludes_inactive_organisms() {
+        let agents = vec![Agent::new(0, 0, [1.0, 1.0]), Agent::new(1, 1, [1.0, 1.2])];
+        let tree = build_index_active(&agents, &[true, false]);
+        let result = query_neighbors(&tree, [1.0, 1.0], 1.0, u32::MAX, 100.0);
+        assert_eq!(result, vec![0]);
     }
 }

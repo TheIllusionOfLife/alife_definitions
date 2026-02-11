@@ -7,6 +7,7 @@ pub struct ResourceField {
     height: usize,
     cell_size: f64,
     data: Vec<f32>,
+    total: f64,
 }
 
 impl ResourceField {
@@ -17,11 +18,13 @@ impl ResourceField {
         let width = (world_size / cell_size).ceil() as usize;
         let height = width;
         let data = vec![initial_value; width * height];
+        let total = initial_value as f64 * (width * height) as f64;
         Self {
             width,
             height,
             cell_size,
             data,
+            total,
         }
     }
 
@@ -34,7 +37,10 @@ impl ResourceField {
     /// Set resource value at position. Coordinates wrap toroidally.
     pub fn set(&mut self, x: f64, y: f64, value: f32) {
         let (cx, cy) = self.wrap_coords(x, y);
-        self.data[cy * self.width + cx] = value;
+        let idx = cy * self.width + cx;
+        let old = self.data[idx];
+        self.data[idx] = value;
+        self.total += (value - old) as f64;
     }
 
     /// Remove up to `amount` resource from the addressed cell and return actual amount withdrawn.
@@ -43,6 +49,7 @@ impl ResourceField {
         let idx = cy * self.width + cx;
         let removed = self.data[idx].min(amount.max(0.0));
         self.data[idx] -= removed;
+        self.total -= removed as f64;
         removed
     }
 
@@ -60,6 +67,10 @@ impl ResourceField {
 
     pub fn data(&self) -> &[f32] {
         &self.data
+    }
+
+    pub fn total(&self) -> f64 {
+        self.total
     }
 
     fn wrap_coords(&self, x: f64, y: f64) -> (usize, usize) {
@@ -96,5 +107,15 @@ mod tests {
         assert!((field.get(2.0, 3.0) - 1.0).abs() < f32::EPSILON);
         assert!((field.take(2.0, 3.0, 5.0) - 1.0).abs() < f32::EPSILON);
         assert!((field.get(2.0, 3.0) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn total_tracks_updates_and_withdrawals() {
+        let mut field = ResourceField::new(10.0, 1.0, 1.0);
+        let initial = field.total();
+        field.set(0.0, 0.0, 2.0);
+        assert!((field.total() - (initial + 1.0)).abs() < 1e-6);
+        let _ = field.take(0.0, 0.0, 0.5);
+        assert!((field.total() - (initial + 0.5)).abs() < 1e-6);
     }
 }

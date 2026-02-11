@@ -1,9 +1,10 @@
 use crate::agent::Agent;
-use crate::config::SimConfig;
+use crate::config::{MetabolismMode, SimConfig};
 use crate::metabolism::{MetabolicState, MetabolismEngine};
 use crate::nn::NeuralNet;
 use crate::resource::ResourceField;
 use crate::spatial;
+use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::time::Instant;
 use std::{error::Error, fmt};
@@ -16,6 +17,24 @@ pub struct StepTimings {
     pub total_us: u64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StepMetrics {
+    pub step: usize,
+    pub energy_mean: f32,
+    pub waste_mean: f32,
+    pub boundary_mean: f32,
+    pub alive_count: usize,
+    pub resource_total: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RunSummary {
+    pub steps: usize,
+    pub sample_every: usize,
+    pub final_alive_count: usize,
+    pub samples: Vec<StepMetrics>,
+}
+
 pub struct World {
     pub agents: Vec<Agent>,
     pub nns: Vec<NeuralNet>, // one per organism
@@ -24,6 +43,8 @@ pub struct World {
     metabolic_states: Vec<MetabolicState>,
     metabolism: MetabolismEngine,
     resource_field: ResourceField,
+    boundary_integrity: Vec<f32>,
+    organism_alive: Vec<bool>,
     // Per-organism accumulators: [sin(x), cos(x), sin(y), cos(y)].
     org_toroidal_sums: Vec<[f64; 4]>,
     org_counts: Vec<usize>,
@@ -36,6 +57,15 @@ pub enum WorldInitError {
     InvalidMaxSpeed,
     InvalidSensingRadius,
     InvalidNeighborNorm,
+    InvalidMetabolicViabilityFloor,
+    InvalidBoundaryDecayBaseRate,
+    InvalidBoundaryDecayEnergyScale,
+    InvalidBoundaryWastePressureScale,
+    InvalidBoundaryRepairWastePenaltyScale,
+    InvalidBoundaryRepairRate,
+    InvalidBoundaryCollapseThreshold,
+    InvalidDeathEnergyThreshold,
+    InvalidDeathBoundaryThreshold,
     WorldSizeTooLarge { max: f64, actual: f64 },
     AgentCountOverflow,
     TooManyAgents { max: usize, actual: usize },
@@ -55,6 +85,36 @@ impl fmt::Display for WorldInitError {
             }
             WorldInitError::InvalidNeighborNorm => {
                 write!(f, "neighbor_norm must be positive and finite")
+            }
+            WorldInitError::InvalidMetabolicViabilityFloor => {
+                write!(f, "metabolic_viability_floor must be finite and non-negative")
+            }
+            WorldInitError::InvalidBoundaryDecayBaseRate => {
+                write!(f, "boundary_decay_base_rate must be finite and non-negative")
+            }
+            WorldInitError::InvalidBoundaryDecayEnergyScale => {
+                write!(f, "boundary_decay_energy_scale must be finite and non-negative")
+            }
+            WorldInitError::InvalidBoundaryWastePressureScale => {
+                write!(f, "boundary_waste_pressure_scale must be finite and non-negative")
+            }
+            WorldInitError::InvalidBoundaryRepairWastePenaltyScale => {
+                write!(
+                    f,
+                    "boundary_repair_waste_penalty_scale must be finite and non-negative"
+                )
+            }
+            WorldInitError::InvalidBoundaryRepairRate => {
+                write!(f, "boundary_repair_rate must be finite and non-negative")
+            }
+            WorldInitError::InvalidBoundaryCollapseThreshold => {
+                write!(f, "boundary_collapse_threshold must be finite and within [0,1]")
+            }
+            WorldInitError::InvalidDeathEnergyThreshold => {
+                write!(f, "death_energy_threshold must be finite and non-negative")
+            }
+            WorldInitError::InvalidDeathBoundaryThreshold => {
+                write!(f, "death_boundary_threshold must be finite and within [0,1]")
             }
             WorldInitError::WorldSizeTooLarge { max, actual } => {
                 write!(f, "world_size ({actual}) exceeds supported maximum ({max})")
@@ -82,9 +142,37 @@ impl fmt::Display for WorldInitError {
 
 impl Error for WorldInitError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExperimentError {
+    InvalidSampleEvery,
+    TooManySteps { max: usize, actual: usize },
+    TooManySamples { max: usize, actual: usize },
+}
+
+impl fmt::Display for ExperimentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExperimentError::InvalidSampleEvery => write!(f, "sample_every must be positive"),
+            ExperimentError::TooManySteps { max, actual } => {
+                write!(f, "steps ({actual}) exceed supported maximum ({max})")
+            }
+            ExperimentError::TooManySamples { max, actual } => {
+                write!(
+                    f,
+                    "sample count ({actual}) exceeds supported maximum ({max})"
+                )
+            }
+        }
+    }
+}
+
+impl Error for ExperimentError {}
+
 impl World {
     pub const MAX_WORLD_SIZE: f64 = 2048.0;
     pub const MAX_TOTAL_AGENTS: usize = 250_000;
+    pub const MAX_EXPERIMENT_STEPS: usize = 1_000_000;
+    pub const MAX_EXPERIMENT_SAMPLES: usize = 50_000;
 
     pub fn new(agents: Vec<Agent>, nns: Vec<NeuralNet>, config: SimConfig) -> Self {
         Self::try_new(agents, nns, config).unwrap_or_else(|e| panic!("{e}"))
@@ -98,6 +186,12 @@ impl World {
         Self::validate_config_for_state(&agents, &nns, &config)?;
         let world_size = config.world_size;
         let num_organisms = nns.len();
+        let metabolism = match config.metabolism_mode {
+            MetabolismMode::Toy => MetabolismEngine::default(),
+            MetabolismMode::Graph => {
+                MetabolismEngine::Graph(crate::metabolism::GraphMetabolism::default())
+            }
+        };
 
         let metabolic_states = vec![MetabolicState::default(); num_organisms];
         Ok(Self {
@@ -105,8 +199,10 @@ impl World {
             nns,
             config,
             metabolic_states,
-            metabolism: MetabolismEngine::default(),
+            metabolism,
             resource_field: ResourceField::new(world_size, 1.0, 1.0),
+            boundary_integrity: vec![1.0; num_organisms],
+            organism_alive: vec![true; num_organisms],
             org_toroidal_sums: vec![[0.0, 0.0, 0.0, 0.0]; num_organisms],
             org_counts: vec![0; num_organisms],
         })
@@ -146,6 +242,46 @@ impl World {
         if !(config.neighbor_norm.is_finite() && config.neighbor_norm > 0.0) {
             return Err(WorldInitError::InvalidNeighborNorm);
         }
+        if !(config.metabolic_viability_floor.is_finite()
+            && config.metabolic_viability_floor >= 0.0)
+        {
+            return Err(WorldInitError::InvalidMetabolicViabilityFloor);
+        }
+        if !(config.boundary_decay_base_rate.is_finite() && config.boundary_decay_base_rate >= 0.0)
+        {
+            return Err(WorldInitError::InvalidBoundaryDecayBaseRate);
+        }
+        if !(config.boundary_decay_energy_scale.is_finite()
+            && config.boundary_decay_energy_scale >= 0.0)
+        {
+            return Err(WorldInitError::InvalidBoundaryDecayEnergyScale);
+        }
+        if !(config.boundary_waste_pressure_scale.is_finite()
+            && config.boundary_waste_pressure_scale >= 0.0)
+        {
+            return Err(WorldInitError::InvalidBoundaryWastePressureScale);
+        }
+        if !(config.boundary_repair_waste_penalty_scale.is_finite()
+            && config.boundary_repair_waste_penalty_scale >= 0.0)
+        {
+            return Err(WorldInitError::InvalidBoundaryRepairWastePenaltyScale);
+        }
+        if !(config.boundary_repair_rate.is_finite() && config.boundary_repair_rate >= 0.0) {
+            return Err(WorldInitError::InvalidBoundaryRepairRate);
+        }
+        if !(config.boundary_collapse_threshold.is_finite()
+            && (0.0..=1.0).contains(&config.boundary_collapse_threshold))
+        {
+            return Err(WorldInitError::InvalidBoundaryCollapseThreshold);
+        }
+        if !(config.death_energy_threshold.is_finite() && config.death_energy_threshold >= 0.0) {
+            return Err(WorldInitError::InvalidDeathEnergyThreshold);
+        }
+        if !(config.death_boundary_threshold.is_finite()
+            && (0.0..=1.0).contains(&config.death_boundary_threshold))
+        {
+            return Err(WorldInitError::InvalidDeathBoundaryThreshold);
+        }
         if config.num_organisms != nns.len() {
             return Err(WorldInitError::NumOrganismsMismatch {
                 expected: config.num_organisms,
@@ -179,11 +315,21 @@ impl World {
     }
 
     pub fn set_config(&mut self, config: SimConfig) -> Result<(), WorldInitError> {
+        let mode_changed = self.config.metabolism_mode != config.metabolism_mode;
         Self::validate_config_for_state(&self.agents, &self.nns, &config)?;
         if (self.config.world_size - config.world_size).abs() > f64::EPSILON {
             self.resource_field = ResourceField::new(config.world_size, 1.0, 1.0);
         }
         self.config = config;
+        if mode_changed {
+            // Switching modes resets the engine to the mode default to avoid stale internals.
+            self.metabolism = match self.config.metabolism_mode {
+                MetabolismMode::Toy => MetabolismEngine::default(),
+                MetabolismMode::Graph => {
+                    MetabolismEngine::Graph(crate::metabolism::GraphMetabolism::default())
+                }
+            };
+        }
         Ok(())
     }
 
@@ -204,18 +350,105 @@ impl World {
         self.metabolic_states.get(organism_id)
     }
 
+    fn alive_count(&self) -> usize {
+        self.organism_alive.iter().filter(|alive| **alive).count()
+    }
+
+    fn collect_step_metrics(&self, step: usize) -> StepMetrics {
+        let alive_count = self.alive_count().max(1) as f32;
+        let energy_mean = self
+            .metabolic_states
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(s, alive)| alive.then_some(s.energy))
+            .sum::<f32>()
+            / alive_count;
+        let waste_mean = self
+            .metabolic_states
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(s, alive)| alive.then_some(s.waste))
+            .sum::<f32>()
+            / alive_count;
+        let boundary_mean = self
+            .boundary_integrity
+            .iter()
+            .zip(self.organism_alive.iter())
+            .filter_map(|(b, alive)| alive.then_some(*b))
+            .sum::<f32>()
+            / alive_count;
+        let resource_total = self.resource_field.total();
+        StepMetrics {
+            step,
+            energy_mean,
+            waste_mean,
+            boundary_mean,
+            alive_count: self.alive_count(),
+            resource_total,
+        }
+    }
+
+    pub fn run_experiment(&mut self, steps: usize, sample_every: usize) -> RunSummary {
+        self.try_run_experiment(steps, sample_every)
+            .unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    pub fn try_run_experiment(
+        &mut self,
+        steps: usize,
+        sample_every: usize,
+    ) -> Result<RunSummary, ExperimentError> {
+        if sample_every == 0 {
+            return Err(ExperimentError::InvalidSampleEvery);
+        }
+        if steps > Self::MAX_EXPERIMENT_STEPS {
+            return Err(ExperimentError::TooManySteps {
+                max: Self::MAX_EXPERIMENT_STEPS,
+                actual: steps,
+            });
+        }
+        let estimated_samples = if steps == 0 {
+            0
+        } else {
+            ((steps - 1) / sample_every) + 1
+        };
+        if estimated_samples > Self::MAX_EXPERIMENT_SAMPLES {
+            return Err(ExperimentError::TooManySamples {
+                max: Self::MAX_EXPERIMENT_SAMPLES,
+                actual: estimated_samples,
+            });
+        }
+        let mut samples = Vec::with_capacity(estimated_samples);
+        for step in 1..=steps {
+            self.step();
+            if step % sample_every == 0 || step == steps {
+                samples.push(self.collect_step_metrics(step));
+            }
+        }
+        Ok(RunSummary {
+            steps,
+            sample_every,
+            final_alive_count: self.alive_count(),
+            samples,
+        })
+    }
+
     pub fn step(&mut self) -> StepTimings {
         let total_start = Instant::now();
 
         // 1. Build spatial index
         let t0 = Instant::now();
-        let tree = spatial::build_index(&self.agents);
+        let tree = spatial::build_index_active(&self.agents, &self.organism_alive);
         let spatial_build_us = t0.elapsed().as_micros() as u64;
 
         // 2. NN forward pass for each agent
         let t1 = Instant::now();
         let mut deltas: Vec<[f32; 4]> = Vec::with_capacity(self.agents.len());
         for agent in &self.agents {
+            if !self.organism_alive[agent.organism_id as usize] {
+                deltas.push([0.0; 4]);
+                continue;
+            }
             let neighbor_count = spatial::count_neighbors(
                 &tree,
                 agent.position,
@@ -246,6 +479,10 @@ impl World {
         // 3. Apply updates
         let t2 = Instant::now();
         for (agent, delta) in self.agents.iter_mut().zip(deltas.iter()) {
+            if !self.organism_alive[agent.organism_id as usize] {
+                agent.velocity = [0.0, 0.0];
+                continue;
+            }
             // Velocity update
             agent.velocity[0] += delta[0] as f64 * self.config.dt;
             agent.velocity[1] += delta[1] as f64 * self.config.dt;
@@ -273,9 +510,35 @@ impl World {
         }
 
         if self.config.enable_boundary_maintenance {
+            let dt = self.config.dt as f32;
+            for org_id in 0..self.metabolic_states.len() {
+                if !self.organism_alive[org_id] {
+                    self.boundary_integrity[org_id] = 0.0;
+                    continue;
+                }
+                let state = &self.metabolic_states[org_id];
+                let energy_deficit =
+                    (self.config.metabolic_viability_floor - state.energy).max(0.0);
+                let decay = self.config.boundary_decay_base_rate
+                    + self.config.boundary_decay_energy_scale
+                        * (energy_deficit
+                            + state.waste * self.config.boundary_waste_pressure_scale);
+                let repair = (state.energy
+                    - state.waste
+                        * self.config.boundary_waste_pressure_scale
+                        * self.config.boundary_repair_waste_penalty_scale)
+                    .max(0.0)
+                    * self.config.boundary_repair_rate;
+                self.boundary_integrity[org_id] =
+                    (self.boundary_integrity[org_id] - decay * dt + repair * dt).clamp(0.0, 1.0);
+                if self.boundary_integrity[org_id] <= self.config.boundary_collapse_threshold {
+                    self.organism_alive[org_id] = false;
+                    self.boundary_integrity[org_id] = 0.0;
+                }
+            }
             for agent in &mut self.agents {
-                agent.internal_state[2] =
-                    (agent.internal_state[2] - (self.config.dt as f32 * 0.001)).clamp(0.0, 1.0);
+                let boundary = self.boundary_integrity[agent.organism_id as usize];
+                agent.internal_state[2] = boundary;
             }
         }
 
@@ -286,6 +549,9 @@ impl World {
             let tau_over_world = (2.0 * PI) / world_size;
             for agent in &self.agents {
                 let idx = agent.organism_id as usize;
+                if !self.organism_alive[idx] {
+                    continue;
+                }
                 let theta_x = agent.position[0] * tau_over_world;
                 let theta_y = agent.position[1] * tau_over_world;
                 self.org_toroidal_sums[idx][0] += theta_x.sin();
@@ -296,6 +562,9 @@ impl World {
             }
 
             for (org_id, state) in self.metabolic_states.iter_mut().enumerate() {
+                if !self.organism_alive[org_id] {
+                    continue;
+                }
                 let center = if self.org_counts[org_id] > 0 {
                     [
                         Self::toroidal_mean_coord(
@@ -319,6 +588,12 @@ impl World {
                         .resource_field
                         .take(center[0], center[1], flux.consumed_external);
                 }
+                if state.energy <= self.config.death_energy_threshold
+                    || self.boundary_integrity[org_id] <= self.config.boundary_collapse_threshold
+                {
+                    self.organism_alive[org_id] = false;
+                    self.boundary_integrity[org_id] = 0.0;
+                }
             }
         }
         let state_update_us = t2.elapsed().as_micros() as u64;
@@ -335,7 +610,8 @@ impl World {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::SimConfig;
+    use crate::config::{MetabolismMode, SimConfig};
+    use crate::metabolism::MetabolismEngine;
     use crate::nn::NeuralNet;
 
     fn make_world(num_agents: usize, world_size: f64) -> World {
@@ -576,6 +852,97 @@ mod tests {
         assert!(
             (center_resource - 0.0).abs() < f32::EPSILON,
             "center resource should remain unchanged"
+        );
+    }
+
+    #[test]
+    fn run_experiment_produces_non_empty_summary() {
+        let mut world = make_world(10, 100.0);
+        let summary = world.run_experiment(50, 10);
+        assert_eq!(summary.steps, 50);
+        assert!(!summary.samples.is_empty());
+        assert!(summary.final_alive_count <= world.config().num_organisms);
+    }
+
+    #[test]
+    fn low_energy_org_decays_boundary_faster() {
+        let mut low = make_world(10, 100.0);
+        let mut high = make_world(10, 100.0);
+        low.config.enable_metabolism = false;
+        high.config.enable_metabolism = false;
+        low.config.metabolic_viability_floor = 0.8;
+        high.config.metabolic_viability_floor = 0.8;
+        low.config.boundary_decay_energy_scale = 0.08;
+        high.config.boundary_decay_energy_scale = 0.08;
+        low.metabolic_states[0].energy = 0.0;
+        high.metabolic_states[0].energy = 1.0;
+        low.metabolic_states[0].waste = 0.8;
+        high.metabolic_states[0].waste = 0.0;
+
+        low.step();
+        high.step();
+
+        assert!(
+            low.boundary_integrity[0] < high.boundary_integrity[0],
+            "low-energy high-waste organism should lose boundary integrity faster"
+        );
+    }
+
+    #[test]
+    fn graph_mode_selects_graph_engine() {
+        let agents = vec![Agent::new(0, 0, [0.0, 0.0])];
+        let nn = NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+        let config = SimConfig {
+            num_organisms: 1,
+            agents_per_organism: 1,
+            metabolism_mode: MetabolismMode::Graph,
+            ..SimConfig::default()
+        };
+        let world = World::new(agents, vec![nn], config);
+        assert!(matches!(world.metabolism, MetabolismEngine::Graph(_)));
+    }
+
+    #[test]
+    fn try_new_rejects_invalid_boundary_decay_config() {
+        let agents = vec![Agent::new(0, 0, [0.0, 0.0])];
+        let nn = NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+        let cfg = SimConfig {
+            num_organisms: 1,
+            agents_per_organism: 1,
+            boundary_decay_base_rate: -0.1,
+            ..SimConfig::default()
+        };
+        let result = World::try_new(agents, vec![nn], cfg);
+        assert!(matches!(
+            result,
+            Err(WorldInitError::InvalidBoundaryDecayBaseRate)
+        ));
+    }
+
+    #[test]
+    fn try_run_experiment_rejects_too_many_steps() {
+        let mut world = make_world(1, 100.0);
+        let result = world.try_run_experiment(World::MAX_EXPERIMENT_STEPS + 1, 1);
+        assert!(matches!(result, Err(ExperimentError::TooManySteps { .. })));
+    }
+
+    #[test]
+    fn organism_dies_when_energy_below_threshold_even_with_boundary_intact() {
+        let mut world = make_world(1, 100.0);
+        world.config.enable_boundary_maintenance = false;
+        world.config.enable_metabolism = true;
+        world.config.death_energy_threshold = 0.1;
+        world.config.death_boundary_threshold = 0.0;
+        world.metabolic_states[0].energy = 0.0;
+        world.metabolic_states[0].resource = 0.0;
+        world.boundary_integrity[0] = 1.0;
+        world.resource_field.set(50.0, 50.0, 0.0);
+
+        world.step();
+
+        assert!(
+            !world.organism_alive[0],
+            "energy failure should be terminal even when boundary remains high"
         );
     }
 }

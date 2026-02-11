@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 /// Per-organism metabolic state.
 #[derive(Clone, Debug)]
 pub struct MetabolicState {
     pub energy: f32,
     pub resource: f32,
     pub waste: f32,
+    // Per-organism carry-over pool for graph intermediates between simulation steps.
+    pub graph_pool: Vec<f32>,
 }
 
 impl Default for MetabolicState {
@@ -12,6 +17,7 @@ impl Default for MetabolicState {
             energy: 0.5,
             resource: 5.0,
             waste: 0.0,
+            graph_pool: Vec::new(),
         }
     }
 }
@@ -100,9 +106,12 @@ impl ToyMetabolism {
     }
 }
 
-#[derive(Clone, Debug)]
+const DEFAULT_EDGE_TRANSFER_EFFICIENCY: f32 = 0.98;
+
+#[derive(Debug)]
 pub struct GraphMetabolism {
     pub graph: MetabolicGraph,
+    pub entry_node_id: u16,
     pub uptake_rate: f32,
     pub conversion_efficiency: f32,
     pub waste_ratio: f32,
@@ -110,6 +119,8 @@ pub struct GraphMetabolism {
     pub max_energy: f32,
     pub waste_decay_rate: f32,
     pub max_waste: f32,
+    pub edge_transfer_efficiency: f32,
+    node_index_cache: OnceLock<HashMap<u16, usize>>,
 }
 
 impl Default for GraphMetabolism {
@@ -117,6 +128,7 @@ impl Default for GraphMetabolism {
         let toy = ToyMetabolism::default();
         Self {
             graph: MetabolicGraph::bootstrap_single_path(),
+            entry_node_id: 0,
             uptake_rate: toy.uptake_rate,
             conversion_efficiency: toy.conversion_efficiency,
             waste_ratio: toy.waste_ratio,
@@ -124,6 +136,39 @@ impl Default for GraphMetabolism {
             max_energy: toy.max_energy,
             waste_decay_rate: toy.waste_decay_rate,
             max_waste: toy.max_waste,
+            edge_transfer_efficiency: DEFAULT_EDGE_TRANSFER_EFFICIENCY,
+            node_index_cache: OnceLock::new(),
+        }
+    }
+}
+
+impl GraphMetabolism {
+    fn node_index_by_id(&self) -> &HashMap<u16, usize> {
+        self.node_index_cache.get_or_init(|| {
+            self.graph
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(idx, node)| (node.id, idx))
+                .collect()
+        })
+    }
+}
+
+impl Clone for GraphMetabolism {
+    fn clone(&self) -> Self {
+        Self {
+            graph: self.graph.clone(),
+            entry_node_id: self.entry_node_id,
+            uptake_rate: self.uptake_rate,
+            conversion_efficiency: self.conversion_efficiency,
+            waste_ratio: self.waste_ratio,
+            energy_loss_rate: self.energy_loss_rate,
+            max_energy: self.max_energy,
+            waste_decay_rate: self.waste_decay_rate,
+            max_waste: self.max_waste,
+            edge_transfer_efficiency: self.edge_transfer_efficiency,
+            node_index_cache: OnceLock::new(),
         }
     }
 }
@@ -135,20 +180,87 @@ impl GraphMetabolism {
         external_resource: f32,
         dt: f32,
     ) -> MetabolismFlux {
-        // Bootstrap behavior: graph topology modulates conversion efficiency.
-        let node_efficiency = if self.graph.nodes.is_empty() {
-            1.0
-        } else {
-            self.graph
-                .nodes
-                .iter()
-                .map(|node| node.catalytic_efficiency)
-                .sum::<f32>()
-                / self.graph.nodes.len() as f32
-        };
-        let converted_eff = (self.conversion_efficiency * node_efficiency).clamp(0.0, 1.0);
-        let params = MetabolismParams::from_graph(self);
-        apply_metabolism_step(params, converted_eff, state, external_resource, dt)
+        if self.graph.nodes.is_empty() {
+            let params = MetabolismParams::from_graph(self);
+            return apply_metabolism_step(
+                params,
+                self.conversion_efficiency.clamp(0.0, 1.0),
+                state,
+                external_resource,
+                dt,
+            );
+        }
+
+        let external_cap = (self.uptake_rate * dt).max(0.0);
+        let consumed_external = external_resource.max(0.0).min(external_cap);
+        state.resource += consumed_external;
+
+        let uptake = (self.uptake_rate * dt).min(state.resource).max(0.0);
+        state.resource -= uptake;
+
+        let node_count = self.graph.nodes.len();
+        if state.graph_pool.len() != node_count {
+            state.graph_pool = vec![0.0; node_count];
+        }
+        let node_index_by_id = self.node_index_by_id();
+        let entry_idx = node_index_by_id
+            .get(&self.entry_node_id)
+            .copied()
+            .unwrap_or(0);
+        state.graph_pool[entry_idx] += uptake;
+        let current = std::mem::take(&mut state.graph_pool);
+        let mut next = vec![0.0f32; node_count];
+
+        let mut terminal_product = 0.0f32;
+        let mut inefficiency_loss = 0.0f32;
+
+        for (idx, node) in self.graph.nodes.iter().enumerate() {
+            let substrate = current[idx].max(0.0);
+            if substrate <= 0.0 {
+                continue;
+            }
+
+            let produced = substrate * node.catalytic_efficiency.clamp(0.0, 1.0);
+            inefficiency_loss += substrate - produced;
+
+            let mut allocated = 0.0f32;
+            for edge in self.graph.edges.iter().filter(|edge| edge.from == node.id) {
+                if let Some(&to_idx) = node_index_by_id.get(&edge.to) {
+                    if allocated >= produced {
+                        break;
+                    }
+                    let ratio = edge.flux_ratio.clamp(0.0, 1.0);
+                    if ratio == 0.0 {
+                        continue;
+                    }
+                    let desired = produced * ratio;
+                    let flow = desired.min(produced - allocated);
+                    let transferred = flow * self.edge_transfer_efficiency.clamp(0.0, 1.0);
+                    next[to_idx] += transferred;
+                    allocated += flow;
+                    inefficiency_loss += flow - transferred;
+                }
+            }
+
+            terminal_product += produced - allocated;
+        }
+
+        state.graph_pool = next;
+
+        state.energy += terminal_product * self.conversion_efficiency.clamp(0.0, 1.0);
+        let produced_waste = inefficiency_loss
+            + terminal_product * (1.0 - self.conversion_efficiency.clamp(0.0, 1.0));
+        state.waste += produced_waste;
+        state.waste = (state.waste - self.waste_decay_rate * dt).clamp(0.0, self.max_waste);
+
+        let retained = (1.0 - self.energy_loss_rate * dt).clamp(0.0, 1.0);
+        state.energy = (state.energy * retained).clamp(0.0, self.max_energy);
+
+        MetabolismFlux {
+            consumed_external,
+            consumed_total: uptake,
+            produced_waste,
+        }
     }
 }
 
@@ -305,5 +417,148 @@ mod tests {
         }
         assert!((0.0..=metabolism.max_energy).contains(&state.energy));
         assert!((0.0..=metabolism.max_waste).contains(&state.waste));
+    }
+
+    #[test]
+    fn graph_topology_changes_energy_outcome() {
+        let mut connected_state = MetabolicState::default();
+        let mut disconnected_state = MetabolicState::default();
+
+        let connected = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 0,
+                        catalytic_efficiency: 1.0,
+                    },
+                    MetabolicNode {
+                        id: 1,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: vec![MetabolicEdge {
+                    from: 0,
+                    to: 1,
+                    flux_ratio: 1.0,
+                }],
+            },
+            conversion_efficiency: 1.0,
+            max_energy: 10.0,
+            ..GraphMetabolism::default()
+        };
+
+        let disconnected = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 0,
+                        catalytic_efficiency: 1.0,
+                    },
+                    MetabolicNode {
+                        id: 1,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: Vec::new(),
+            },
+            conversion_efficiency: 1.0,
+            max_energy: 10.0,
+            ..GraphMetabolism::default()
+        };
+
+        for _ in 0..10 {
+            let _ = connected.step(&mut connected_state, 1.0, 1.0);
+            let _ = disconnected.step(&mut disconnected_state, 1.0, 1.0);
+        }
+
+        assert!(
+            (connected_state.energy - disconnected_state.energy).abs() > f32::EPSILON,
+            "connected and disconnected graphs should produce different energy outcomes"
+        );
+    }
+
+    #[test]
+    fn graph_cycle_retains_mass_in_resource_pool() {
+        let mut state = MetabolicState {
+            energy: 0.0,
+            resource: 0.0,
+            waste: 0.0,
+            ..MetabolicState::default()
+        };
+        let metabolism = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 0,
+                        catalytic_efficiency: 1.0,
+                    },
+                    MetabolicNode {
+                        id: 1,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: vec![
+                    MetabolicEdge {
+                        from: 0,
+                        to: 1,
+                        flux_ratio: 1.0,
+                    },
+                    MetabolicEdge {
+                        from: 1,
+                        to: 0,
+                        flux_ratio: 1.0,
+                    },
+                ],
+            },
+            conversion_efficiency: 1.0,
+            waste_ratio: 0.0,
+            energy_loss_rate: 0.0,
+            max_energy: 10.0,
+            entry_node_id: 0,
+            edge_transfer_efficiency: 1.0,
+            ..GraphMetabolism::default()
+        };
+        let _ = metabolism.step(&mut state, 1.0, 1.0);
+        assert!(
+            state.graph_pool.iter().sum::<f32>() > 0.0,
+            "cycle intermediates should be retained, not lost"
+        );
+    }
+
+    #[test]
+    fn graph_uses_explicit_entry_node_id() {
+        let mut state = MetabolicState {
+            energy: 0.0,
+            resource: 0.0,
+            waste: 0.0,
+            ..MetabolicState::default()
+        };
+        let metabolism = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 10,
+                        catalytic_efficiency: 0.0,
+                    },
+                    MetabolicNode {
+                        id: 20,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: Vec::new(),
+            },
+            conversion_efficiency: 1.0,
+            waste_ratio: 0.0,
+            energy_loss_rate: 0.0,
+            max_energy: 10.0,
+            entry_node_id: 20,
+            edge_transfer_efficiency: 1.0,
+            ..GraphMetabolism::default()
+        };
+        let _ = metabolism.step(&mut state, 1.0, 1.0);
+        assert!(
+            state.energy > 0.0,
+            "entry node id should control external resource injection"
+        );
     }
 }
