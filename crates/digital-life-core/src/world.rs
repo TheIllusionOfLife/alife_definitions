@@ -6,6 +6,7 @@ use std::time::Instant;
 const SENSING_RADIUS: f64 = 5.0;
 const MAX_SPEED: f64 = 2.0;
 const DT: f64 = 0.1;
+const NEIGHBOR_NORM: f32 = 50.0; // normalization divisor for neighbor count NN input
 
 #[derive(Clone, Debug)]
 pub struct StepTimings {
@@ -55,10 +56,12 @@ impl World {
         let t1 = Instant::now();
         let mut deltas: Vec<[f32; 4]> = Vec::with_capacity(self.agents.len());
         for agent in &self.agents {
-            let _neighbors = spatial::query_neighbors(&tree, agent.position, SENSING_RADIUS);
-            let neighbor_count = _neighbors.len() as f32;
+            let neighbor_count =
+                spatial::count_neighbors(&tree, agent.position, SENSING_RADIUS, agent.id);
 
             // Build NN input: position(2) + velocity(2) + internal_state(3) + neighbor_count(1)
+            // internal_state[2] is a constant bias channel (read but not written by NN)
+            // internal_state[3] is reserved for future criteria
             let input: [f32; 8] = [
                 (agent.position[0] / self.world_size) as f32,
                 (agent.position[1] / self.world_size) as f32,
@@ -67,7 +70,7 @@ impl World {
                 agent.internal_state[0],
                 agent.internal_state[1],
                 agent.internal_state[2],
-                neighbor_count / 50.0,
+                neighbor_count as f32 / NEIGHBOR_NORM,
             ];
 
             let nn = &self.nns[agent.organism_id as usize];

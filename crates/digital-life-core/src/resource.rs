@@ -26,15 +26,15 @@ impl ResourceField {
 
     /// Get resource value at position. Coordinates are clamped to grid bounds.
     pub fn get(&self, x: f64, y: f64) -> f32 {
-        let cx = ((x / self.cell_size) as usize).min(self.width - 1);
-        let cy = ((y / self.cell_size) as usize).min(self.height - 1);
+        let cx = ((x / self.cell_size).max(0.0) as usize).min(self.width - 1);
+        let cy = ((y / self.cell_size).max(0.0) as usize).min(self.height - 1);
         self.data[cy * self.width + cx]
     }
 
     /// Set resource value at position. Coordinates are clamped to grid bounds.
     pub fn set(&mut self, x: f64, y: f64, value: f32) {
-        let cx = ((x / self.cell_size) as usize).min(self.width - 1);
-        let cy = ((y / self.cell_size) as usize).min(self.height - 1);
+        let cx = ((x / self.cell_size).max(0.0) as usize).min(self.width - 1);
+        let cy = ((y / self.cell_size).max(0.0) as usize).min(self.height - 1);
         self.data[cy * self.width + cx] = value;
     }
 }

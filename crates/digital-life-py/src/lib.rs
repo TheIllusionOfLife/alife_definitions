@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 /// Minimal PyO3 module exposing digital-life-core to Python.
 #[pyfunction]
 fn version() -> &'static str {
-    "0.1.0"
+    env!("CARGO_PKG_VERSION")
 }
 
 #[pymodule]
