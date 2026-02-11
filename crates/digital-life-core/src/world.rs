@@ -893,4 +893,24 @@ mod tests {
         let result = world.try_run_experiment(World::MAX_EXPERIMENT_STEPS + 1, 1);
         assert!(matches!(result, Err(ExperimentError::TooManySteps { .. })));
     }
+
+    #[test]
+    fn organism_dies_when_energy_below_threshold_even_with_boundary_intact() {
+        let mut world = make_world(1, 100.0);
+        world.config.enable_boundary_maintenance = false;
+        world.config.enable_metabolism = true;
+        world.config.death_energy_threshold = 0.1;
+        world.config.death_boundary_threshold = 0.0;
+        world.metabolic_states[0].energy = 0.0;
+        world.metabolic_states[0].resource = 0.0;
+        world.boundary_integrity[0] = 1.0;
+        world.resource_field.set(50.0, 50.0, 0.0);
+
+        world.step();
+
+        assert!(
+            !world.organism_alive[0],
+            "energy failure should be terminal even when boundary remains high"
+        );
+    }
 }

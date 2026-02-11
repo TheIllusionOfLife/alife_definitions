@@ -475,4 +475,83 @@ mod tests {
             "connected and disconnected graphs should produce different energy outcomes"
         );
     }
+
+    #[test]
+    fn graph_cycle_retains_mass_in_resource_pool() {
+        let mut state = MetabolicState {
+            energy: 0.0,
+            resource: 0.0,
+            waste: 0.0,
+            ..MetabolicState::default()
+        };
+        let metabolism = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 0,
+                        catalytic_efficiency: 1.0,
+                    },
+                    MetabolicNode {
+                        id: 1,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: vec![
+                    MetabolicEdge {
+                        from: 0,
+                        to: 1,
+                        flux_ratio: 1.0,
+                    },
+                    MetabolicEdge {
+                        from: 1,
+                        to: 0,
+                        flux_ratio: 1.0,
+                    },
+                ],
+            },
+            conversion_efficiency: 1.0,
+            waste_ratio: 0.0,
+            energy_loss_rate: 0.0,
+            max_energy: 10.0,
+            entry_node_id: 0,
+            edge_transfer_efficiency: 1.0,
+            ..GraphMetabolism::default()
+        };
+        let _ = metabolism.step(&mut state, 1.0, 1.0);
+        assert!(state.resource > 0.0, "cycle intermediates should be retained, not lost");
+    }
+
+    #[test]
+    fn graph_uses_explicit_entry_node_id() {
+        let mut state = MetabolicState {
+            energy: 0.0,
+            resource: 0.0,
+            waste: 0.0,
+            ..MetabolicState::default()
+        };
+        let metabolism = GraphMetabolism {
+            graph: MetabolicGraph {
+                nodes: vec![
+                    MetabolicNode {
+                        id: 10,
+                        catalytic_efficiency: 0.0,
+                    },
+                    MetabolicNode {
+                        id: 20,
+                        catalytic_efficiency: 1.0,
+                    },
+                ],
+                edges: Vec::new(),
+            },
+            conversion_efficiency: 1.0,
+            waste_ratio: 0.0,
+            energy_loss_rate: 0.0,
+            max_energy: 10.0,
+            entry_node_id: 20,
+            edge_transfer_efficiency: 1.0,
+            ..GraphMetabolism::default()
+        };
+        let _ = metabolism.step(&mut state, 1.0, 1.0);
+        assert!(state.energy > 0.0, "entry node id should control external resource injection");
+    }
 }
