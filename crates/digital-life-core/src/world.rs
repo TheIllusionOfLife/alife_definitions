@@ -1,7 +1,8 @@
 use crate::agent::Agent;
 use crate::config::SimConfig;
-use crate::metabolism::{MetabolicState, ToyMetabolism};
+use crate::metabolism::{MetabolicState, MetabolismEngine};
 use crate::nn::NeuralNet;
+use crate::resource::ResourceField;
 use crate::spatial;
 use std::time::Instant;
 use std::{error::Error, fmt};
@@ -17,9 +18,10 @@ pub struct StepTimings {
 pub struct World {
     pub agents: Vec<Agent>,
     pub nns: Vec<NeuralNet>, // one per organism
-    pub config: SimConfig,
+    config: SimConfig,
     metabolic_states: Vec<MetabolicState>,
-    metabolism: ToyMetabolism,
+    metabolism: MetabolismEngine,
+    resource_field: ResourceField,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +32,7 @@ pub enum WorldInitError {
     InvalidSensingRadius,
     InvalidNeighborNorm,
     NumOrganismsMismatch { expected: usize, actual: usize },
+    AgentCountMismatch { expected: usize, actual: usize },
     InvalidOrganismId,
 }
 
@@ -48,6 +51,10 @@ impl fmt::Display for WorldInitError {
             WorldInitError::NumOrganismsMismatch { expected, actual } => write!(
                 f,
                 "num_organisms ({expected}) must match nns.len() ({actual})"
+            ),
+            WorldInitError::AgentCountMismatch { expected, actual } => write!(
+                f,
+                "agents.len() ({actual}) must match num_organisms * agents_per_organism ({expected})"
             ),
             WorldInitError::InvalidOrganismId => {
                 write!(f, "all agent organism_ids must be valid indices into nns")
@@ -68,6 +75,25 @@ impl World {
         nns: Vec<NeuralNet>,
         config: SimConfig,
     ) -> Result<Self, WorldInitError> {
+        Self::validate_config_for_state(&agents, &nns, &config)?;
+        let world_size = config.world_size;
+
+        let metabolic_states = vec![MetabolicState::default(); nns.len()];
+        Ok(Self {
+            agents,
+            nns,
+            config,
+            metabolic_states,
+            metabolism: MetabolismEngine::default(),
+            resource_field: ResourceField::new(world_size, 1.0, 1.0),
+        })
+    }
+
+    fn validate_config_for_state(
+        agents: &[Agent],
+        nns: &[NeuralNet],
+        config: &SimConfig,
+    ) -> Result<(), WorldInitError> {
         if !(config.world_size.is_finite() && config.world_size > 0.0) {
             return Err(WorldInitError::InvalidWorldSize);
         }
@@ -89,18 +115,38 @@ impl World {
                 actual: nns.len(),
             });
         }
+        let expected_agent_count = config.num_organisms * config.agents_per_organism;
+        if agents.len() != expected_agent_count {
+            return Err(WorldInitError::AgentCountMismatch {
+                expected: expected_agent_count,
+                actual: agents.len(),
+            });
+        }
         if !agents.iter().all(|a| (a.organism_id as usize) < nns.len()) {
             return Err(WorldInitError::InvalidOrganismId);
         }
+        Ok(())
+    }
 
-        let metabolic_states = vec![MetabolicState::default(); nns.len()];
-        Ok(Self {
-            agents,
-            nns,
-            config,
-            metabolic_states,
-            metabolism: ToyMetabolism::default(),
-        })
+    pub fn config(&self) -> &SimConfig {
+        &self.config
+    }
+
+    pub fn set_config(&mut self, config: SimConfig) -> Result<(), WorldInitError> {
+        Self::validate_config_for_state(&self.agents, &self.nns, &config)?;
+        if (self.config.world_size - config.world_size).abs() > f64::EPSILON {
+            self.resource_field = ResourceField::new(config.world_size, 1.0, 1.0);
+        }
+        self.config = config;
+        Ok(())
+    }
+
+    pub fn set_metabolism_engine(&mut self, engine: MetabolismEngine) {
+        self.metabolism = engine;
+    }
+
+    pub fn resource_field(&self) -> &ResourceField {
+        &self.resource_field
     }
 
     pub fn metabolic_state(&self, organism_id: usize) -> &MetabolicState {
@@ -143,7 +189,7 @@ impl World {
                 agent.internal_state[0],
                 agent.internal_state[1],
                 agent.internal_state[2],
-                neighbor_count as f32 / self.config.neighbor_norm,
+                neighbor_count as f32 / self.config.neighbor_norm as f32,
             ];
 
             let nn = &self.nns[agent.organism_id as usize];
@@ -180,9 +226,40 @@ impl World {
                 (agent.internal_state[1] + delta[3] * self.config.dt as f32).clamp(0.0, 1.0);
         }
 
-        // Update per-organism toy metabolism state.
-        for state in &mut self.metabolic_states {
-            self.metabolism.step(state, self.config.dt as f32);
+        if self.config.enable_boundary_maintenance {
+            for agent in &mut self.agents {
+                agent.internal_state[2] =
+                    (agent.internal_state[2] - (self.config.dt as f32 * 0.001)).clamp(0.0, 1.0);
+            }
+        }
+
+        if self.config.enable_metabolism {
+            let mut pos_acc = vec![[0.0f64, 0.0f64]; self.nns.len()];
+            let mut counts = vec![0usize; self.nns.len()];
+            for agent in &self.agents {
+                let idx = agent.organism_id as usize;
+                pos_acc[idx][0] += agent.position[0];
+                pos_acc[idx][1] += agent.position[1];
+                counts[idx] += 1;
+            }
+
+            for (org_id, state) in self.metabolic_states.iter_mut().enumerate() {
+                let center = if counts[org_id] > 0 {
+                    [
+                        pos_acc[org_id][0] / counts[org_id] as f64,
+                        pos_acc[org_id][1] / counts[org_id] as f64,
+                    ]
+                } else {
+                    [0.0, 0.0]
+                };
+                let external = self.resource_field.get(center[0], center[1]);
+                let flux = self.metabolism.step(state, external, self.config.dt as f32);
+                if flux.consumed_external > 0.0 {
+                    let _ = self
+                        .resource_field
+                        .take(center[0], center[1], flux.consumed_external);
+                }
+            }
         }
         let state_update_us = t2.elapsed().as_micros() as u64;
 
@@ -209,6 +286,7 @@ mod tests {
         let config = SimConfig {
             world_size,
             num_organisms: 1,
+            agents_per_organism: num_agents,
             ..SimConfig::default()
         };
         World::new(agents, vec![nn], config)
@@ -219,6 +297,7 @@ mod tests {
             world_size,
             dt,
             num_organisms: 1,
+            agents_per_organism: 1,
             ..SimConfig::default()
         }
     }
@@ -320,7 +399,11 @@ mod tests {
         world.agents[0].velocity = [1.0, 0.0];
         world.nns[0] =
             NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
-        world.config.dt = 0.5;
+        let mut config = world.config().clone();
+        config.dt = 0.5;
+        world
+            .set_config(config)
+            .expect("config with positive dt should be valid");
         world.step();
         assert!(
             (world.agents[0].position[0] - 50.5).abs() < 1e-6,
@@ -341,5 +424,44 @@ mod tests {
     fn try_metabolic_state_returns_none_for_out_of_range() {
         let world = make_world(1, 100.0);
         assert!(world.try_metabolic_state(10).is_none());
+    }
+
+    #[test]
+    fn try_new_rejects_agent_count_mismatch() {
+        let agents = vec![Agent::new(0, 0, [0.0, 0.0])];
+        let nn = NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+        let mut cfg = make_config(100.0, 0.1);
+        cfg.num_organisms = 1;
+        cfg.agents_per_organism = 2;
+        match World::try_new(agents, vec![nn], cfg) {
+            Err(WorldInitError::AgentCountMismatch {
+                expected: 2,
+                actual: 1,
+            }) => {}
+            Err(other) => panic!("unexpected error: {other}"),
+            Ok(_) => panic!("expected try_new to fail for agent count mismatch"),
+        }
+    }
+
+    #[test]
+    fn set_config_rejects_invalid_update() {
+        let mut world = make_world(1, 100.0);
+        let mut cfg = world.config().clone();
+        cfg.dt = -0.1;
+        let result = world.set_config(cfg);
+        assert!(matches!(result, Err(WorldInitError::InvalidDt)));
+    }
+
+    #[test]
+    fn metabolism_consumes_world_resource_field() {
+        let mut world = make_world(1, 100.0);
+        world.agents[0].position = [10.0, 10.0];
+        let before = world.resource_field().get(10.0, 10.0);
+        world.step();
+        let after = world.resource_field().get(10.0, 10.0);
+        assert!(
+            after <= before,
+            "resource field should be consumed by metabolism"
+        );
     }
 }

@@ -9,7 +9,9 @@ pub struct SimConfig {
     pub sensing_radius: f64,
     pub max_speed: f64,
     pub dt: f64,
-    pub neighbor_norm: f32,
+    pub neighbor_norm: f64,
+    pub enable_metabolism: bool,
+    pub enable_boundary_maintenance: bool,
 }
 
 impl Default for SimConfig {
@@ -23,6 +25,8 @@ impl Default for SimConfig {
             max_speed: 2.0,
             dt: 0.1,
             neighbor_norm: 50.0,
+            enable_metabolism: true,
+            enable_boundary_maintenance: true,
         }
     }
 }
