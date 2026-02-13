@@ -110,6 +110,10 @@ pub enum WorldInitError {
     InvalidMutationScaleBounds,
     InvalidMutationValueLimit,
     InvalidMutationProbabilityBudget,
+    InvalidHomeostasisDecayRate,
+    InvalidGrowthMaturationSteps,
+    InvalidGrowthImmatureMetabolicEfficiency,
+    InvalidResourceRegenerationRate,
     WorldSizeTooLarge { max: f64, actual: f64 },
     AgentCountOverflow,
     TooManyAgents { max: usize, actual: usize },
@@ -219,6 +223,21 @@ impl fmt::Display for WorldInitError {
                     f,
                     "mutation_point_rate + mutation_reset_rate + mutation_scale_rate must be <= 1.0"
                 )
+            }
+            WorldInitError::InvalidHomeostasisDecayRate => {
+                write!(f, "homeostasis_decay_rate must be finite and non-negative")
+            }
+            WorldInitError::InvalidGrowthMaturationSteps => {
+                write!(f, "growth_maturation_steps must be positive")
+            }
+            WorldInitError::InvalidGrowthImmatureMetabolicEfficiency => {
+                write!(
+                    f,
+                    "growth_immature_metabolic_efficiency must be finite and within [0,1]"
+                )
+            }
+            WorldInitError::InvalidResourceRegenerationRate => {
+                write!(f, "resource_regeneration_rate must be finite and non-negative")
             }
             WorldInitError::WorldSizeTooLarge { max, actual } => {
                 write!(f, "world_size ({actual}) exceeds supported maximum ({max})")
@@ -331,6 +350,7 @@ impl World {
                     ancestor_genome: genome,
                     nn,
                     agent_ids: Vec::new(),
+                    maturity: 1.0,
                 }
             })
             .collect();
@@ -517,6 +537,22 @@ impl World {
             config.mutation_point_rate + config.mutation_reset_rate + config.mutation_scale_rate;
         if mutation_budget > 1.0 + f32::EPSILON {
             return Err(WorldInitError::InvalidMutationProbabilityBudget);
+        }
+        if !(config.homeostasis_decay_rate.is_finite() && config.homeostasis_decay_rate >= 0.0) {
+            return Err(WorldInitError::InvalidHomeostasisDecayRate);
+        }
+        if config.growth_maturation_steps == 0 {
+            return Err(WorldInitError::InvalidGrowthMaturationSteps);
+        }
+        if !(config.growth_immature_metabolic_efficiency.is_finite()
+            && (0.0..=1.0).contains(&config.growth_immature_metabolic_efficiency))
+        {
+            return Err(WorldInitError::InvalidGrowthImmatureMetabolicEfficiency);
+        }
+        if !(config.resource_regeneration_rate.is_finite()
+            && config.resource_regeneration_rate >= 0.0)
+        {
+            return Err(WorldInitError::InvalidResourceRegenerationRate);
         }
         Ok(())
     }
@@ -829,9 +865,11 @@ impl World {
             .iter()
             .enumerate()
             .filter_map(|(idx, org)| {
+                let mature_enough = org.maturity >= 1.0;
                 (org.alive
                     && org.metabolic_state.energy >= self.config.reproduction_min_energy
-                    && org.boundary_integrity >= self.config.reproduction_min_boundary)
+                    && org.boundary_integrity >= self.config.reproduction_min_boundary
+                    && mature_enough)
                     .then_some(idx)
             })
             .collect();
@@ -929,6 +967,7 @@ impl World {
                 ancestor_genome: parent_ancestor,
                 nn: child_nn,
                 agent_ids: child_agent_ids,
+                maturity: 0.0,
             };
             self.next_organism_stable_id = self.next_organism_stable_id.saturating_add(1);
             self.organisms.push(child);
@@ -1020,6 +1059,11 @@ impl World {
             agent.position[1] = (agent.position[1] + agent.velocity[1] * self.config.dt)
                 .rem_euclid(self.config.world_size);
 
+            // Homeostatic entropy: internal state decays toward 0 each step
+            let h_decay = self.config.homeostasis_decay_rate * self.config.dt as f32;
+            agent.internal_state[0] = (agent.internal_state[0] - h_decay).max(0.0);
+            agent.internal_state[1] = (agent.internal_state[1] - h_decay).max(0.0);
+
             if self.config.enable_homeostasis {
                 agent.internal_state[0] =
                     (agent.internal_state[0] + delta[2] * self.config.dt as f32).clamp(0.0, 1.0);
@@ -1029,6 +1073,23 @@ impl World {
         }
 
         if self.config.enable_boundary_maintenance {
+            // Pre-collect average internal_state[0] per organism for homeostasis coupling
+            let homeostasis_factors: Vec<f32> = {
+                let mut sums = vec![0.0f32; self.organisms.len()];
+                let mut counts = vec![0usize; self.organisms.len()];
+                for agent in &self.agents {
+                    let idx = agent.organism_id as usize;
+                    if self.organisms[idx].alive {
+                        sums[idx] += agent.internal_state[0];
+                        counts[idx] += 1;
+                    }
+                }
+                sums.iter()
+                    .zip(counts.iter())
+                    .map(|(&s, &c)| if c > 0 { s / c as f32 } else { 0.5 })
+                    .collect()
+            };
+
             let dt = self.config.dt as f32;
             let mut to_kill = Vec::new();
             for (org_idx, org) in self.organisms.iter_mut().enumerate() {
@@ -1044,12 +1105,14 @@ impl World {
                         * (energy_deficit
                             + org.metabolic_state.waste
                                 * self.config.boundary_waste_pressure_scale);
+                let homeostasis_factor = homeostasis_factors[org_idx];
                 let repair = (org.metabolic_state.energy
                     - org.metabolic_state.waste
                         * self.config.boundary_waste_pressure_scale
                         * self.config.boundary_repair_waste_penalty_scale)
                     .max(0.0)
-                    * self.config.boundary_repair_rate;
+                    * self.config.boundary_repair_rate
+                    * homeostasis_factor;
                 org.boundary_integrity =
                     (org.boundary_integrity - decay * dt + repair * dt).clamp(0.0, 1.0);
                 if org.boundary_integrity <= boundary_terminal_threshold {
@@ -1108,9 +1171,21 @@ impl World {
                     [0.0, 0.0]
                 };
                 let external = self.resource_field.get(center[0], center[1]);
+                let pre_energy = org.metabolic_state.energy;
                 let flux =
                     self.metabolism
                         .step(&mut org.metabolic_state, external, self.config.dt as f32);
+                // Growth: immature organisms have reduced metabolic efficiency (gains only)
+                {
+                    let energy_delta = org.metabolic_state.energy - pre_energy;
+                    if energy_delta > 0.0 {
+                        let growth_factor = self.config.growth_immature_metabolic_efficiency
+                            + org.maturity
+                                * (1.0 - self.config.growth_immature_metabolic_efficiency);
+                        org.metabolic_state.energy = pre_energy + energy_delta * growth_factor;
+                    }
+                    // energy losses from metabolism are preserved as-is
+                }
                 if flux.consumed_external > 0.0 {
                     let _ = self
                         .resource_field
@@ -1137,6 +1212,12 @@ impl World {
             if org.age_steps > self.config.max_organism_age_steps {
                 to_kill.push(org_idx);
                 continue;
+            }
+
+            // Growth: advance maturation
+            if self.config.enable_growth && org.maturity < 1.0 {
+                org.maturity =
+                    (org.maturity + 1.0 / self.config.growth_maturation_steps as f32).min(1.0);
             }
 
             let avg_neighbors = if neighbor_counts[org_idx] > 0 {
@@ -1170,6 +1251,12 @@ impl World {
         {
             self.prune_dead_entities();
         }
+
+        if self.config.resource_regeneration_rate > 0.0 {
+            self.resource_field
+                .regenerate(self.config.resource_regeneration_rate * self.config.dt as f32);
+        }
+
         let state_update_us = t2.elapsed().as_micros() as u64;
 
         StepTimings {
@@ -1388,6 +1475,7 @@ mod tests {
     #[test]
     fn toroidal_center_uses_wrapped_mean_for_resource_sampling() {
         let mut world = make_world(2, 100.0);
+        world.config.resource_regeneration_rate = 0.0;
         world.agents[0].position = [0.1, 50.0];
         world.agents[1].position = [99.9, 50.0];
         world.resource_field_mut().set(0.0, 50.0, 2.0);
@@ -1608,9 +1696,10 @@ mod tests {
     }
 
     #[test]
-    fn disable_homeostasis_freezes_internal_state() {
+    fn disable_homeostasis_allows_state_decay() {
         let mut world = make_world(10, 100.0);
         world.config.enable_homeostasis = false;
+        world.config.homeostasis_decay_rate = 0.05;
         // Disable metabolism and boundary to ensure organism survives all steps
         world.config.enable_metabolism = false;
         world.config.enable_boundary_maintenance = false;
@@ -1618,7 +1707,7 @@ mod tests {
         world.config.boundary_collapse_threshold = 0.0;
         world.config.death_energy_threshold = 0.0;
         world.config.enable_reproduction = false;
-        let before = world.agents[0].internal_state;
+        let before_0 = world.agents[0].internal_state[0]; // starts at 0.5
         for _ in 0..50 {
             world.step();
         }
@@ -1626,13 +1715,104 @@ mod tests {
             world.organisms[0].alive,
             "organism must survive for valid test"
         );
-        assert_eq!(
-            world.agents[0].internal_state[0], before[0],
-            "internal_state[0] should not change when homeostasis is disabled"
+        assert!(
+            world.agents[0].internal_state[0] < before_0,
+            "internal_state[0] should decay when homeostasis is disabled"
         );
-        assert_eq!(
-            world.agents[0].internal_state[1], before[1],
-            "internal_state[1] should not change when homeostasis is disabled"
+    }
+
+    #[test]
+    fn homeostasis_decay_reduces_internal_state() {
+        let mut world = make_world(1, 100.0);
+        // Use zero NN weights so NN delta is ~0
+        world.organisms[0].nn =
+            NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+        world.config.enable_homeostasis = false;
+        world.config.homeostasis_decay_rate = 0.1;
+        world.config.enable_metabolism = false;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.config.enable_reproduction = false;
+        let before = world.agents[0].internal_state[0]; // 0.5
+        world.step();
+        assert!(
+            world.agents[0].internal_state[0] < before,
+            "internal_state[0] should decrease after one step with decay"
+        );
+    }
+
+    #[test]
+    fn homeostasis_enabled_counteracts_decay() {
+        // NN with large positive weights should produce positive delta[2] to counteract decay
+        let mut world = make_world(1, 100.0);
+        world.organisms[0].nn =
+            NeuralNet::from_weights(std::iter::repeat_n(1.0f32, NeuralNet::WEIGHT_COUNT));
+        world.config.enable_homeostasis = true;
+        world.config.homeostasis_decay_rate = 0.001; // small decay
+        world.config.enable_metabolism = false;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.config.enable_reproduction = false;
+
+        // Comparison: same config but homeostasis disabled
+        let mut world_no = make_world(1, 100.0);
+        world_no.organisms[0].nn =
+            NeuralNet::from_weights(std::iter::repeat_n(1.0f32, NeuralNet::WEIGHT_COUNT));
+        world_no.config.enable_homeostasis = false;
+        world_no.config.homeostasis_decay_rate = 0.001;
+        world_no.config.enable_metabolism = false;
+        world_no.config.enable_boundary_maintenance = false;
+        world_no.config.death_boundary_threshold = 0.0;
+        world_no.config.boundary_collapse_threshold = 0.0;
+        world_no.config.death_energy_threshold = 0.0;
+        world_no.config.enable_reproduction = false;
+
+        for _ in 0..50 {
+            world.step();
+            world_no.step();
+        }
+        assert!(
+            world.agents[0].internal_state[0] > world_no.agents[0].internal_state[0],
+            "homeostasis-enabled should maintain higher internal_state than disabled"
+        );
+    }
+
+    #[test]
+    fn homeostasis_modulates_boundary_repair() {
+        // High internal_state[0] → better boundary repair
+        let mut world_high = make_world(10, 100.0);
+        world_high.config.enable_homeostasis = false;
+        world_high.config.homeostasis_decay_rate = 0.0; // no decay, state stays at 0.5
+        world_high.config.enable_metabolism = false;
+        world_high.config.enable_reproduction = false;
+        for a in &mut world_high.agents {
+            a.internal_state[0] = 0.9;
+        }
+
+        let mut world_low = make_world(10, 100.0);
+        world_low.config.enable_homeostasis = false;
+        world_low.config.homeostasis_decay_rate = 0.0;
+        world_low.config.enable_metabolism = false;
+        world_low.config.enable_reproduction = false;
+        for a in &mut world_low.agents {
+            a.internal_state[0] = 0.1;
+        }
+
+        // Give both organisms some energy for repair
+        world_high.organisms[0].metabolic_state.energy = 0.8;
+        world_low.organisms[0].metabolic_state.energy = 0.8;
+
+        for _ in 0..50 {
+            world_high.step();
+            world_low.step();
+        }
+        assert!(
+            world_high.organisms[0].boundary_integrity > world_low.organisms[0].boundary_integrity,
+            "organism with high internal_state[0] should have better boundary"
         );
     }
 
@@ -1713,28 +1893,142 @@ mod tests {
     }
 
     #[test]
-    fn disable_growth_is_noop() {
-        // Growth toggle is a placeholder — disabling it should produce identical results
-        let agents_a: Vec<Agent> = (0..20)
-            .map(|i| Agent::new(i as u32, 0, [50.0, 50.0]))
-            .collect();
-        let nn = NeuralNet::from_weights(std::iter::repeat_n(0.1f32, NeuralNet::WEIGHT_COUNT));
-        let config = SimConfig {
-            seed: 42,
-            num_organisms: 1,
-            agents_per_organism: 20,
-            ..SimConfig::default()
-        };
-        let mut with_growth = World::new(agents_a.clone(), vec![nn.clone()], config.clone());
-        let mut cfg_no_growth = config;
-        cfg_no_growth.enable_growth = false;
-        let mut without_growth = World::new(agents_a, vec![nn], cfg_no_growth);
+    fn organism_matures_over_time() {
+        let mut world = make_world(10, 100.0);
+        world.config.enable_growth = true;
+        world.config.growth_maturation_steps = 100;
+        world.config.enable_metabolism = false;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.config.enable_reproduction = false;
+        // Bootstrap organisms start at maturity 1.0
+        assert!((world.organisms[0].maturity - 1.0).abs() < f32::EPSILON);
 
-        let ra = with_growth.run_experiment(30, 1);
-        let rb = without_growth.run_experiment(30, 1);
+        // Simulate a child by setting maturity to 0.0
+        world.organisms[0].maturity = 0.0;
+        for _ in 0..100 {
+            world.step();
+        }
+        assert!(
+            (world.organisms[0].maturity - 1.0).abs() < 0.02,
+            "organism should reach maturity ~1.0 after growth_maturation_steps"
+        );
+    }
 
-        let alive_a: Vec<usize> = ra.samples.iter().map(|s| s.alive_count).collect();
-        let alive_b: Vec<usize> = rb.samples.iter().map(|s| s.alive_count).collect();
-        assert_eq!(alive_a, alive_b, "disable_growth should be a no-op");
+    #[test]
+    fn immature_organism_has_reduced_metabolic_efficiency() {
+        // Maturity always modulates metabolic efficiency regardless of enable_growth
+        let mut world_immature = make_world(10, 100.0);
+        world_immature.config.growth_immature_metabolic_efficiency = 0.3;
+        world_immature.config.enable_boundary_maintenance = false;
+        world_immature.config.death_boundary_threshold = 0.0;
+        world_immature.config.boundary_collapse_threshold = 0.0;
+        world_immature.config.death_energy_threshold = 0.0;
+        world_immature.config.enable_reproduction = false;
+        world_immature.organisms[0].maturity = 0.0;
+        world_immature.organisms[0].metabolic_state.energy = 0.5;
+
+        let mut world_mature = make_world(10, 100.0);
+        world_mature.config.growth_immature_metabolic_efficiency = 0.3;
+        world_mature.config.enable_boundary_maintenance = false;
+        world_mature.config.death_boundary_threshold = 0.0;
+        world_mature.config.boundary_collapse_threshold = 0.0;
+        world_mature.config.death_energy_threshold = 0.0;
+        world_mature.config.enable_reproduction = false;
+        world_mature.organisms[0].maturity = 1.0;
+        world_mature.organisms[0].metabolic_state.energy = 0.5;
+
+        for _ in 0..10 {
+            world_immature.step();
+            world_mature.step();
+        }
+        assert!(
+            world_mature.organisms[0].metabolic_state.energy
+                > world_immature.organisms[0].metabolic_state.energy,
+            "mature organism should have higher energy than immature"
+        );
+    }
+
+    #[test]
+    fn growth_factor_preserves_energy_loss() {
+        // When metabolism causes net energy loss, growth factor must NOT mask it.
+        // With the old bug (.max(0.0) on energy delta), losses were silently discarded.
+        let mut world = make_world(10, 100.0);
+        world.config.growth_immature_metabolic_efficiency = 0.3;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.config.enable_reproduction = false;
+        world.config.resource_regeneration_rate = 0.0;
+        world.organisms[0].maturity = 0.0; // fully immature
+
+        // Deplete ALL resource sources: world grid, internal pool, and graph pool.
+        // This forces metabolism's energy_loss_rate to dominate → net energy decrease.
+        let w = world.resource_field.width();
+        let h = world.resource_field.height();
+        let cs = world.resource_field.cell_size();
+        for y in 0..h {
+            for x in 0..w {
+                world.resource_field.set(x as f64 * cs, y as f64 * cs, 0.0);
+            }
+        }
+        world.organisms[0].metabolic_state.resource = 0.0;
+        world.organisms[0].metabolic_state.graph_pool.clear();
+
+        let initial_energy = world.organisms[0].metabolic_state.energy;
+        for _ in 0..50 {
+            world.step();
+        }
+        assert!(
+            world.organisms[0].metabolic_state.energy < initial_energy,
+            "energy should decrease when all resources are depleted, even for immature organisms \
+             (got {} >= initial {})",
+            world.organisms[0].metabolic_state.energy,
+            initial_energy
+        );
+    }
+
+    #[test]
+    fn immature_organism_cannot_reproduce() {
+        let mut world = make_world(10, 100.0);
+        world.config.enable_metabolism = false;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.organisms[0].maturity = 0.5; // not fully mature
+        world.organisms[0].metabolic_state.energy = 1.0;
+        world.organisms[0].boundary_integrity = 1.0;
+        let before = world.organism_count();
+        world.step();
+        assert_eq!(
+            world.organism_count(),
+            before,
+            "immature organism should not reproduce"
+        );
+    }
+
+    #[test]
+    fn growth_disabled_prevents_maturation() {
+        let mut world = make_world(10, 100.0);
+        world.config.enable_growth = false;
+        world.config.growth_maturation_steps = 100;
+        world.config.enable_metabolism = false;
+        world.config.enable_boundary_maintenance = false;
+        world.config.death_boundary_threshold = 0.0;
+        world.config.boundary_collapse_threshold = 0.0;
+        world.config.death_energy_threshold = 0.0;
+        world.config.enable_reproduction = false;
+        world.organisms[0].maturity = 0.0;
+        for _ in 0..200 {
+            world.step();
+        }
+        assert!(
+            world.organisms[0].maturity < f32::EPSILON,
+            "maturity should stay at 0.0 when growth is disabled"
+        );
     }
 }
