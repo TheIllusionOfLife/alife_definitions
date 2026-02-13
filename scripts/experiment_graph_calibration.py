@@ -22,12 +22,22 @@ SEEDS = list(range(0, 30))  # calibration set
 
 def summarize_results(label: str, results: list[dict]) -> dict:
     """Compute summary statistics for a set of experiment results."""
+    n = len(results)
+    if n == 0:
+        return {
+            "label": label,
+            "n": 0,
+            "alive_mean": 0.0,
+            "alive_min": 0,
+            "alive_max": 0,
+            "energy_mean": 0.0,
+        }
     alive_counts = [r["final_alive_count"] for r in results]
     energies = [r["samples"][-1]["energy_mean"] for r in results if r["samples"]]
     return {
         "label": label,
-        "n": len(results),
-        "alive_mean": sum(alive_counts) / len(alive_counts),
+        "n": n,
+        "alive_mean": sum(alive_counts) / n,
         "alive_min": min(alive_counts),
         "alive_max": max(alive_counts),
         "energy_mean": sum(energies) / len(energies) if energies else 0.0,
