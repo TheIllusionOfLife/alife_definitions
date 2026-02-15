@@ -399,6 +399,28 @@
       }
     ]
   },
+  "cyclic_environment": {
+    "experiment": "cyclic_environment",
+    "evo_on_dist": {
+      "median": 335.0,
+      "q25": 331.25,
+      "q75": 342.0,
+      "mean": 336.03333333333336,
+      "std": 11.586208607005894
+    },
+    "evo_off_dist": {
+      "median": 310.5,
+      "q25": 298.0,
+      "q75": 329.5,
+      "mean": 312.6,
+      "std": 27.758316554341594
+    },
+    "U": 709.5,
+    "p_raw": 6.4e-05,
+    "cohens_d": 1.1017,
+    "cliffs_delta": 0.5767,
+    "significant": true
+  },
   "sham_ablation": {
     "experiment": "sham_ablation",
     "sham_on_dist": {
