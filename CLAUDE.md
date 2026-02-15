@@ -24,6 +24,7 @@ When documents conflict, `docs/research/action-plan.md` takes precedence — it 
 
 - **Hybrid two-layer**: Swarm agents (10-50 per organism) form organism-level structures; organisms (10-50) inhabit a continuous 2D environment
 - **Language**: Rust (core simulation) + Python (experiment management, analysis). Bound via PyO3/maturin
+- **LaTeX**: Use `tectonic` for paper compilation (not pdflatex/latexmk)
 - **Neural controllers**: Evolutionary NN (main). LLM (Ollama) only for a single ablation study experiment
 - **Compute**: Mac Mini M2 Pro. Target: >100 timesteps/sec for 2,500 agents
 - **Metabolism**: Graph-based metabolic networks, genetically encoded and evolvable

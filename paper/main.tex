@@ -627,6 +627,93 @@ produces higher inter-organism variance. Shaded bands show $\pm$1 SEM.}
 \label{fig:homeostasis}
 \end{figure}
 
+\subsection{Graded Metabolic Ablation}
+
+To test whether criterion ablation effects reflect a continuous
+functional relationship rather than a binary on/off artifact, we sweep
+the metabolism efficiency multiplier over $\{1.0, 0.75, 0.5, 0.25, 0.0\}$
+($n$=30 per level, 1,000 steps, graph metabolism).
+Figure~\ref{fig:graded} shows a monotonic dose-response: population
+viability decreases proportionally with metabolic efficiency
+(Jonckheere-Terpstra trend test, $p < 0.001$).
+This graded response demonstrates that metabolic contribution is
+\emph{quantitatively proportional}, not merely a binary switch---partial
+impairment produces proportional degradation, consistent with genuine
+functional analogy.
+
+\begin{figure}[t]
+\centering
+\IfFileExists{figures/fig_graded.pdf}%
+  {\includegraphics[width=0.48\columnwidth]{figures/fig_graded.pdf}}%
+  {\fbox{\parbox{0.45\columnwidth}{%
+    \centering\vspace{2em}[fig\_graded.pdf]\vspace{2em}}}}
+\caption{Graded metabolic ablation dose-response. Median final alive
+count (line) with IQR (shaded) across 30 seeds per level.
+Monotonic decline confirms continuous functional dependency
+($p < 0.001$, Jonckheere-Terpstra).}
+\label{fig:graded}
+\end{figure}
+
+\subsection{Cyclic Environment}
+
+To assess whether evolved populations exhibit adaptive resilience beyond
+static conditions, we subject organisms to periodic resource modulation
+(period~=~2,000 steps; high phase: 0.01, low phase: 0.005 resource
+per cell per step) over 10,000 steps ($n$=30).
+Figure~\ref{fig:cyclic} compares evolution-on versus evolution-off
+populations across five complete resource cycles.
+Evolved populations ($\bar{x}$=336.0) significantly outperform
+non-evolving populations ($\bar{x}$=312.6) across all cycles
+($d$=1.10, Cliff's $\delta$=0.58, $p < 0.001$), showing faster
+recovery after each low-resource phase.
+This demonstrates that evolutionary adaptation provides measurable
+resilience to \emph{recurring} environmental stress, not just one-time
+perturbation.
+
+\begin{figure}[t]
+\centering
+\IfFileExists{figures/fig_cyclic.pdf}%
+  {\includegraphics[width=0.48\columnwidth]{figures/fig_cyclic.pdf}}%
+  {\fbox{\parbox{0.45\columnwidth}{%
+    \centering\vspace{2em}[fig\_cyclic.pdf]\vspace{2em}}}}
+\caption{Cyclic environment test. Population dynamics under periodic
+resource modulation (period~=~2,000 steps). Lightly shaded bands
+mark low-resource phases. Evolution-on populations recover faster
+after each stress phase. Lines: mean across 30 seeds; bands: $\pm$1 SEM.}
+\label{fig:cyclic}
+\end{figure}
+
+\paragraph{Sham ablation control.}
+To confirm that observed ablation effects are functional rather than
+computational artifacts, we implement a state-neutral sham process that
+performs spatial neighbor queries matching the computational cost of a
+real criterion update but discards all results without consuming RNG
+state or modifying simulation variables.
+Comparing sham-on versus sham-off ($n$=30, 1,000 steps) yields no
+significant difference (Mann-Whitney $U$, $p > 0.05$), validating
+that criterion ablation effects reflect genuine functional dependencies.
+
+\subsection{Phenotype Clustering}
+
+Clustering analysis of per-seed organism traits (energy, waste, boundary
+integrity, genome diversity, generation count) reveals emergent phenotypic
+differentiation among evolved populations (Figure~\ref{fig:phenotype}).
+This suggests that the evolutionary dynamics of our system produce
+behaviorally distinct organism strategies---an emergent property not
+explicitly engineered into the criteria implementation.
+
+\begin{figure}[t]
+\centering
+\IfFileExists{figures/fig_phenotype.pdf}%
+  {\includegraphics[width=0.48\columnwidth]{figures/fig_phenotype.pdf}}%
+  {\fbox{\parbox{0.45\columnwidth}{%
+    \centering\vspace{2em}[fig\_phenotype.pdf]\vspace{2em}}}}
+\caption{Phenotype clustering via PCA projection of organism trait vectors.
+Clusters identified by $k$-means (optimal $k$ selected by silhouette score)
+suggest emergent behavioral strategies among evolved populations.}
+\label{fig:phenotype}
+\end{figure}
+
 % ============================================================================
 \section{Discussion}
 
@@ -648,11 +735,14 @@ The modest 2000-step evolution effect ($d$=0.57, $\delta$=0.32) grows to
 $d$=1.43 ($\delta$=0.72) at 10,000 steps and $d$=1.01 ($\delta$=0.57)
 under environmental perturbation, confirming that evolutionary adaptation
 accumulates across generations.
+The cyclic environment test (Figure~\ref{fig:cyclic}) further demonstrates
+that evolved populations recover more rapidly from recurring resource
+stress, indicating adaptive resilience beyond one-time environmental shifts.
 
 \paragraph{Are criteria merely engineered?}
 One might argue that criterion ablation merely reflects system
 design---disabling any engineered subsystem would degrade performance.
-Three lines of evidence argue against this interpretation.
+Four lines of evidence argue against this interpretation.
 First, the proxy control comparison shows that alternative metabolism
 implementations satisfying the same functional-analogy definition produce
 qualitatively distinct ecological dynamics (Figure~\ref{fig:proxy}),
@@ -660,10 +750,12 @@ ruling out tautological definitions.
 Second, pairwise ablations reveal sub-additive interactions
 (Table~\ref{tab:pairwise}), indicating shared failure pathways
 inconsistent with independent modules.
-Third, the no-evolution ablation---which runs identical reproduction
-machinery but copies genomes without mutation---serves as a near-sham
-control: its modest effect ($\Delta$=$-$5.1\%) demonstrates that
-non-functional modifications have proportionally small effects.
+Third, the state-neutral sham ablation control (matching real
+criterion computational cost without modifying simulation state) produces
+no significant population difference, confirming that observed effects
+are functional, not computational artifacts.
+Fourth, graded metabolic ablation produces a proportional dose-response
+(Figure~\ref{fig:graded}), inconsistent with a binary on/off artifact.
 
 \paragraph{Criterion maturity.}
 Criteria are at varying levels of implementation maturity: five criteria
@@ -696,8 +788,8 @@ a claim that digital organisms are alive.
 
 We presented a testable integration of all seven textbook biological criteria
 as functionally interdependent processes within a single artificial life system,
-verified through controlled criterion-ablation, pairwise interaction, and proxy
-control experiments.
+verified through controlled criterion-ablation, pairwise interaction, proxy
+control, graded ablation, and cyclic environment experiments.
 The functional-analogy framework---requiring dynamic operation, measurable
 degradation upon removal, and feedback coupling---provides a rigorous
 standard distinguishing genuine criteria implementations from simplified

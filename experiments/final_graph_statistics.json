@@ -319,5 +319,127 @@
         "significant": true
       }
     ]
+  },
+  "graded_ablation": {
+    "experiment": "graded_ablation",
+    "levels": [
+      {
+        "level": 1.0,
+        "n": 30,
+        "median": 235.0,
+        "q25": 219.5,
+        "q75": 266.5,
+        "mean": 241.63333333333333,
+        "std": 30.692561530985536
+      },
+      {
+        "level": 0.75,
+        "n": 30,
+        "median": 228.0,
+        "q25": 211.75,
+        "q75": 251.5,
+        "mean": 232.46666666666667,
+        "std": 31.667162730536802
+      },
+      {
+        "level": 0.5,
+        "n": 30,
+        "median": 208.0,
+        "q25": 194.25,
+        "q75": 219.25,
+        "mean": 207.23333333333332,
+        "std": 24.099911765947127
+      },
+      {
+        "level": 0.25,
+        "n": 30,
+        "median": 165.5,
+        "q25": 148.75,
+        "q75": 179.75,
+        "mean": 162.43333333333334,
+        "std": 22.56894927249312
+      },
+      {
+        "level": 0.0,
+        "n": 30,
+        "median": 30.0,
+        "q25": 28.25,
+        "q75": 33.0,
+        "mean": 30.233333333333334,
+        "std": 3.2021903423290983
+      }
+    ],
+    "jonckheere_terpstra_stat": 8110.0,
+    "jonckheere_terpstra_p": 0.0,
+    "monotonic_trend": true,
+    "pairwise_vs_full": [
+      {
+        "level": 0.75,
+        "U": 516.0,
+        "p_raw": 0.16635344115678874,
+        "cohens_d": 0.294
+      },
+      {
+        "level": 0.5,
+        "U": 728.5,
+        "p_raw": 1.9606348264250502e-05,
+        "cohens_d": 1.2467
+      },
+      {
+        "level": 0.25,
+        "U": 896.0,
+        "p_raw": 2.235568910441338e-11,
+        "cohens_d": 2.94
+      },
+      {
+        "level": 0.0,
+        "U": 900.0,
+        "p_raw": 1.434107054721092e-11,
+        "cohens_d": 9.688
+      }
+    ]
+  },
+  "cyclic_environment": {
+    "experiment": "cyclic_environment",
+    "evo_on_dist": {
+      "median": 335.0,
+      "q25": 331.25,
+      "q75": 342.0,
+      "mean": 336.03333333333336,
+      "std": 11.586208607005894
+    },
+    "evo_off_dist": {
+      "median": 310.5,
+      "q25": 298.0,
+      "q75": 329.5,
+      "mean": 312.6,
+      "std": 27.758316554341594
+    },
+    "U": 709.5,
+    "p_raw": 6.4e-05,
+    "cohens_d": 1.1017,
+    "cliffs_delta": 0.5767,
+    "significant": true
+  },
+  "sham_ablation": {
+    "experiment": "sham_ablation",
+    "sham_on_dist": {
+      "median": 235.0,
+      "q25": 219.5,
+      "q75": 266.5,
+      "mean": 241.63333333333333,
+      "std": 30.692561530985536
+    },
+    "sham_off_dist": {
+      "median": 235.0,
+      "q25": 219.5,
+      "q75": 266.5,
+      "mean": 241.63333333333333,
+      "std": 30.692561530985536
+    },
+    "U": 450.0,
+    "p_raw": 1.0,
+    "cohens_d": 0.0,
+    "non_significant": true
   }
 }

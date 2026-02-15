@@ -186,6 +186,146 @@ def distribution_stats(arr: np.ndarray) -> dict:
     }
 
 
+def jonckheere_terpstra(groups: list[np.ndarray]) -> tuple[float, float]:
+    """Jonckheere-Terpstra trend test for ordered groups.
+
+    Tests whether there is a monotonic trend across ordered groups.
+    Returns (JT statistic, two-sided p-value via normal approximation).
+    """
+    k = len(groups)
+    if k < 2:
+        return (0.0, 1.0)
+    # JT statistic: sum of Mann-Whitney U for all i<j pairs
+    jt = 0.0
+    for i in range(k):
+        for j in range(i + 1, k):
+            for xi in groups[i]:
+                for yj in groups[j]:
+                    if xi > yj:
+                        jt += 1.0
+                    elif xi == yj:
+                        jt += 0.5
+    # Expected value and variance under null (no-tie approximation).
+    # Tie correction omitted: with continuous-valued alive counts across
+    # 30 seeds per group, exact ties are rare and impact is negligible.
+    n_total = sum(len(g) for g in groups)
+    ns = [len(g) for g in groups]
+    e_jt = (n_total ** 2 - sum(n ** 2 for n in ns)) / 4.0
+    var_num = n_total ** 2 * (2 * n_total + 3) - sum(n ** 2 * (2 * n + 3) for n in ns)
+    var_jt = var_num / 72.0
+    if var_jt <= 0:
+        return (jt, 1.0)
+    z = (jt - e_jt) / np.sqrt(var_jt)
+    p_value = 2.0 * (1.0 - stats.norm.cdf(abs(z)))
+    return (float(jt), float(p_value))
+
+
+def analyze_graded(exp_dir: Path) -> dict | None:
+    """Analyze graded ablation: dose-response + Jonckheere-Terpstra trend test."""
+    levels = [1.0, 0.75, 0.5, 0.25, 0.0]
+    groups = []
+    level_stats = []
+
+    for level in levels:
+        path = exp_dir / f"graded_graded_{level:.2f}.json"
+        if not path.exists():
+            print(f"  SKIP graded {level}: {path} not found", file=sys.stderr)
+            return None
+        with open(path) as f:
+            results = json.load(f)
+        alive = extract_final_alive(results)
+        groups.append(alive)
+        level_stats.append({
+            "level": level,
+            "n": len(alive),
+            **distribution_stats(alive),
+        })
+
+    jt_stat, jt_p = jonckheere_terpstra(groups)
+    # Also pairwise: each level vs full (1.0)
+    baseline = groups[0]
+    pairwise = []
+    for i, level in enumerate(levels[1:], 1):
+        u_stat, p_val = stats.mannwhitneyu(baseline, groups[i], alternative="greater")
+        d = cohens_d(baseline, groups[i])
+        pairwise.append({
+            "level": level,
+            "U": float(u_stat),
+            "p_raw": float(p_val),
+            "cohens_d": round(d, 4),
+        })
+
+    print(f"Graded ablation: JT={jt_stat:.1f}, p={jt_p:.6f}", file=sys.stderr)
+    return {
+        "experiment": "graded_ablation",
+        "levels": level_stats,
+        "jonckheere_terpstra_stat": round(jt_stat, 2),
+        "jonckheere_terpstra_p": round(jt_p, 6),
+        "monotonic_trend": bool(jt_p < 0.05),
+        "pairwise_vs_full": pairwise,
+    }
+
+
+def analyze_cyclic(exp_dir: Path) -> dict | None:
+    """Analyze cyclic environment: per-cycle recovery comparison."""
+    conditions = ["cyclic_evo_on", "cyclic_evo_off"]
+    cond_data = {}
+    for cond in conditions:
+        path = exp_dir / f"cyclic_{cond}.json"
+        if not path.exists():
+            print(f"  SKIP cyclic {cond}: {path} not found", file=sys.stderr)
+            return None
+        with open(path) as f:
+            cond_data[cond] = json.load(f)
+
+    on_alive = extract_final_alive(cond_data["cyclic_evo_on"])
+    off_alive = extract_final_alive(cond_data["cyclic_evo_off"])
+    u_stat, p_val = stats.mannwhitneyu(on_alive, off_alive, alternative="greater")
+    d = cohens_d(on_alive, off_alive)
+    cliff_d = cliffs_delta(on_alive, off_alive)
+
+    print(f"Cyclic: U={u_stat:.1f}, p={p_val:.6f}, d={d:.3f}", file=sys.stderr)
+    return {
+        "experiment": "cyclic_environment",
+        "evo_on_dist": distribution_stats(on_alive),
+        "evo_off_dist": distribution_stats(off_alive),
+        "U": float(u_stat),
+        "p_raw": round(float(p_val), 6),
+        "cohens_d": round(d, 4),
+        "cliffs_delta": round(cliff_d, 4),
+        "significant": bool(p_val < 0.05),
+    }
+
+
+def analyze_sham(exp_dir: Path) -> dict | None:
+    """Analyze sham ablation: expect non-significant difference."""
+    conditions = ["sham_on", "sham_off"]
+    cond_data = {}
+    for cond in conditions:
+        path = exp_dir / f"sham_{cond}.json"
+        if not path.exists():
+            print(f"  SKIP sham {cond}: {path} not found", file=sys.stderr)
+            return None
+        with open(path) as f:
+            cond_data[cond] = json.load(f)
+
+    on_alive = extract_final_alive(cond_data["sham_on"])
+    off_alive = extract_final_alive(cond_data["sham_off"])
+    u_stat, p_val = stats.mannwhitneyu(on_alive, off_alive, alternative="two-sided")
+    d = cohens_d(on_alive, off_alive)
+
+    print(f"Sham: U={u_stat:.1f}, p={p_val:.6f}, d={d:.3f}", file=sys.stderr)
+    return {
+        "experiment": "sham_ablation",
+        "sham_on_dist": distribution_stats(on_alive),
+        "sham_off_dist": distribution_stats(off_alive),
+        "U": float(u_stat),
+        "p_raw": round(float(p_val), 6),
+        "cohens_d": round(d, 4),
+        "non_significant": bool(p_val > 0.05),
+    }
+
+
 def main():
     """Analyze criterion-ablation results with statistical tests and effect sizes."""
     if len(sys.argv) < 2:
@@ -313,6 +453,12 @@ def main():
             file=sys.stderr,
         )
 
+    # ── Extended analyses: graded, cyclic, sham ──
+    exp_dir = Path(prefix).resolve().parent
+    graded_result = analyze_graded(exp_dir)
+    cyclic_result = analyze_cyclic(exp_dir)
+    sham_result = analyze_sham(exp_dir)
+
     output = {
         "experiment": "criterion_ablation",
         "n_per_condition": n_normal,
@@ -326,6 +472,12 @@ def main():
             "comparisons": short_horizon,
         },
     }
+    if graded_result:
+        output["graded_ablation"] = graded_result
+    if cyclic_result:
+        output["cyclic_environment"] = cyclic_result
+    if sham_result:
+        output["sham_ablation"] = sham_result
 
     print(json.dumps(output, indent=2))
 

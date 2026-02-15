@@ -10,6 +10,7 @@ The repository is a Rust workspace with optional Python bindings.
 
 - Rust stable toolchain
 - `uv` for Python environment and packaging tasks
+- `tectonic` for LaTeX paper compilation
 
 ### Build
 

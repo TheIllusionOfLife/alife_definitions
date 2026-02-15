@@ -574,6 +574,152 @@ def generate_ablation_distributions() -> None:
     print(f"  Saved {FIG_DIR / 'fig_distributions.pdf'}")
 
 
+def generate_graded() -> None:
+    """Figure 7: Graded ablation dose-response curve."""
+    exp_dir = PROJECT_ROOT / "experiments"
+    levels = [1.0, 0.75, 0.5, 0.25, 0.0]
+
+    level_data: dict[float, np.ndarray] = {}
+    for level in levels:
+        path = exp_dir / f"graded_graded_{level:.2f}.json"
+        if not path.exists():
+            print(f"  SKIP: {path} not found")
+            return
+        results = load_json(path)
+        level_data[level] = np.array(
+            [r["final_alive_count"] for r in results if "samples" in r]
+        )
+
+    fig, ax = plt.subplots(figsize=(3.4, 2.8))
+
+    medians = [float(np.median(level_data[lv])) for lv in levels]
+    q25s = [float(np.percentile(level_data[lv], 25)) for lv in levels]
+    q75s = [float(np.percentile(level_data[lv], 75)) for lv in levels]
+
+    ax.plot(levels, medians, "o-", color="#0072B2", linewidth=1.5, markersize=5)
+    ax.fill_between(levels, q25s, q75s, color="#0072B2", alpha=0.2)
+
+    ax.set_xlabel("Metabolism Efficiency Multiplier")
+    ax.set_ylabel("Final Alive Count ($N_T$)")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(bottom=0)
+    ax.invert_xaxis()
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "fig_graded.pdf", format="pdf")
+    plt.close(fig)
+    print(f"  Saved {FIG_DIR / 'fig_graded.pdf'}")
+
+
+def generate_cyclic() -> None:
+    """Figure 8: Cyclic environment — population dynamics under periodic stress."""
+    exp_dir = PROJECT_ROOT / "experiments"
+
+    conditions = {
+        "cyclic_evo_on": ("Evolution On", "#000000", "-"),
+        "cyclic_evo_off": ("Evolution Off", "#CC79A7", "--"),
+    }
+
+    cond_data: dict[str, dict[int, list[float]]] = {}
+    for cond in conditions:
+        path = exp_dir / f"cyclic_{cond}.json"
+        if not path.exists():
+            print(f"  SKIP: {path} not found")
+            return
+        results = load_json(path)
+        step_vals: dict[int, list[float]] = defaultdict(list)
+        for r in results:
+            for s in r["samples"]:
+                step_vals[s["step"]].append(s["alive_count"])
+        cond_data[cond] = step_vals
+
+    fig, ax = plt.subplots(figsize=(3.4, 2.8))
+
+    for cond, (label, color, ls) in conditions.items():
+        steps = sorted(cond_data[cond].keys())
+        means = [np.mean(cond_data[cond][s]) for s in steps]
+        sems = [np.std(cond_data[cond][s], ddof=1) / np.sqrt(len(cond_data[cond][s]))
+                for s in steps]
+        means, sems = np.array(means), np.array(sems)
+        lw = 2.0 if "evo_on" in cond else 1.2
+        ax.plot(steps, means, color=color, linewidth=lw, linestyle=ls, label=label)
+        ax.fill_between(steps, means - sems, means + sems,
+                        color=color, alpha=0.15)
+
+    # Mark cycle boundaries
+    cycle_period = 2000
+    for i in range(1, 6):
+        ax.axvline(x=i * cycle_period, color="#888888", linestyle=":", linewidth=0.5)
+
+    # Shade low-rate phases
+    max_step = max(max(cond_data[c].keys()) for c in conditions)
+    phase = 0
+    for start in range(0, int(max_step) + 1, cycle_period):
+        if phase % 2 == 1:
+            ax.axvspan(start, min(start + cycle_period, max_step),
+                       color="#FF0000", alpha=0.03)
+        phase += 1
+
+    ax.set_xlabel("Simulation Step")
+    ax.set_ylabel("Mean Alive Count ($n$=30)")
+    ax.set_ylim(bottom=0)
+    ax.legend(loc="lower right", fontsize=7)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "fig_cyclic.pdf", format="pdf")
+    plt.close(fig)
+    print(f"  Saved {FIG_DIR / 'fig_cyclic.pdf'}")
+
+
+def generate_phenotype() -> None:
+    """Figure 9: Phenotype clustering scatter plot."""
+    analysis_path = PROJECT_ROOT / "experiments" / "phenotype_analysis.json"
+    if not analysis_path.exists():
+        print(f"  SKIP: {analysis_path} not found")
+        return
+
+    with open(analysis_path) as f:
+        analysis = json.load(f)
+
+    traits = np.array(analysis.get("traits", []))
+    labels = np.array(analysis.get("labels", []))
+
+    if traits.shape[0] < 4 or traits.shape[1] < 2:
+        print("  SKIP: insufficient trait data for phenotype plot")
+        return
+
+    # Use PCA for 2D projection if >2 dimensions
+    from sklearn.decomposition import PCA
+    pca = PCA(n_components=2, random_state=42)
+    proj = pca.fit_transform(traits)
+
+    n_clusters = analysis.get("n_clusters", 2)
+    cluster_colors = ["#0072B2", "#D55E00", "#009E73", "#E69F00", "#CC79A7"]
+
+    fig, ax = plt.subplots(figsize=(3.4, 3.0))
+
+    for c in range(n_clusters):
+        mask = labels == c
+        ax.scatter(proj[mask, 0], proj[mask, 1], s=15, alpha=0.6,
+                   color=cluster_colors[c % len(cluster_colors)],
+                   label=f"Cluster {c} (n={mask.sum()})", edgecolors="none")
+
+    ax.set_xlabel(f"PC1 ({pca.explained_variance_ratio_[0]:.0%} var)")
+    ax.set_ylabel(f"PC2 ({pca.explained_variance_ratio_[1]:.0%} var)")
+    ax.legend(loc="best", fontsize=7, markerscale=1.5)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    fig.tight_layout()
+    fig.savefig(FIG_DIR / "fig_phenotype.pdf", format="pdf")
+    plt.close(fig)
+    print(f"  Saved {FIG_DIR / 'fig_phenotype.pdf'}")
+
+
 if __name__ == "__main__":
     print("Generating paper figures...")
 
@@ -596,5 +742,14 @@ if __name__ == "__main__":
 
     print("Figure 6: Ablation distributions")
     generate_ablation_distributions()
+
+    print("Figure 7: Graded ablation dose-response")
+    generate_graded()
+
+    print("Figure 8: Cyclic environment")
+    generate_cyclic()
+
+    print("Figure 9: Phenotype clustering")
+    generate_phenotype()
 
     print("Done.")
