@@ -610,10 +610,16 @@ mod tests {
 
     #[test]
     fn validate_rejects_invalid_world_size() {
-        let mut config = SimConfig::default();
-        config.world_size = -1.0;
+        let config = SimConfig {
+            world_size: -1.0,
+            ..SimConfig::default()
+        };
         assert_eq!(config.validate(), Err(SimConfigError::InvalidWorldSize));
-        config.world_size = SimConfig::MAX_WORLD_SIZE + 1.0;
+
+        let config = SimConfig {
+            world_size: SimConfig::MAX_WORLD_SIZE + 1.0,
+            ..SimConfig::default()
+        };
         assert!(matches!(
             config.validate(),
             Err(SimConfigError::WorldSizeTooLarge { .. })
@@ -622,10 +628,12 @@ mod tests {
 
     #[test]
     fn validate_rejects_invalid_mutation_budget() {
-        let mut config = SimConfig::default();
-        config.mutation_point_rate = 0.5;
-        config.mutation_reset_rate = 0.5;
-        config.mutation_scale_rate = 0.1;
+        let config = SimConfig {
+            mutation_point_rate: 0.5,
+            mutation_reset_rate: 0.5,
+            mutation_scale_rate: 0.1,
+            ..SimConfig::default()
+        };
         assert_eq!(
             config.validate(),
             Err(SimConfigError::InvalidMutationProbabilityBudget)
@@ -663,19 +671,27 @@ mod tests {
 
     #[test]
     fn validate_rejects_invalid_counts() {
-        let mut config = SimConfig::default();
-        config.num_organisms = 0;
+        let config = SimConfig {
+            num_organisms: 0,
+            ..SimConfig::default()
+        };
         assert_eq!(config.validate(), Err(SimConfigError::InvalidNumOrganisms));
 
-        config.num_organisms = 1;
-        config.agents_per_organism = 0;
+        let config = SimConfig {
+            num_organisms: 1,
+            agents_per_organism: 0,
+            ..SimConfig::default()
+        };
         assert_eq!(
             config.validate(),
             Err(SimConfigError::InvalidAgentsPerOrganism)
         );
 
-        config.num_organisms = SimConfig::MAX_TOTAL_AGENTS + 1;
-        config.agents_per_organism = 1;
+        let config = SimConfig {
+            num_organisms: SimConfig::MAX_TOTAL_AGENTS + 1,
+            agents_per_organism: 1,
+            ..SimConfig::default()
+        };
         match config.validate() {
             Err(SimConfigError::TooManyAgents { .. }) => (),
             _ => panic!("Expected TooManyAgents error"),
