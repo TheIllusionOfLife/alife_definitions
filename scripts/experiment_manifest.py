@@ -39,6 +39,7 @@ def write_manifest(
     seeds: list[int],
     base_config: dict,
     condition_overrides: dict[str, dict],
+    report_bindings: list[dict] | None = None,
     git_commit: str | None = None,
     script_name: str | None = None,
     argv: list[str] | None = None,
@@ -49,7 +50,7 @@ def write_manifest(
     script_argv = list(sys.argv[1:] if argv is None else argv)
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "experiment_name": experiment_name,
         "steps": steps,
@@ -65,6 +66,8 @@ def write_manifest(
         "script_name": script,
         "argv": script_argv,
     }
+    if report_bindings:
+        payload["report_bindings"] = report_bindings
     if commit:
         payload["git_commit"] = commit
     with open(out_path, "w") as f:

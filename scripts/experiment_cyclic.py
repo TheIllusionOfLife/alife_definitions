@@ -66,6 +66,17 @@ def main():
         seeds=SEEDS,
         base_config=base_config,
         condition_overrides=CONDITIONS,
+        report_bindings=[
+            {
+                "result_id": "cyclic_recovery",
+                "paper_ref": "fig:evolution_evidence",
+                "source_files": [
+                    "experiments/cyclic_data.tsv",
+                    "experiments/cyclic_cyclic_evo_on.json",
+                    "experiments/cyclic_cyclic_evo_off.json",
+                ],
+            }
+        ],
     )
 
     print_header()

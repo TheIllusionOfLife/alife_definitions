@@ -98,6 +98,16 @@ def main():
         seeds=SEEDS,
         base_config=base_config,
         condition_overrides=condition_overrides,
+        report_bindings=[
+            {
+                "result_id": "pairwise_interaction",
+                "paper_ref": "tab:intervention",
+                "source_files": [
+                    "experiments/pairwise_graph_data.tsv",
+                    "experiments/pairwise_graph_statistics.json",
+                ],
+            }
+        ],
     )
 
     print_header()

@@ -14,10 +14,22 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from experiment_common import log
 from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, silhouette_score
 from sklearn.preprocessing import StandardScaler
+
+try:
+    from .experiment_common import log
+except ImportError:
+    from experiment_common import log
+
+
+PERSISTENCE_CLAIM_THRESHOLD = 0.30
+
+
+def persistence_claim_gate(ari: float, threshold: float = PERSISTENCE_CLAIM_THRESHOLD) -> bool:
+    """Return True when ARI meets the threshold for stronger persistence claims."""
+    return bool(ari >= threshold)
 
 
 def load_evolution_data(exp_dir: Path) -> list[dict]:
@@ -218,6 +230,8 @@ def analyze_temporal_persistence(exp_dir: Path) -> dict:
         "early_clusters": early_summary,
         "late_clusters": late_summary,
         "adjusted_rand_index": round(float(ari), 4),
+        "claim_gate_threshold": PERSISTENCE_CLAIM_THRESHOLD,
+        "claim_gate_passed": persistence_claim_gate(float(ari)),
         "interpretation": interp,
     }
 
@@ -393,6 +407,8 @@ def analyze_organism_level_persistence(exp_dir: Path) -> dict:
         "early_window": early_summary,
         "late_window": late_summary,
         "adjusted_rand_index": round(float(ari), 4),
+        "claim_gate_threshold": PERSISTENCE_CLAIM_THRESHOLD,
+        "claim_gate_passed": persistence_claim_gate(float(ari)),
         "late_pair_ari": late_pair_ari,
         "cross_pair_ari": cross_ari,
         "n_cross_pair_shared": len(cross_shared),

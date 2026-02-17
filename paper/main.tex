@@ -391,7 +391,10 @@ condition, though RNG call sequences differ across conditions when
 ablated processes (e.g., reproduction) skip conditional RNG draws.
 For each experiment family, we store a machine-readable run manifest
 (``*\_manifest.json'') containing exact parameters, seed lists, and config
-digests used by downstream analysis scripts.
+digests used by downstream analysis scripts. Reported figure/table claims
+are version-locked via a manifest-binding registry
+(``\texttt{docs/research/result\_manifest\_bindings.json}'') mapping each reported
+result block to its manifest and source artifacts.
 
 \subsection{Statistical Design}
 
@@ -801,6 +804,10 @@ strategies: high-energy/low-boundary vs.\ low-energy/high-boundary),
 the adjusted Rand index between paired windows is low (ARI=0.04--0.09),
 indicating that individual organisms transition between ecological
 roles even over short ($\sim$200-step) timescales.
+Using a pre-registered persistence threshold (stronger language allowed
+only when ARI $\geq 0.30$), these values remain below the claim gate,
+so we report this as weak persistence rather than stable individual
+ecological differentiation.
 Cross-pair analysis (steps 2,000 to 4,700) finds near-zero organism
 overlap, confirming that median lifespan ($\sim$245 steps) prevents
 long-horizon individual persistence.

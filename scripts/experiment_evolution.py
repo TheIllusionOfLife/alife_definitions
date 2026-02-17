@@ -100,6 +100,25 @@ def main():
         seeds=SEEDS,
         base_config=json.loads(make_config(SEEDS[0], {})),
         condition_overrides=LONG_CONDITIONS,
+        report_bindings=[
+            {
+                "result_id": "evolution_long_run",
+                "paper_ref": "fig:evolution_evidence",
+                "source_files": [
+                    "experiments/evolution_long_normal.json",
+                    "experiments/evolution_long_no_evolution.json",
+                    "experiments/evolution_evidence.json",
+                ],
+            },
+            {
+                "result_id": "phenotype_persistence",
+                "paper_ref": "fig:persistent_clusters",
+                "source_files": [
+                    "experiments/niche_normal.json",
+                    "experiments/phenotype_analysis.json",
+                ],
+            },
+        ],
     )
     write_manifest(
         out_dir / "evolution_shift_manifest.json",
@@ -109,6 +128,17 @@ def main():
         seeds=SEEDS,
         base_config=json.loads(make_config(SEEDS[0], SHIFT_CONDITIONS["shift_normal"])),
         condition_overrides=SHIFT_CONDITIONS,
+        report_bindings=[
+            {
+                "result_id": "evolution_shift_run",
+                "paper_ref": "fig:evolution_evidence",
+                "source_files": [
+                    "experiments/evolution_shift_normal.json",
+                    "experiments/evolution_shift_no_evolution.json",
+                    "experiments/evolution_evidence.json",
+                ],
+            }
+        ],
     )
 
     print_header()

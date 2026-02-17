@@ -29,6 +29,7 @@ cargo build --workspace
 ```bash
 uv run ruff check scripts tests_python
 uv run pytest tests_python
+uv run python scripts/check_manuscript_consistency.py
 ```
 
 ### Run the Feasibility Spike
@@ -58,6 +59,7 @@ print(digital_life.version())
 - `STRUCTURE.md`: code/documentation layout and conventions
 - `docs/README.md`: documentation index
 - `docs/research/`: research planning artifacts and historical design docs
+- `docs/research/result_manifest_bindings.json`: manifest-to-paper result provenance map
 
 ## Architecture (High-Level)
 

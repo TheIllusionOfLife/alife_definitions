@@ -32,6 +32,9 @@ PAIRS = [
 MAX_LAG = 5
 TE_BINS = 5
 TE_PERMUTATIONS = 400
+TE_BIN_SETTINGS = [3, 5, 7]
+TE_PERMUTATION_SETTINGS = [200, 400, 800]
+TE_PHASE_SURROGATE_SAMPLES = 200
 MAX_DROPPED_SEED_FRACTION = 0.10
 INCLUDE_SEED_DETAILS = True
 
@@ -326,6 +329,71 @@ def transfer_entropy_lag1(
     }
 
 
+def phase_randomize(series: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Return a phase-randomized surrogate preserving power spectrum."""
+    n = len(series)
+    if n < 4:
+        return series.copy()
+    spectrum = np.fft.rfft(series)
+    if len(spectrum) <= 2:
+        return series.copy()
+    randomized = spectrum.copy()
+    phases = rng.uniform(0.0, 2.0 * np.pi, size=len(spectrum) - 2)
+    randomized[1:-1] = np.abs(randomized[1:-1]) * np.exp(1j * phases)
+    surrogate = np.fft.irfft(randomized, n=n)
+    return np.asarray(surrogate, dtype=float)
+
+
+def te_robustness_summary(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    bin_settings: list[int],
+    permutation_settings: list[int],
+    rng_seed: int,
+) -> list[dict]:
+    """Compute TE sensitivity and phase-surrogate robustness grid for one pair."""
+    rows: list[dict] = []
+    for bins in bin_settings:
+        for permutations in permutation_settings:
+            te_rng = np.random.default_rng(rng_seed + bins * 1000 + permutations)
+            te = transfer_entropy_lag1(
+                x, y, bins=bins, permutations=permutations, rng=te_rng
+            )
+            if te is None:
+                continue
+
+            phase_rng = np.random.default_rng(rng_seed + bins * 100000 + permutations)
+            surrogate_te = np.empty(TE_PHASE_SURROGATE_SAMPLES, dtype=float)
+            for i in range(TE_PHASE_SURROGATE_SAMPLES):
+                x_surrogate = phase_randomize(x, phase_rng)
+                y_surrogate = phase_randomize(y, phase_rng)
+                te_surrogate = transfer_entropy_lag1(
+                    x_surrogate,
+                    y_surrogate,
+                    bins=bins,
+                    permutations=max(50, permutations // 4),
+                    rng=phase_rng,
+                )
+                surrogate_te[i] = te_surrogate["te"] if te_surrogate is not None else 0.0
+
+            phase_p = float(
+                (np.sum(surrogate_te >= float(te["te"])) + 1)
+                / (TE_PHASE_SURROGATE_SAMPLES + 1)
+            )
+            rows.append(
+                {
+                    "bins": bins,
+                    "permutations": permutations,
+                    "te": round(float(te["te"]), 6),
+                    "p_value": float(te["p_value"]),
+                    "phase_surrogate_p_value": phase_p,
+                    "phase_surrogate_te_mean": round(float(np.mean(surrogate_te)), 6),
+                }
+            )
+    return rows
+
+
 def bootstrap_ci(
     values: np.ndarray, n_boot: int = 2000, alpha: float = 0.05
 ) -> tuple[float, float]:
@@ -377,6 +445,9 @@ def main() -> None:
             "max_lag": MAX_LAG,
             "te_bins": TE_BINS,
             "te_permutations": TE_PERMUTATIONS,
+            "te_robustness_bin_settings": TE_BIN_SETTINGS,
+            "te_robustness_permutation_settings": TE_PERMUTATION_SETTINGS,
+            "te_phase_surrogate_samples": TE_PHASE_SURROGATE_SAMPLES,
             "pair_level_correction": "holm_bonferroni",
             "seed_level_p_combination": "fisher",
             "include_seed_details": INCLUDE_SEED_DETAILS,
@@ -466,6 +537,13 @@ def main() -> None:
                 )
                 if seed_te_p
                 else 0.0,
+                "robustness": te_robustness_summary(
+                    mean_a,
+                    mean_b,
+                    bin_settings=TE_BIN_SETTINGS,
+                    permutation_settings=TE_PERMUTATION_SETTINGS,
+                    rng_seed=2026 + len(pair_rows),
+                ),
             },
         }
         if INCLUDE_SEED_DETAILS:

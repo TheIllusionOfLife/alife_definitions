@@ -67,6 +67,24 @@ def main():
         seeds=SEEDS,
         base_config=base_config,
         condition_overrides={name: {**GRAPH_OVERRIDES, **ov} for name, ov in CONDITIONS.items()},
+        report_bindings=[
+            {
+                "result_id": "ablation_primary",
+                "paper_ref": "tab:ablation",
+                "source_files": [
+                    "experiments/final_graph_data.tsv",
+                    "experiments/final_graph_statistics.json",
+                ],
+            },
+            {
+                "result_id": "coupling_main",
+                "paper_ref": "fig:coupling",
+                "source_files": [
+                    "experiments/final_graph_normal.json",
+                    "experiments/coupling_analysis.json",
+                ],
+            },
+        ],
     )
 
     print_header()
