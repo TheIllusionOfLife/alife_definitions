@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -31,6 +32,8 @@ PAIRS = [
 MAX_LAG = 5
 TE_BINS = 5
 TE_PERMUTATIONS = 400
+MAX_DROPPED_SEED_FRACTION = 0.10
+INCLUDE_SEED_DETAILS = True
 
 
 def holm_bonferroni(p_values: list[float]) -> list[float]:
@@ -57,22 +60,29 @@ def fisher_combine(p_values: list[float]) -> float:
     return float(stats.chi2.sf(stat, 2 * len(clipped)))
 
 
-def load_seed_timeseries(path: Path) -> tuple[list[int], list[dict[str, np.ndarray]]]:
+def load_seed_timeseries(
+    path: Path,
+) -> tuple[list[int], list[dict[str, np.ndarray]], dict[str, int | float]]:
     """Load per-seed time series from normal condition output."""
     with open(path) as f:
         results = json.load(f)
 
     seed_series: list[dict[str, np.ndarray]] = []
     steps_ref: list[int] | None = None
+    total_runs = len(results)
+    dropped_missing_samples = 0
+    dropped_step_mismatch = 0
 
     for run in results:
         samples = run.get("samples", [])
         if not samples:
+            dropped_missing_samples += 1
             continue
         steps = [int(s["step"]) for s in samples]
         if steps_ref is None:
             steps_ref = steps
         elif steps != steps_ref:
+            dropped_step_mismatch += 1
             continue
 
         energy = np.array([float(s["energy_mean"]) for s in samples], dtype=float)
@@ -94,9 +104,20 @@ def load_seed_timeseries(path: Path) -> tuple[list[int], list[dict[str, np.ndarr
             }
         )
 
+    accepted_runs = len(seed_series)
+    dropped_runs = dropped_missing_samples + dropped_step_mismatch
+    quality = {
+        "total_runs": total_runs,
+        "accepted_runs": accepted_runs,
+        "dropped_runs": dropped_runs,
+        "dropped_missing_samples": dropped_missing_samples,
+        "dropped_step_mismatch": dropped_step_mismatch,
+        "dropped_fraction": (dropped_runs / total_runs) if total_runs else 0.0,
+    }
+
     if steps_ref is None:
-        return [], []
-    return steps_ref, seed_series
+        return [], [], quality
+    return steps_ref, seed_series, quality
 
 
 def mean_timeseries(seed_series: list[dict[str, np.ndarray]], var_name: str) -> np.ndarray:
@@ -261,9 +282,13 @@ def transfer_entropy_lag1(
     if len(x) < 4 or len(x) != len(y):
         return None
 
-    x_prev = discretize_series(x[:-1], bins)
-    y_prev = discretize_series(y[:-1], bins)
-    y_curr = discretize_series(y[1:], bins)
+    # Use a shared discretization per full series to keep y(t-1), y(t) on
+    # the same state space.
+    x_disc = discretize_series(x, bins)
+    y_disc = discretize_series(y, bins)
+    x_prev = x_disc[:-1]
+    y_prev = y_disc[:-1]
+    y_curr = y_disc[1:]
 
     observed = transfer_entropy_from_discrete(x_prev, y_prev, y_curr)
 
@@ -302,22 +327,40 @@ def main() -> None:
         print(f"ERROR: {DATA_PATH} not found")
         return
 
-    steps, seed_series = load_seed_timeseries(DATA_PATH)
+    steps, seed_series, quality = load_seed_timeseries(DATA_PATH)
     if not seed_series:
         print(f"ERROR: no timeseries data loaded from {DATA_PATH}")
         return
+    if quality["dropped_fraction"] > MAX_DROPPED_SEED_FRACTION:
+        print(
+            "ERROR: dropped-seed fraction exceeds threshold "
+            f"({quality['dropped_fraction']:.2%} > {MAX_DROPPED_SEED_FRACTION:.2%})",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     print(f"Loaded {len(seed_series)} seeds with {len(steps)} sampled steps")
+    print(
+        "Seed quality: total={} accepted={} dropped={} ({:.2f}%)".format(
+            quality["total_runs"],
+            quality["accepted_runs"],
+            quality["dropped_runs"],
+            100.0 * quality["dropped_fraction"],
+        )
+    )
 
     output: dict[str, object] = {
         "schema_version": 2,
         "pairs": [],
+        "quality": quality,
         "method": {
             "max_lag": MAX_LAG,
             "te_bins": TE_BINS,
             "te_permutations": TE_PERMUTATIONS,
             "pair_level_correction": "holm_bonferroni",
             "seed_level_p_combination": "fisher",
+            "include_seed_details": INCLUDE_SEED_DETAILS,
+            "max_dropped_seed_fraction": MAX_DROPPED_SEED_FRACTION,
         },
     }
 
@@ -392,7 +435,6 @@ def main() -> None:
                 )
                 if seed_granger_p
                 else 0.0,
-                "seed_tests": seed_granger,
             },
             "transfer_entropy": {
                 "n_seed_tests": len(seed_te),
@@ -404,9 +446,11 @@ def main() -> None:
                 )
                 if seed_te_p
                 else 0.0,
-                "seed_tests": seed_te,
             },
         }
+        if INCLUDE_SEED_DETAILS:
+            row["granger"]["seed_tests"] = seed_granger
+            row["transfer_entropy"]["seed_tests"] = seed_te
         pair_rows.append(row)
         granger_median_f = float(row["granger"]["median_best_f"])
 

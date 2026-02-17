@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +18,18 @@ def config_digest(config: dict) -> str:
     return hashlib.sha256(_sorted_json(config).encode("utf-8")).hexdigest()
 
 
+def _detect_git_commit() -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return out.strip() or None
+
+
 def write_manifest(
     out_path: Path,
     *,
@@ -25,8 +39,15 @@ def write_manifest(
     seeds: list[int],
     base_config: dict,
     condition_overrides: dict[str, dict],
+    git_commit: str | None = None,
+    script_name: str | None = None,
+    argv: list[str] | None = None,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    commit = git_commit or _detect_git_commit()
+    script = script_name or Path(sys.argv[0]).name
+    script_argv = list(sys.argv[1:] if argv is None else argv)
+
     payload = {
         "schema_version": 1,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -41,7 +62,11 @@ def write_manifest(
             name: config_digest({**base_config, **overrides})
             for name, overrides in condition_overrides.items()
         },
+        "script_name": script,
+        "argv": script_argv,
     }
+    if commit:
+        payload["git_commit"] = commit
     with open(out_path, "w") as f:
         json.dump(payload, f, indent=2)
 

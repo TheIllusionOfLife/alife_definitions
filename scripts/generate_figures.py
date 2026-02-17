@@ -112,6 +112,14 @@ def parse_tsv(path: Path) -> list[dict]:
     return rows
 
 
+def get_coupling_best(pair: dict) -> tuple[float | None, int | None]:
+    """Read best r/lag from v2 coupling schema, with legacy fallback."""
+    lagged = pair.get("lagged_correlation", {})
+    r = lagged.get("best_pearson_r", pair.get("best_pearson_r"))
+    lag = lagged.get("best_lag", pair.get("best_lag"))
+    return r, lag
+
+
 def generate_timeseries(data: list[dict]) -> None:
     """Figure 2: Population dynamics time-series with confidence bands."""
     # Group by (condition, step) → list of alive_count values
@@ -983,8 +991,9 @@ def generate_coupling() -> None:
     for pair in pairs:
         var_a = short_names.get(pair["var_a"], pair["var_a"])
         var_b = short_names.get(pair["var_b"], pair["var_b"])
-        r = pair["best_pearson_r"]
-        lag = pair["best_lag"]
+        r, lag = get_coupling_best(pair)
+        if r is None or lag is None:
+            continue
 
         if var_a not in positions or var_b not in positions:
             continue
