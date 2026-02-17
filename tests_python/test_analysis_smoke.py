@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from scripts.analyze_pairwise import compute_synergy
 from scripts.analyze_results import distribution_stats, holm_bonferroni
@@ -64,6 +65,8 @@ def test_get_coupling_best_supports_legacy_and_v2() -> None:
 
 def test_coupling_schema_v2_contains_nested_fields() -> None:
     path = Path("experiments/coupling_analysis.json")
+    if not path.exists():
+        pytest.skip("coupling_analysis.json is not tracked in this repository")
     payload = json.loads(path.read_text())
     assert payload.get("schema_version") == 2
     first = payload["pairs"][0]
