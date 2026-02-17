@@ -33,14 +33,15 @@ def run_checks(paper_path: Path, manifest_path: Path, registry_path: Path) -> di
     issues: list[str] = []
     checks: list[str] = []
 
-    if not paper_path.exists():
-        issues.append(f"missing paper file: {paper_path}")
-        return {"ok": False, "issues": issues, "checks": checks}
-    if not manifest_path.exists():
-        issues.append(f"missing manifest file: {manifest_path}")
-        return {"ok": False, "issues": issues, "checks": checks}
-    if not registry_path.exists():
-        issues.append(f"missing bindings registry: {registry_path}")
+    paths_to_check = {
+        "paper file": paper_path,
+        "manifest file": manifest_path,
+        "bindings registry": registry_path,
+    }
+    for name, path in paths_to_check.items():
+        if not path.exists():
+            issues.append(f"missing {name}: {path}")
+    if issues:
         return {"ok": False, "issues": issues, "checks": checks}
 
     tex = paper_path.read_text()
@@ -50,19 +51,31 @@ def run_checks(paper_path: Path, manifest_path: Path, registry_path: Path) -> di
     reported_steps, reported_sample_every = _extract_reported_timing(tex)
     if reported_steps is not None:
         checks.append("timing steps")
-        if int(manifest.get("steps", -1)) != reported_steps:
+        manifest_steps = manifest.get("steps")
+        try:
+            manifest_steps_int = int(manifest_steps)
+        except (TypeError, ValueError):
+            manifest_steps_int = None
+            issues.append(f"steps invalid in manifest: {manifest_steps}")
+        if manifest_steps_int != reported_steps:
             issues.append(
-                f"steps mismatch: paper={reported_steps} manifest={manifest.get('steps')}"
+                f"steps mismatch: paper={reported_steps} manifest={manifest_steps}"
             )
     else:
         issues.append("could not parse timing steps from paper")
 
     if reported_sample_every is not None:
         checks.append("timing sample_every")
-        if int(manifest.get("sample_every", -1)) != reported_sample_every:
+        manifest_sample_every = manifest.get("sample_every")
+        try:
+            manifest_sample_every_int = int(manifest_sample_every)
+        except (TypeError, ValueError):
+            manifest_sample_every_int = None
+            issues.append(f"sample_every invalid in manifest: {manifest_sample_every}")
+        if manifest_sample_every_int != reported_sample_every:
             issues.append(
                 "sample_every mismatch: "
-                f"paper={reported_sample_every} manifest={manifest.get('sample_every')}"
+                f"paper={reported_sample_every} manifest={manifest_sample_every}"
             )
     else:
         issues.append("could not parse sample_every from paper")

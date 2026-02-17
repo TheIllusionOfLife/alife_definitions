@@ -103,7 +103,7 @@ def main():
         report_bindings=[
             {
                 "result_id": "evolution_long_run",
-                "paper_ref": "fig:evolution_evidence",
+                "paper_ref": "fig:evolution",
                 "source_files": [
                     "experiments/evolution_long_normal.json",
                     "experiments/evolution_long_no_evolution.json",
@@ -131,7 +131,7 @@ def main():
         report_bindings=[
             {
                 "result_id": "evolution_shift_run",
-                "paper_ref": "fig:evolution_evidence",
+                "paper_ref": "fig:evolution",
                 "source_files": [
                     "experiments/evolution_shift_normal.json",
                     "experiments/evolution_shift_no_evolution.json",

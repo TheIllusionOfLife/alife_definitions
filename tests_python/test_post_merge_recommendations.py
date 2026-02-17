@@ -98,3 +98,60 @@ steps.
     report = run_checks(paper, manifest, registry)
     assert report["ok"] is False
     assert any("steps" in issue for issue in report["issues"])
+
+
+def test_manuscript_consistency_handles_non_numeric_manifest_values(tmp_path: Path) -> None:
+    from scripts.check_manuscript_consistency import run_checks
+
+    paper = tmp_path / "main.tex"
+    manifest = tmp_path / "final_graph_manifest.json"
+    registry = tmp_path / "result_manifest_bindings.json"
+
+    paper.write_text(
+        """
+Each simulation runs for 2000 timesteps with population sampled every 50
+steps.
+\\label{tab:ablation}
+""".strip()
+    )
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "steps": None,
+                "sample_every": "not-a-number",
+                "base_config": {"mutation_point_rate": 0.02, "mutation_scale": 0.15},
+            }
+        )
+    )
+    registry.write_text(
+        json.dumps(
+            {
+                "bindings": [
+                    {
+                        "result_id": "ablation_primary",
+                        "paper_ref": "tab:ablation",
+                        "manifest": "experiments/final_graph_manifest.json",
+                        "source_files": ["experiments/final_graph_statistics.json"],
+                    }
+                ]
+            }
+        )
+    )
+
+    report = run_checks(paper, manifest, registry)
+    assert report["ok"] is False
+    assert any("steps invalid in manifest" in issue for issue in report["issues"])
+    assert any("sample_every invalid in manifest" in issue for issue in report["issues"])
+
+
+def test_manuscript_consistency_reports_all_missing_inputs(tmp_path: Path) -> None:
+    from scripts.check_manuscript_consistency import run_checks
+
+    report = run_checks(
+        tmp_path / "missing_main.tex",
+        tmp_path / "missing_manifest.json",
+        tmp_path / "missing_registry.json",
+    )
+    assert report["ok"] is False
+    assert len(report["issues"]) == 3

@@ -335,8 +335,6 @@ def phase_randomize(series: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     if n < 4:
         return series.copy()
     spectrum = np.fft.rfft(series)
-    if len(spectrum) <= 2:
-        return series.copy()
     randomized = spectrum.copy()
     phases = rng.uniform(0.0, 2.0 * np.pi, size=len(spectrum) - 2)
     randomized[1:-1] = np.abs(randomized[1:-1]) * np.exp(1j * phases)

@@ -69,7 +69,7 @@ def main():
         report_bindings=[
             {
                 "result_id": "cyclic_recovery",
-                "paper_ref": "fig:evolution_evidence",
+                "paper_ref": "fig:evolution",
                 "source_files": [
                     "experiments/cyclic_data.tsv",
                     "experiments/cyclic_cyclic_evo_on.json",
