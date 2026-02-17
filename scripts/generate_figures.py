@@ -8,12 +8,13 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import matplotlib.lines as mlines
 import json
-import numpy as np
 from collections import defaultdict
+
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -102,7 +103,7 @@ def parse_tsv(path: Path) -> list[dict]:
             if fields[0] not in VALID_CONDITIONS:
                 continue
             row = {}
-            for col, val in zip(header, fields):
+            for col, val in zip(header, fields, strict=True):
                 try:
                     row[col] = float(val)
                 except ValueError:
@@ -951,7 +952,10 @@ def generate_coupling() -> None:
 
     n = len(criteria)
     angles = [2 * np.pi * i / n - np.pi / 2 for i in range(n)]
-    positions = {name: (np.cos(a), np.sin(a)) for name, a in zip(criteria, angles)}
+    positions = {
+        name: (np.cos(a), np.sin(a))
+        for name, a in zip(criteria, angles, strict=True)
+    }
 
     # Draw nodes
     node_colors = [
@@ -1218,7 +1222,10 @@ def generate_lineage() -> None:
 
 
 def generate_orthogonal() -> None:
-    """Figure 14: Orthogonal outcome metrics — spatial cohesion and median lifespan per condition."""
+    """Figure 14: orthogonal outcome metrics.
+
+    Plots spatial cohesion and median lifespan per condition.
+    """
     exp_dir = PROJECT_ROOT / "experiments"
 
     # Panel A: spatial cohesion from final_graph_{condition}.json (last sample)

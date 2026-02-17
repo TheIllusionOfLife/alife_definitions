@@ -523,16 +523,17 @@ Thus, each criterion qualifies as a functional analogy, not a simplified proxy.
 Time-lagged association analysis of per-step population means under normal
 conditions confirms the coupling pathways in Table~\ref{tab:criteria}
 (Figure~\ref{fig:coupling}).
-Energy and boundary integrity show strong anti-correlation
-($r=-0.85$, $p<0.001$, lag~0): repair continuously converts energy
-into boundary maintenance ($\Delta b_{\text{repair}} \propto e$),
-so higher boundary integrity corresponds to depleted energy reserves.
-Energy and internal state $s_0$ show strong positive correlation
-($r=0.81$, $p<0.001$, lag~3 steps), confirming that metabolic state
-drives homeostatic regulation with a short delay.
-Boundary integrity and $s_0$ show moderate correlation
-($r=-0.55$, $p<0.001$, lag~3), consistent with the
-homeostasis$\to$boundary pathway operating through repair efficacy.
+At lag~0, energy and boundary integrity are strongly anti-correlated
+($r=-0.78$, $p<10^{-8}$), consistent with repair expenditure coupling.
+To move beyond correlation, we run per-seed directed tests:
+Granger-style lagged F-tests (lags 1--5 with within-seed Holm correction)
+show significant directed predictability for all three hypothesized pathways
+(pair-level Fisher-combined $p_{\mathrm{corr}}<0.001$), while transfer-entropy
+estimates show positive directional information flow but are not significant
+after correction at this sample length. We therefore treat directional
+coupling as strongly supported by lagged linear predictability and as
+suggestive (but not yet decisive) under nonparametric information-theoretic
+tests.
 Additionally, growth couples to boundary repair (developmental factor),
 sensing radius, and metabolic efficiency through the genome-encoded
 developmental program, and gates reproduction through the maturity
