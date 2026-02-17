@@ -1,4 +1,4 @@
-"""Time-lagged cross-correlation analysis for criterion coupling evidence.
+"""Time-lagged association analysis for criterion coupling evidence.
 
 Computes Pearson and Spearman correlations between per-step criterion
 variables from normal-condition data to quantify functional coupling
@@ -144,8 +144,8 @@ def main():
                 f"(p={c['spearman_p']:.4e}){marker}"
             )
 
-    # --- Intervention-based causal effects ---
-    print("\n--- Intervention-based causal effects ---")
+    # --- Intervention-based effect summaries ---
+    print("\n--- Intervention-based effect summaries ---")
     CRITERIA = [
         "metabolism",
         "boundary",
