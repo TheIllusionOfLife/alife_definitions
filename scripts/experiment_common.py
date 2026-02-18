@@ -44,6 +44,18 @@ PAIRS = [
     ("reproduction", "evolution"),
 ]
 
+# Standard criterion-ablation conditions shared across experiment drivers.
+CONDITIONS = {
+    "normal": {},
+    "no_metabolism": {"enable_metabolism": False},
+    "no_boundary": {"enable_boundary_maintenance": False},
+    "no_homeostasis": {"enable_homeostasis": False},
+    "no_response": {"enable_response": False},
+    "no_reproduction": {"enable_reproduction": False},
+    "no_evolution": {"enable_evolution": False},
+    "no_growth": {"enable_growth": False},
+}
+
 # TSV column headers for experiment output
 TSV_COLUMNS = [
     "condition", "seed", "step",

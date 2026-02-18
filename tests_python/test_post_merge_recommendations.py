@@ -413,14 +413,8 @@ def test_experiment_regimes_seed_count_is_n30(monkeypatch: pytest.MonkeyPatch) -
     script_path = script_dir / "experiment_regimes.py"
 
     fake_digital_life = types.SimpleNamespace(version=lambda: "test")
-    fake_utils = types.SimpleNamespace(
-        CONDITIONS={},
-        log=lambda *args, **kwargs: None,
-        run_single=lambda *args, **kwargs: {},
-        safe_path=lambda out_dir, name: out_dir / name,
-    )
     monkeypatch.setitem(sys.modules, "digital_life", fake_digital_life)
-    monkeypatch.setitem(sys.modules, "experiment_utils", fake_utils)
+    monkeypatch.syspath_prepend(str(script_dir))
 
     spec = importlib.util.spec_from_file_location("experiment_regimes_under_test", script_path)
     assert spec is not None and spec.loader is not None
