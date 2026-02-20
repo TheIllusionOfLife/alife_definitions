@@ -32,6 +32,8 @@ large per-seed raw JSON files and long-horizon sensitivity runs).
     - `uv run python scripts/experiment_niche.py --long-horizon --seed-start 110 --seed-end 119 --output experiments/niche_normal_long_110_119.json`
     - `uv run python scripts/experiment_niche.py --long-horizon --seed-start 120 --seed-end 129 --output experiments/niche_normal_long_120_129.json`
   - Merge batch outputs into one analysis input (`experiments/niche_normal_long.json`).
+  - Compress for Zenodo upload endpoint compatibility:
+    - `gzip -c experiments/niche_normal_long.json > experiments/niche_normal_long.json.gz`
   - Generate Zenodo metadata/checksums:
-    - `uv run python scripts/prepare_zenodo_metadata.py experiments/niche_normal_long.json --experiment-name niche_long_horizon --steps 10000 --seed-start 100 --seed-end 129 --paper-binding fig:persistent_clusters=experiments/phenotype_analysis.json --output docs/research/zenodo_niche_long_horizon_metadata.json`
+    - `uv run python scripts/prepare_zenodo_metadata.py experiments/niche_normal_long.json.gz --experiment-name niche_long_horizon --steps 10000 --seed-start 100 --seed-end 129 --paper-binding fig:persistent_clusters=experiments/phenotype_analysis.json --zenodo-doi 10.5281/zenodo.18710600 --output docs/research/zenodo_niche_long_horizon_metadata.json`
   - Include the generated metadata JSON and Zenodo reserved DOI in the PR.
