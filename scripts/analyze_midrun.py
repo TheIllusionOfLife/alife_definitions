@@ -6,6 +6,11 @@ import argparse
 import json
 from pathlib import Path
 
+try:
+    from .experiment_common import CRITERION_TO_FLAG
+except ImportError:
+    from experiment_common import CRITERION_TO_FLAG
+
 
 def load_condition(path: Path) -> list[dict]:
     with open(path) as f:
@@ -23,15 +28,7 @@ def build_report(experiment_dir: Path) -> dict:
         "criteria": [],
     }
 
-    criteria = [
-        "metabolism",
-        "boundary",
-        "homeostasis",
-        "response",
-        "reproduction",
-        "evolution",
-        "growth",
-    ]
+    criteria = list(CRITERION_TO_FLAG.keys())
     normal = load_condition(experiment_dir / "midrun_normal.json")
     normal_mean = mean_final_alive(normal)
 

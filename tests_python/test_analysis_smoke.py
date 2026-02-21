@@ -11,6 +11,7 @@ from scripts.analyze_invariance import report as invariance_report
 from scripts.analyze_midrun import build_report as midrun_report
 from scripts.analyze_pairwise import compute_synergy
 from scripts.analyze_results import distribution_stats, holm_bonferroni
+from scripts.experiment_common import CRITERION_TO_FLAG
 from scripts.experiment_manifest import config_digest, load_manifest, write_manifest
 from scripts.generate_figures import get_coupling_best
 
@@ -87,15 +88,7 @@ def test_midrun_report_shape(tmp_path: Path) -> None:
     exp = tmp_path
     sample = [{"final_alive_count": 10, "samples": []}] * 3
     (exp / "midrun_normal.json").write_text(json.dumps(sample))
-    for criterion in [
-        "metabolism",
-        "boundary",
-        "homeostasis",
-        "response",
-        "reproduction",
-        "evolution",
-        "growth",
-    ]:
+    for criterion in CRITERION_TO_FLAG:
         (exp / f"midrun_no_{criterion}_step0.json").write_text(json.dumps(sample))
         (exp / f"midrun_no_{criterion}_midrun.json").write_text(json.dumps(sample))
     payload = midrun_report(exp)

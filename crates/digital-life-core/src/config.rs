@@ -26,6 +26,18 @@ pub enum HomeostasisMode {
     SetpointPid,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AblationTarget {
+    Metabolism,
+    Boundary,
+    Homeostasis,
+    Response,
+    Reproduction,
+    Evolution,
+    Growth,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SimConfig {
@@ -63,7 +75,7 @@ pub struct SimConfig {
     pub ablation_step: usize,
     /// Criteria to ablate at `ablation_step` (subset of: metabolism, boundary, homeostasis,
     /// response, reproduction, evolution, growth).
-    pub ablation_targets: Vec<String>,
+    pub ablation_targets: Vec<AblationTarget>,
     /// Boundary maintenance implementation mode.
     pub boundary_mode: BoundaryMode,
     /// Homeostasis implementation mode.
@@ -274,7 +286,6 @@ define_sim_config_error! {
     InvalidMetabolismEfficiencyMultiplier => "metabolism_efficiency_multiplier must be finite and within [0,1]";
     InvalidEnvironmentCycleLowRate => "environment_cycle_low_rate must be finite and non-negative";
     ConflictingEnvironmentFeatures => "environment_shift_step and environment_cycle_period are mutually exclusive";
-    InvalidAblationTarget { target: String } => "unknown ablation target: {target}";
     WorldSizeTooLarge { max: f64, actual: f64 } => "world_size ({actual}) exceeds supported maximum ({max})";
 }
 
@@ -298,7 +309,6 @@ impl SimConfig {
         self.validate_homeostasis()?;
         self.validate_growth()?;
         self.validate_environment()?;
-        self.validate_scheduled_ablation()?;
         Ok(())
     }
 
@@ -523,27 +533,6 @@ impl SimConfig {
         }
         Ok(())
     }
-
-    fn validate_scheduled_ablation(&self) -> Result<(), SimConfigError> {
-        for target in &self.ablation_targets {
-            let valid = matches!(
-                target.as_str(),
-                "metabolism"
-                    | "boundary"
-                    | "homeostasis"
-                    | "response"
-                    | "reproduction"
-                    | "evolution"
-                    | "growth"
-            );
-            if !valid {
-                return Err(SimConfigError::InvalidAblationTarget {
-                    target: target.clone(),
-                });
-            }
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -589,17 +578,15 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_unknown_ablation_target() {
-        let config = SimConfig {
-            ablation_step: 100,
-            ablation_targets: vec!["unknown".to_string()],
-            ..SimConfig::default()
-        };
-        assert_eq!(
-            config.validate(),
-            Err(SimConfigError::InvalidAblationTarget {
-                target: "unknown".to_string()
-            })
+    fn deserialize_rejects_unknown_ablation_target() {
+        let invalid_json = r#"{
+            "ablation_step": 100,
+            "ablation_targets": ["unknown"]
+        }"#;
+        let result = serde_json::from_str::<SimConfig>(invalid_json);
+        assert!(
+            result.is_err(),
+            "unknown ablation target should fail during deserialization"
         );
     }
 
@@ -703,12 +690,6 @@ mod tests {
             (
                 SimConfigError::InvalidNeighborNorm,
                 "neighbor_norm must be positive and finite",
-            ),
-            (
-                SimConfigError::InvalidAblationTarget {
-                    target: "bad".to_string(),
-                },
-                "unknown ablation target: bad",
             ),
             (
                 SimConfigError::InvalidMetabolicViabilityFloor,

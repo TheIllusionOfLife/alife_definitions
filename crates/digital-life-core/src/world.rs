@@ -1,5 +1,7 @@
 use crate::agent::Agent;
-use crate::config::{BoundaryMode, HomeostasisMode, MetabolismMode, SimConfig, SimConfigError};
+use crate::config::{
+    AblationTarget, BoundaryMode, HomeostasisMode, MetabolismMode, SimConfig, SimConfigError,
+};
 use crate::genome::{Genome, MutationRates};
 use crate::metabolism::{MetabolicState, MetabolismEngine};
 use crate::nn::NeuralNet;
@@ -24,6 +26,16 @@ fn l2_distance(a: &[f32], b: &[f32]) -> f32 {
         .sum::<f32>()
         .sqrt()
 }
+
+const SETPOINT_PID_BASE: f32 = 0.45;
+const SETPOINT_PID_ENERGY_SCALE: f32 = 0.1;
+const SETPOINT_PID_KP: f32 = 0.5;
+
+const HULL_REPAIR_BASE: f32 = 0.6;
+const HULL_REPAIR_COHESION_SCALE: f32 = 0.8;
+const HULL_DECAY_BASE: f32 = 1.2;
+const HULL_DECAY_COHESION_SCALE: f32 = 0.5;
+const HULL_DECAY_MIN: f32 = 0.5;
 
 /// Decode a genome's metabolic segment into a per-organism `MetabolismEngine`.
 ///
@@ -422,8 +434,7 @@ impl World {
         }
         self.current_resource_rate = config.resource_regeneration_rate;
         self.config = config;
-        self.scheduled_ablation_applied =
-            self.config.ablation_step > 0 && self.step_index >= self.config.ablation_step;
+        self.scheduled_ablation_applied = false;
         self.mutation_rates = Self::mutation_rates_from_config(&self.config);
         if mode_changed {
             self.metabolism = match self.config.metabolism_mode {
@@ -1278,9 +1289,9 @@ impl World {
                     HomeostasisMode::SetpointPid => {
                         let metabolic_energy =
                             organisms[org_idx].metabolic_state.energy.clamp(0.0, 1.0);
-                        let setpoint = 0.45 + 0.1 * metabolic_energy;
-                        let k_p = 0.5f32;
-                        let adjustment_scale = k_p * config.dt as f32;
+                        let setpoint =
+                            SETPOINT_PID_BASE + SETPOINT_PID_ENERGY_SCALE * metabolic_energy;
+                        let adjustment_scale = SETPOINT_PID_KP * config.dt as f32;
                         let err0 = setpoint - agent.internal_state[0];
                         let err1 = setpoint - agent.internal_state[1];
                         agent.internal_state[0] =
@@ -1358,8 +1369,9 @@ impl World {
                 let (decay_mode_scale, repair_mode_scale) = match config.boundary_mode {
                     BoundaryMode::ScalarRepair => (1.0, 1.0),
                     BoundaryMode::SpatialHullFeedback => {
-                        let repair_scale = 0.6 + 0.8 * cohesion;
-                        let decay_scale = (1.2 - 0.5 * cohesion).max(0.5);
+                        let repair_scale = HULL_REPAIR_BASE + HULL_REPAIR_COHESION_SCALE * cohesion;
+                        let decay_scale = (HULL_DECAY_BASE - HULL_DECAY_COHESION_SCALE * cohesion)
+                            .max(HULL_DECAY_MIN);
                         (decay_scale, repair_scale)
                     }
                 };
@@ -1538,19 +1550,18 @@ impl World {
         if self.scheduled_ablation_applied {
             return;
         }
-        if self.config.ablation_step == 0 || self.step_index != self.config.ablation_step {
+        if self.config.ablation_step == 0 || self.step_index < self.config.ablation_step {
             return;
         }
         for target in &self.config.ablation_targets {
-            match target.as_str() {
-                "metabolism" => self.config.enable_metabolism = false,
-                "boundary" => self.config.enable_boundary_maintenance = false,
-                "homeostasis" => self.config.enable_homeostasis = false,
-                "response" => self.config.enable_response = false,
-                "reproduction" => self.config.enable_reproduction = false,
-                "evolution" => self.config.enable_evolution = false,
-                "growth" => self.config.enable_growth = false,
-                _ => {}
+            match target {
+                AblationTarget::Metabolism => self.config.enable_metabolism = false,
+                AblationTarget::Boundary => self.config.enable_boundary_maintenance = false,
+                AblationTarget::Homeostasis => self.config.enable_homeostasis = false,
+                AblationTarget::Response => self.config.enable_response = false,
+                AblationTarget::Reproduction => self.config.enable_reproduction = false,
+                AblationTarget::Evolution => self.config.enable_evolution = false,
+                AblationTarget::Growth => self.config.enable_growth = false,
             }
         }
         self.scheduled_ablation_applied = true;
@@ -3192,7 +3203,7 @@ mod tests {
     fn scheduled_ablation_disables_targets_at_exact_step() {
         let mut world = make_world(10, 100.0);
         world.config.ablation_step = 3;
-        world.config.ablation_targets = vec!["metabolism".to_string(), "response".to_string()];
+        world.config.ablation_targets = vec![AblationTarget::Metabolism, AblationTarget::Response];
         assert!(world.config.enable_metabolism);
         assert!(world.config.enable_response);
 
@@ -3207,6 +3218,26 @@ mod tests {
         assert!(
             !world.config.enable_metabolism && !world.config.enable_response,
             "scheduled ablation should apply exactly at ablation_step"
+        );
+    }
+
+    #[test]
+    fn scheduled_ablation_not_missed_after_midrun_config_update() {
+        let mut world = make_world(10, 100.0);
+        world.step();
+        assert!(world.config.enable_metabolism);
+
+        let mut updated = world.config.clone();
+        updated.ablation_step = 1;
+        updated.ablation_targets = vec![AblationTarget::Metabolism];
+        world
+            .set_config(updated)
+            .expect("config update should succeed");
+
+        world.step();
+        assert!(
+            !world.config.enable_metabolism,
+            "ablation should still apply when config is updated after ablation_step"
         );
     }
 
