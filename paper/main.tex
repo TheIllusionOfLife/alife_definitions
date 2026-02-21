@@ -32,8 +32,8 @@ criteria---which we term \emph{functional analogy}.
 A criterion-ablation experiment ($n$=30 per condition, seeds held out from
 calibration) demonstrates that disabling any single criterion causes
 statistically significant population decline (Mann-Whitney $U$,
-Holm-Bonferroni corrected, all $p \leq 0.013$), with Cliff's $\delta$
-ranging from 0.34 to 1.00.
+Holm-Bonferroni corrected, all $p \leq 0.004728$), with Cliff's $\delta$
+ranging from 0.39 to 1.00.
 Pairwise ablations reveal sub-additive interactions consistent with
 shared failure pathways, confirming that criteria damage overlapping
 subsystems rather than operating independently.
@@ -41,8 +41,8 @@ A proxy control comparison shows that metabolism implementations of
 differing complexity produce qualitatively distinct population dynamics,
 ruling out tautological criterion definitions.
 The strongest single-ablation effects arise from disabling reproduction
-($\Delta$=--90.8\%), response to stimuli ($\Delta$=--88.3\%), and metabolism
-($\Delta$=--86.5\%), confirming that these criteria function as necessary,
+($\Delta$=--91.1\%), response to stimuli ($\Delta$=--88.5\%), and metabolism
+($\Delta$=--86.8\%), confirming that these criteria function as necessary,
 interdependent components of organismal viability rather than decorative
 labels.
 \end{abstract}
@@ -434,7 +434,7 @@ decline compared to the normal baseline (Table~\ref{tab:ablation}).
 \begin{table}[t]
 \centering
 \caption{Criterion-ablation results ($n$=30 per condition).
-Normal baseline mean: 341.3 (median: 340.5, IQR: 327.3--356.3).
+Normal baseline mean: 348.9 (median: 349.5, IQR: 335.0--363.5).
 $\delta$=Cliff's delta [bootstrap 95\% CI].
 Seven one-sided tests, Holm-Bonferroni corrected at $\alpha=0.05$.
 $^{***}p<0.001$, $^{*}p<0.05$.}
@@ -444,13 +444,13 @@ $^{***}p<0.001$, $^{*}p<0.05$.}
 \toprule
 Condition & Mean & $\Delta$\% & $\delta$ [95\% CI] & $p_{\text{corr}}$ & Sig. \\
 \midrule
-No Reprod.  & 31.3 & $-$90.8 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
-No Response & 40.0 & $-$88.3 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
-No Metab.   & 46.0 & $-$86.5 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
-No Growth   & 185.6 & $-$45.6 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
-No Homeo.   & 185.9 & $-$45.5 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
-No Boundary & 235.2 & $-$31.1 & 0.98 [0.93, 1.00] & $<$.001 & $^{***}$ \\
-No Evol.    & 321.4 & $-$5.8  & 0.34 [0.06, 0.59] & .013 & $^{*}$ \\
+No Reprod.  & 31.2 & $-$91.1 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
+No Response & 40.0 & $-$88.5 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
+No Metab.   & 46.1 & $-$86.8 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
+No Homeo.   & 169.0 & $-$51.5 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
+No Growth   & 188.8 & $-$45.9 & 1.00 [1.00, 1.00] & $<$.001 & $^{***}$ \\
+No Boundary & 226.7 & $-$35.0 & 0.99 [0.98, 1.00] & $<$.001 & $^{***}$ \\
+No Evol.    & 321.8 & $-$7.8  & 0.39 [0.11, 0.64] & .0047 & $^{*}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -462,17 +462,17 @@ adaptive movement, or population renewal, organisms cannot sustain themselves.
 
 Figure~\ref{fig:timeseries} shows population trajectories across all
 conditions.
-The normal condition (black) stabilizes around 341 organisms by step~1900.
+The normal condition (black) stabilizes around 349 organisms by step~1900.
 Metabolic ablation (orange) causes rapid collapse within the first 200 steps,
 as organisms cannot produce energy to maintain boundaries.
 Reproduction ablation (blue) produces a slower but equally terminal decline,
 as the initial population ages and dies without replacement.
-Evolution ablation (purple) shows the weakest effect (Cliff's $\delta$=0.34),
+Evolution ablation (purple) shows the weakest effect (Cliff's $\delta$=0.39),
 with populations remaining viable but slightly smaller than normal---consistent
 with evolution operating as an optimization process rather than a survival
 necessity at these timescales.
 AUC of the alive-count curve corroborates $N_T$ rankings across all
-conditions (normal AUC=510{,}890 vs.\ 74{,}545--470{,}837 for ablations).
+conditions (normal AUC=516{,}328 vs.\ 74{,}504--473{,}908 for ablations).
 Median organism lifespan reveals an individual-vs-population distinction:
 reproduction-ablated organisms live longer individually (median 751 vs.\
 242 steps for normal) despite population collapse, confirming that the
@@ -483,7 +483,7 @@ Per-seed distributions are shown in Figure~\ref{fig:distributions}.
 At $T=500$ (before long-term population dynamics dominate),
 reproduction-ablated organisms retain higher survival
 ($\bar{x}$=47.7 vs.\ 31.3 at $T=2000$; normal baseline
-$\bar{x}_{\text{normal}}$=179.0 at $T=500$), with 73\% decline
+$\bar{x}_{\text{normal}}$=179.8 at $T=500$), with 73\% decline
 relative to normal versus 91\% at $T=2000$.
 This progressive widening confirms that the long-term effect is
 population-level (no replacement) rather than immediate individual-level
@@ -510,7 +510,7 @@ by outliers.}
 count across 30 seeds (100--129); shaded bands show $\pm$1 SEM. Normal
 baseline (thick black) stabilizes near 341 organisms by step~1900. Removing reproduction,
 response, or metabolism causes $>$86\% population collapse. Evolution ablation
-shows a modest 6\% decline (Cliff's $\delta$=0.34), consistent with optimization
+shows a modest 8\% decline (Cliff's $\delta$=0.39), consistent with optimization
 rather than short-term survival necessity.}
 \label{fig:timeseries}
 \end{figure*}
@@ -655,7 +655,7 @@ $\Delta_{AB} = 298.1$ falls below the additive expectation of 450.7.
 \centering
 \caption{Pairwise ablation synergy scores ($n$=30 per condition, Graph
 metabolism). Negative synergy indicates sub-additive interaction (shared
-failure pathways). Baseline $\bar{x}$=341.3, consistent with
+failure pathways). Baseline $\bar{x}$=348.9, consistent with
 Table~\ref{tab:ablation}.}
 \label{tab:pairwise}
 \small
@@ -687,7 +687,7 @@ growth's functional contribution extends beyond reproduction gating.
 
 \subsection{Evolution Strengthening}
 
-The modest 2000-step evolution effect ($d$=0.58, $\delta$=0.34) grows
+The modest 2000-step evolution effect ($d$=0.78, $\delta$=0.39) grows
 substantially at longer timescales (Figure~\ref{fig:evolution}).
 At 10,000 steps ($n$=30), $d$=1.42, $\delta$=0.66 ($p < 0.001$);
 normal populations reach $\bar{x}$=446.5 vs.\ 371.7 for no-evolution
@@ -877,7 +877,7 @@ is a population-level rather than individual-level phenomenon:
 organisms continuously explore the trait space, with the population
 maintaining a stable distribution of strategies even as individuals
 transition between them---consistent with the moderate evolution
-effect ($\delta$=0.34) observed in single-ablation experiments.
+effect ($\delta$=0.39) observed in single-ablation experiments.
 
 \paragraph{Spatial cohesion.}
 Per-organism spatial cohesion (mean pairwise toroidal agent distance)
@@ -971,7 +971,7 @@ metabolism sustains fewer organisms with distinct diversity profiles),
 ruling out tautological definitions.
 
 \paragraph{Evolution at longer timescales.}
-The modest 2000-step evolution effect ($d$=0.58, $\delta$=0.34) grows to
+The modest 2000-step evolution effect ($d$=0.78, $\delta$=0.39) grows to
 $d$=1.42 ($\delta$=0.66) at 10,000 steps and $d$=0.86 ($\delta$=0.50)
 under environmental perturbation, confirming that evolutionary adaptation
 accumulates across generations.
@@ -1033,8 +1033,8 @@ standard distinguishing genuine criteria implementations from simplified
 proxies.
 
 Our results demonstrate that no criterion is decorative: removing any one
-causes statistically significant population decline ($p \leq 0.013$, Holm-Bonferroni
-corrected), with Cliff's $\delta$ ranging from 0.34 to 1.00.
+causes statistically significant population decline ($p \leq 0.004728$, Holm-Bonferroni
+corrected), with Cliff's $\delta$ ranging from 0.39 to 1.00.
 Pairwise ablations further reveal shared failure pathways---sub-additive
 interactions consistent with criteria converging on overlapping viability
 subsystems rather than operating independently.

@@ -7,19 +7,21 @@ import json
 from pathlib import Path
 
 try:
+    from .analysis_utils import load
+except ImportError:
+    from analysis_utils import load
+
+try:
     from .experiment_common import CRITERION_TO_FLAG
 except ImportError:
     from experiment_common import CRITERION_TO_FLAG
 
 
-def load_condition(path: Path) -> list[dict]:
-    with open(path) as f:
-        return json.load(f)
-
-
 def mean_final_alive(rows: list[dict]) -> float:
+    if not rows:
+        raise ValueError("mean_final_alive: no rows provided")
     values = [float(r.get("final_alive_count", 0)) for r in rows]
-    return sum(values) / max(1, len(values))
+    return sum(values) / len(values)
 
 
 def build_report(experiment_dir: Path) -> dict:
@@ -29,13 +31,13 @@ def build_report(experiment_dir: Path) -> dict:
     }
 
     criteria = list(CRITERION_TO_FLAG.keys())
-    normal = load_condition(experiment_dir / "midrun_normal.json")
+    normal = load(experiment_dir / "midrun_normal.json")
     normal_mean = mean_final_alive(normal)
 
     entries = []
     for criterion in criteria:
-        step0 = load_condition(experiment_dir / f"midrun_no_{criterion}_step0.json")
-        midrun = load_condition(experiment_dir / f"midrun_no_{criterion}_midrun.json")
+        step0 = load(experiment_dir / f"midrun_no_{criterion}_step0.json")
+        midrun = load(experiment_dir / f"midrun_no_{criterion}_midrun.json")
         step0_mean = mean_final_alive(step0)
         midrun_mean = mean_final_alive(midrun)
         entries.append(

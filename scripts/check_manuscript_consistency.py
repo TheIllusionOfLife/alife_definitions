@@ -117,7 +117,9 @@ def _check_base_config(manifest: dict) -> tuple[list[str], list[str]]:
     if "mutation_scale" in base_cfg or "mutation_point_scale" in base_cfg:
         checks.append("manifest base_config mutation_scale")
     else:
-        issues.append("manifest missing base_config.mutation_scale")
+        issues.append(
+            "manifest missing base_config.mutation_scale (or mutation_point_scale)"
+        )
     return issues, checks
 
 
@@ -207,6 +209,7 @@ def _check_freshness(manifest: dict, manifest_path: Path) -> tuple[list[str], li
                 k
                 for k in base_cfg
                 if key_map.get(k, k) not in generated_base_cfg
+                and k not in generated_base_cfg
             ]
             if missing:
                 issues.append(
@@ -214,10 +217,13 @@ def _check_freshness(manifest: dict, manifest_path: Path) -> tuple[list[str], li
                     + ", ".join(sorted(missing))
                 )
             else:
-                projected_generated = {
-                    k: generated_base_cfg[key_map.get(k, k)]
-                    for k in base_cfg
-                }
+                projected_generated = {}
+                for k in base_cfg:
+                    mapped = key_map.get(k, k)
+                    if mapped in generated_base_cfg:
+                        projected_generated[k] = generated_base_cfg[mapped]
+                    else:
+                        projected_generated[k] = generated_base_cfg[k]
                 generated_digest = _config_digest(projected_generated)
                 reference_digest = _config_digest(base_cfg)
                 if generated_digest != reference_digest:

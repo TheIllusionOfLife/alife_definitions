@@ -10,11 +10,10 @@ Usage:
 """
 
 import json
-import time
 from pathlib import Path
 
 import digital_life
-from experiment_common import log, make_config, print_header, print_sample, run_single
+from experiment_common import log, make_config, print_header, run_condition_common
 from experiment_manifest import write_manifest
 
 STEPS = 2000
@@ -41,29 +40,6 @@ CONDITIONS = {
         "enable_evolution": False,
     },
 }
-
-
-def run_condition(cond_name: str, overrides: dict, out_dir: Path) -> None:
-    log(f"--- Condition: {cond_name} ---")
-    results = []
-    start = time.perf_counter()
-
-    for seed in SEEDS:
-        t0 = time.perf_counter()
-        result = run_single(seed, overrides, steps=STEPS, sample_every=SAMPLE_EVERY)
-        elapsed = time.perf_counter() - t0
-        results.append(result)
-
-        for sample in result["samples"]:
-            print_sample(cond_name, seed, sample)
-
-        log(f"  seed={seed:3d}  alive={result['final_alive_count']:4d}  {elapsed:.2f}s")
-
-    with open(out_dir / f"ecology_stress_{cond_name}.json", "w") as f:
-        json.dump(results, f, indent=2)
-
-    log(f"  Condition time: {time.perf_counter() - start:.1f}s")
-    log("")
 
 
 def main() -> None:
@@ -99,10 +75,16 @@ def main() -> None:
     )
 
     print_header()
-    total_start = time.perf_counter()
     for cond_name, overrides in CONDITIONS.items():
-        run_condition(cond_name, overrides, out_dir)
-    log(f"Total experiment time: {time.perf_counter() - total_start:.1f}s")
+        run_condition_common(
+            cond_name,
+            overrides,
+            out_dir,
+            filename_prefix="ecology_stress_",
+            seeds=SEEDS,
+            steps=STEPS,
+            sample_every=SAMPLE_EVERY,
+        )
 
 
 if __name__ == "__main__":

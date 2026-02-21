@@ -146,6 +146,7 @@ pub struct World {
     rng: ChaCha12Rng,
     next_agent_id: u32,
     step_index: usize,
+    original_config: Option<SimConfig>,
     scheduled_ablation_applied: bool,
     births_last_step: usize,
     deaths_last_step: usize,
@@ -364,6 +365,7 @@ impl World {
             rng: ChaCha12Rng::seed_from_u64(config.seed),
             next_agent_id: max_agent_id.saturating_add(1),
             step_index: 0,
+            original_config: None,
             scheduled_ablation_applied: false,
             births_last_step: 0,
             deaths_last_step: 0,
@@ -424,6 +426,7 @@ impl World {
         }
         self.current_resource_rate = config.resource_regeneration_rate;
         self.config = config;
+        self.original_config = None;
         self.scheduled_ablation_applied = false;
         self.mutation_rates = Self::mutation_rates_from_config(&self.config);
         if mode_changed {
@@ -1544,6 +1547,9 @@ impl World {
         }
         if self.config.ablation_step == 0 || self.step_index < self.config.ablation_step {
             return;
+        }
+        if self.original_config.is_none() {
+            self.original_config = Some(self.config.clone());
         }
         for target in &self.config.ablation_targets {
             match target {

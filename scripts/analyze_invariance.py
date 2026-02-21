@@ -4,17 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
+try:
+    from .analysis_utils import load
+except ImportError:
+    from analysis_utils import load
 
-def load(path: Path) -> list[dict]:
-    with open(path) as f:
-        return json.load(f)
-
+logger = logging.getLogger(__name__)
 
 def mean_final(rows: list[dict]) -> float:
+    if not rows:
+        logger.warning("mean_final: no rows provided (len=%d); returning 0.0", len(rows))
+        return 0.0
     vals = [float(r.get("final_alive_count", 0)) for r in rows]
-    return sum(vals) / max(1, len(vals))
+    return sum(vals) / len(vals)
 
 
 def report(experiment_dir: Path) -> dict:
