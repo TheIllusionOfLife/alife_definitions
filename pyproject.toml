@@ -35,4 +35,7 @@ select = ["E", "F", "I", "UP", "B"]
 "scripts/experiment_utils.py" = ["E402"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+# "." exposes the top-level scripts package (from scripts/__init__.py).
+# "scripts" exposes sub-packages (analyses/, figures/) as top-level imports,
+# matching how the analysis scripts themselves run (scripts/ is their cwd).
+pythonpath = [".", "scripts"]
