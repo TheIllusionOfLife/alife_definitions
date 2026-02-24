@@ -13,12 +13,17 @@ Implementation lives in ``analyses/phenotype/``; this file is a thin dispatcher.
 
 from __future__ import annotations
 
+import numpy as np  # noqa: F401  (re-export for smoke_test back-compat)
 from analyses.phenotype import (
     analyze_long_horizon_sensitivity,  # noqa: F401  (re-export for back-compat)
     main,
 )
 from analyses.phenotype.clustering import (  # noqa: F401  (re-export for back-compat)
     persistence_claim_gate,
+)
+from analyses.phenotype.trait_extraction import (  # noqa: F401  (re-export for back-compat)
+    _collect_organism_traits,
+    _extract_shared_traits,
 )
 
 if __name__ == "__main__":
