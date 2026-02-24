@@ -324,7 +324,7 @@ define_sim_config_error! {
 impl std::error::Error for SimConfigError {}
 
 impl SimConfig {
-    pub const MAX_WORLD_SIZE: f64 = 2048.0;
+    pub const MAX_WORLD_SIZE: f64 = crate::constants::MAX_WORLD_SIZE;
 
     pub const MAX_TOTAL_AGENTS: usize = 250_000;
 

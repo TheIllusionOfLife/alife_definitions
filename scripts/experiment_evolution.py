@@ -17,14 +17,7 @@ import time
 from pathlib import Path
 
 import digital_life
-from experiment_common import (
-    log,
-    make_config,
-    print_header,
-    print_sample,
-    run_single,
-    safe_path,
-)
+from experiment_common import log, make_config, print_header, run_condition_common
 from experiment_manifest import write_manifest
 
 SAMPLE_EVERY = 100
@@ -52,35 +45,6 @@ SHIFT_CONDITIONS = {
         "environment_shift_resource_rate": SHIFT_RESOURCE_RATE,
     },
 }
-
-
-def run_condition(cond_name: str, overrides: dict, steps: int,
-                  sample_every: int, out_dir: Path):
-    """Run all seeds for a single condition and save results to JSON."""
-    log(f"--- Condition: {cond_name} ({steps} steps) ---")
-    results = []
-    cond_start = time.perf_counter()
-
-    for seed in SEEDS:
-        t0 = time.perf_counter()
-        result = run_single(seed, overrides, steps, sample_every)
-        elapsed = time.perf_counter() - t0
-        results.append(result)
-
-        for s in result["samples"]:
-            print_sample(cond_name, seed, s)
-
-        final = result["final_alive_count"]
-        log(f"  seed={seed:3d}  alive={final:4d}  {elapsed:.2f}s")
-
-    cond_elapsed = time.perf_counter() - cond_start
-    log(f"  Condition time: {cond_elapsed:.1f}s")
-
-    raw_path = safe_path(out_dir, f"evolution_{cond_name}.json")
-    with open(raw_path, "w") as f:
-        json.dump(results, f, indent=2)
-    log(f"  Saved: {raw_path}")
-    log("")
 
 
 def main():
@@ -149,14 +113,17 @@ def main():
 
     # Sub-experiment 1: Long run
     for cond_name, overrides in LONG_CONDITIONS.items():
-        run_condition(cond_name, overrides, LONG_STEPS, SAMPLE_EVERY, out_dir)
+        run_condition_common(
+            cond_name, overrides, out_dir, "evolution_", SEEDS, LONG_STEPS, SAMPLE_EVERY
+        )
 
     # Sub-experiment 2: Environmental shift
     for cond_name, overrides in SHIFT_CONDITIONS.items():
-        run_condition(cond_name, overrides, SHIFT_STEPS, SAMPLE_EVERY, out_dir)
+        run_condition_common(
+            cond_name, overrides, out_dir, "evolution_", SEEDS, SHIFT_STEPS, SAMPLE_EVERY
+        )
 
-    total_elapsed = time.perf_counter() - total_start
-    log(f"Total experiment time: {total_elapsed:.1f}s")
+    log(f"Total experiment time: {time.perf_counter() - total_start:.1f}s")
 
 
 if __name__ == "__main__":

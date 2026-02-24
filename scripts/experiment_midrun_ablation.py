@@ -15,8 +15,7 @@ from experiment_common import (
     CRITERION_TO_FLAG,
     log,
     make_config,
-    print_header,
-    run_condition_common,
+    run_condition_suite,
 )
 from experiment_manifest import write_manifest
 
@@ -72,17 +71,7 @@ def main() -> None:
         ],
     )
 
-    print_header()
-    for cond_name, overrides in conditions.items():
-        run_condition_common(
-            cond_name,
-            overrides,
-            out_dir,
-            filename_prefix="midrun_",
-            seeds=SEEDS,
-            steps=STEPS,
-            sample_every=SAMPLE_EVERY,
-        )
+    run_condition_suite("midrun_", conditions, STEPS, SEEDS, SAMPLE_EVERY, out_dir=out_dir)
 
 
 if __name__ == "__main__":

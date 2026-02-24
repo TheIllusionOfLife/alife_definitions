@@ -12,17 +12,21 @@ from pathlib import Path
 
 import digital_life
 
-# Tuned baseline parameters from parameter sweep (2026-02-12)
-TUNED_BASELINE = {
-    "boundary_decay_base_rate": 0.001,
-    "boundary_repair_rate": 0.05,
-    "metabolic_viability_floor": 0.1,
-    "crowding_neighbor_threshold": 50.0,
-    "homeostasis_decay_rate": 0.01,
-    "growth_maturation_steps": 200,
-    "growth_immature_metabolic_efficiency": 0.3,
-    "resource_regeneration_rate": 0.01,
-}
+_CONFIGS_DIR = Path(__file__).resolve().parent.parent / "configs"
+
+
+def _load_tuned_baseline() -> dict:
+    """Load tuned baseline parameters from configs/tuned_baseline.json."""
+    path = _CONFIGS_DIR / "tuned_baseline.json"
+    with open(path) as f:
+        data = json.load(f)
+    # Strip metadata keys that begin with '_'
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
+# Tuned baseline parameters — loaded from configs/tuned_baseline.json.
+# Calibrated via param_sweep_thresholds.py on 2026-02-12 (seeds 0-99).
+TUNED_BASELINE = _load_tuned_baseline()
 
 # Criterion name to config flag mapping
 CRITERION_TO_FLAG = {
@@ -48,20 +52,29 @@ PAIRS = [
 # Standard criterion-ablation conditions shared across experiment drivers.
 CONDITIONS = {
     "normal": {},
-    **{
-        f"no_{criterion}": {flag: False}
-        for criterion, flag in CRITERION_TO_FLAG.items()
-    },
+    **{f"no_{criterion}": {flag: False} for criterion, flag in CRITERION_TO_FLAG.items()},
 }
 
 # TSV column headers for experiment output
 TSV_COLUMNS = [
-    "condition", "seed", "step",
-    "alive_count", "energy_mean", "waste_mean", "boundary_mean",
-    "birth_count", "death_count", "population_size",
-    "mean_generation", "mean_genome_drift",
-    "energy_std", "waste_std", "boundary_std",
-    "mean_age", "genome_diversity", "max_generation",
+    "condition",
+    "seed",
+    "step",
+    "alive_count",
+    "energy_mean",
+    "waste_mean",
+    "boundary_mean",
+    "birth_count",
+    "death_count",
+    "population_size",
+    "mean_generation",
+    "mean_genome_drift",
+    "energy_std",
+    "waste_std",
+    "boundary_std",
+    "mean_age",
+    "genome_diversity",
+    "max_generation",
 ]
 
 
@@ -85,8 +98,7 @@ def make_config_dict(seed: int, overrides: dict) -> dict:
     return config
 
 
-def run_single(seed: int, overrides: dict,
-               steps: int = 2000, sample_every: int = 50) -> dict:
+def run_single(seed: int, overrides: dict, steps: int = 2000, sample_every: int = 50) -> dict:
     """Run a single experiment and return parsed results."""
     config_json = make_config(seed, overrides)
     result_json = digital_life.run_experiment_json(config_json, steps, sample_every)
@@ -101,7 +113,9 @@ def print_header() -> None:
 def print_sample(condition: str, seed: int, s: dict) -> None:
     """Print a single sample row as TSV to stdout."""
     vals = [
-        condition, str(seed), str(s["step"]),
+        condition,
+        str(seed),
+        str(s["step"]),
         str(s["alive_count"]),
         f"{s['energy_mean']:.4f}",
         f"{s['waste_mean']:.4f}",
@@ -195,3 +209,41 @@ def run_condition_common(
 
     log(f"  Condition time: {time.perf_counter() - start:.1f}s")
     log("")
+
+
+def run_condition_suite(
+    filename_prefix: str,
+    conditions: dict,
+    steps: int,
+    seeds: list[int],
+    sample_every: int,
+    out_dir: Path | None = None,
+    extra_overrides: dict | None = None,
+) -> None:
+    """Run all conditions in a suite.
+
+    Streams TSV rows to stdout and writes per-condition JSON to *out_dir*.
+    This is the recommended entry point for experiment scripts: define only
+    ``conditions``, ``steps``, ``seeds``, and ``sample_every``, then call here.
+
+    Args:
+        filename_prefix: Output JSON files are named ``{prefix}{cond_name}.json``.
+        conditions: Mapping of condition name → override dict.
+        steps: Number of simulation steps per seed.
+        seeds: Seed list.
+        sample_every: Sampling interval.
+        out_dir: Directory for JSON output. Defaults to ``experiments/``.
+        extra_overrides: Config overrides applied to *every* condition (e.g.
+            ``{"metabolism_mode": "graph"}``). Condition-specific overrides
+            take precedence.
+    """
+    if out_dir is None:
+        out_dir = experiment_output_dir()
+    print_header()
+    total_start = time.perf_counter()
+    for cond_name, overrides in conditions.items():
+        combined = {**(extra_overrides or {}), **overrides}
+        run_condition_common(
+            cond_name, combined, out_dir, filename_prefix, seeds, steps, sample_every
+        )
+    log(f"Total time: {time.perf_counter() - total_start:.1f}s")

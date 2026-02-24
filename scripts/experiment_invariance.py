@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 import digital_life
-from experiment_common import log, make_config, print_header, run_condition_common
+from experiment_common import log, make_config, run_condition_suite
 from experiment_manifest import write_manifest
 
 STEPS = 2000
@@ -74,17 +74,7 @@ def main() -> None:
         ],
     )
 
-    print_header()
-    for cond_name, overrides in CONDITIONS.items():
-        run_condition_common(
-            cond_name,
-            overrides,
-            out_dir,
-            filename_prefix="invariance_",
-            seeds=SEEDS,
-            steps=STEPS,
-            sample_every=SAMPLE_EVERY,
-        )
+    run_condition_suite("invariance_", CONDITIONS, STEPS, SEEDS, SAMPLE_EVERY, out_dir=out_dir)
 
 
 if __name__ == "__main__":

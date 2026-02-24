@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import digital_life
-from experiment_utils import log, run_single, safe_path
+from experiment_common import log, run_single, safe_path
 
 STEPS = 2000
 SAMPLE_EVERY = 50
@@ -64,7 +64,7 @@ def main():
 
         for seed in SEEDS:
             ts = time.perf_counter()
-            result = run_single(seed, STEPS, SAMPLE_EVERY, overrides)
+            result = run_single(seed, overrides, steps=STEPS, sample_every=SAMPLE_EVERY)
             elapsed = time.perf_counter() - ts
             results.append(result)
             log(f"  seed={seed:3d}  alive={result['final_alive_count']:4d}  {elapsed:.2f}s")
@@ -79,15 +79,19 @@ def main():
 
         summary = summarize_results(mode_name, results)
         summaries.append(summary)
-        log(f"  alive: mean={summary['alive_mean']:.1f} "
+        log(
+            f"  alive: mean={summary['alive_mean']:.1f} "
             f"[{summary['alive_min']}, {summary['alive_max']}]  "
-            f"energy_mean={summary['energy_mean']:.4f}")
+            f"energy_mean={summary['energy_mean']:.4f}"
+        )
         log("")
 
     log("=== Comparison ===")
     for s in summaries:
-        log(f"  {s['label']:6s}: alive_mean={s['alive_mean']:.1f}, "
-            f"energy_mean={s['energy_mean']:.4f}")
+        log(
+            f"  {s['label']:6s}: alive_mean={s['alive_mean']:.1f}, "
+            f"energy_mean={s['energy_mean']:.4f}"
+        )
 
     summary_path = safe_path(out_dir, "calibration_summary.json")
     with open(summary_path, "w") as f:

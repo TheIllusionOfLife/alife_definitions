@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import digital_life
-from experiment_utils import CONDITIONS, log, run_single, safe_path
+from experiment_common import CONDITIONS, log, run_single, safe_path
 
 STEPS = 2000
 SAMPLE_EVERY = 50
@@ -50,7 +50,10 @@ def main():
             for seed in SEEDS:
                 t0 = time.perf_counter()
                 result = run_single(
-                    seed, STEPS, SAMPLE_EVERY, GRAPH_OVERRIDES, regime_overrides, cond_overrides
+                    seed,
+                    {**regime_overrides, **cond_overrides, **GRAPH_OVERRIDES},
+                    steps=STEPS,
+                    sample_every=SAMPLE_EVERY,
                 )
                 elapsed = time.perf_counter() - t0
                 results.append(result)

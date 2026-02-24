@@ -126,8 +126,8 @@ fn compute_genome_diversity(organisms: &[OrganismRuntime], step_index: usize) ->
         return 0.0;
     }
 
-    // Sample up to 50 random pairs to avoid O(n^2) cost
-    let max_pairs = 50usize;
+    // Sample up to GENOME_DIVERSITY_MAX_PAIRS random pairs to avoid O(n^2) cost
+    let max_pairs = crate::constants::GENOME_DIVERSITY_MAX_PAIRS;
     let total_pairs = n * (n - 1) / 2;
 
     if total_pairs <= max_pairs {
