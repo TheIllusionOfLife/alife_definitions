@@ -721,6 +721,33 @@ mod tests {
     }
 
     #[test]
+    fn family_config_default_is_valid() {
+        let mut config = SimConfig::default();
+        config.families = vec![FamilyConfig::default()];
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn family_config_zero_initial_count_is_rejected() {
+        let mut config = SimConfig::default();
+        config.families = vec![FamilyConfig {
+            initial_count: 0,
+            ..FamilyConfig::default()
+        }];
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn family_config_negative_mutation_multiplier_is_rejected() {
+        let mut config = SimConfig::default();
+        config.families = vec![FamilyConfig {
+            mutation_rate_multiplier: -0.1,
+            ..FamilyConfig::default()
+        }];
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
     fn error_display_messages_are_preserved() {
         let cases = vec![
             (
