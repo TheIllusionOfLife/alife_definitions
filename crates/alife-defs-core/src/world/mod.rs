@@ -835,11 +835,22 @@ impl World {
             parent_stable_id: Some(parent_stable_id),
         };
         self.next_organism_stable_id = self.next_organism_stable_id.saturating_add(1);
+        let genome_hash = {
+            const OFFSET: u64 = 14695981039346656037;
+            const PRIME: u64 = 1099511628211;
+            child
+                .genome
+                .data()
+                .iter()
+                .flat_map(|f| f.to_le_bytes())
+                .fold(OFFSET, |h, b| (h ^ b as u64).wrapping_mul(PRIME))
+        };
         self.lineage_events.push(LineageEvent {
             step: self.step_index,
             parent_stable_id,
             child_stable_id,
             generation: child_generation,
+            genome_hash,
         });
         self.organisms.push(child);
         self.org_toroidal_sums.push([0.0, 0.0, 0.0, 0.0]);
