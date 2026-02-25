@@ -24,7 +24,7 @@
   - `spatial.rs`: spatial indexing and neighborhood operations
   - `config.rs`: simulation configuration model and validation
 - `crates/alife-defs-py/src/lib.rs`: Python binding entry points
-- `crates/spike/src/main.rs`: benchmark and feasibility executable
+- `crates/alife-defs-cli/src/main.rs`: benchmark and feasibility executable
 
 ## Python Surface
 

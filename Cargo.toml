@@ -2,7 +2,7 @@
 members = [
     "crates/alife-defs-core",
     "crates/alife-defs-py",
-    "crates/spike",
+    "crates/alife-defs-cli",
 ]
 resolver = "2"
 

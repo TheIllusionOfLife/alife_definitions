@@ -64,7 +64,7 @@ cargo run -p alife-defs-cli --release -- benchmark
 
 - `crates/alife-defs-core`: simulation core (world, metabolism, genome, NN, spatial systems)
 - `crates/alife-defs-py`: PyO3 bindings exposing core functions to Python
-- `crates/spike`: executable benchmark/feasibility runner
+- `crates/alife-defs-cli`: executable benchmark/feasibility runner
 - `python/alife_defs`: Python package surface for the extension module
 
 ## Development Workflow
