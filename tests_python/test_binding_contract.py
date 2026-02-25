@@ -193,7 +193,7 @@ def test_families_field_roundtrips_through_validate():
 def test_families_validation_rejects_zero_initial_count():
     cfg = json.loads(alife_defs.default_config_json())
     cfg["families"] = [{"initial_count": 0}]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         alife_defs.validate_config_json(json.dumps(cfg))
 
 
