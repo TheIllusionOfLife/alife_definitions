@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use digital_life_core::agent::Agent;
-use digital_life_core::config::{MetabolismMode, SimConfig};
-use digital_life_core::nn::NeuralNet;
-use digital_life_core::world::World;
+use alife_defs_core::agent::Agent;
+use alife_defs_core::config::{MetabolismMode, SimConfig};
+use alife_defs_core::nn::NeuralNet;
+use alife_defs_core::world::World;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
@@ -17,8 +17,8 @@ const BENCHMARK_STEPS: usize = 200;
 const TARGET_SPS: f64 = 100.0;
 
 #[derive(Parser)]
-#[command(name = "digital-life")]
-#[command(about = "Digital Life Simulation CLI")]
+#[command(name = "alife-defs")]
+#[command(about = "ALife Definitions Benchmark CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -158,10 +158,10 @@ fn main() -> Result<()> {
         Commands::Benchmark => {
             if cfg!(debug_assertions) {
                 eprintln!("WARNING: running in debug mode. Results are not representative.");
-                eprintln!("         Use: cargo run -p digital-life-cli --release -- benchmark");
+                eprintln!("         Use: cargo run -p alife-defs-cli --release -- benchmark");
                 eprintln!();
             }
-            println!("=== Digital Life Feasibility Spike ===");
+            println!("=== ALife Definitions Benchmark Spike ===");
             println!("Warmup: {WARMUP_STEPS} steps, Benchmark: {BENCHMARK_STEPS} steps");
             println!("Target: >={TARGET_SPS} steps/sec for 2500 agents");
             println!();

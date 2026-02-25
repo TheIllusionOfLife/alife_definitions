@@ -3,6 +3,43 @@
 version = 4
 
 [[package]]
+name = "alife-defs-cli"
+version = "0.1.0"
+dependencies = [
+ "alife-defs-core",
+ "anyhow",
+ "clap",
+ "rand",
+ "rand_chacha",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alife-defs-core"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "rand",
+ "rand_chacha",
+ "rayon",
+ "rstar",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alife-defs-py"
+version = "0.1.0"
+dependencies = [
+ "alife-defs-core",
+ "pyo3",
+ "rand",
+ "rand_chacha",
+ "serde_json",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,43 +204,6 @@ name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
-
-[[package]]
-name = "digital-life-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "digital-life-core",
- "rand",
- "rand_chacha",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "digital-life-core"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "rand",
- "rand_chacha",
- "rayon",
- "rstar",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "digital-life-py"
-version = "0.1.0"
-dependencies = [
- "digital-life-core",
- "pyo3",
- "rand",
- "rand_chacha",
- "serde_json",
-]
 
 [[package]]
 name = "either"
