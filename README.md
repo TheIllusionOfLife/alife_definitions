@@ -1,8 +1,10 @@
-# Digital Life
+# ALife Definitions
 
-Digital Life is an artificial life research codebase for building and evaluating computational organisms against seven biological criteria (cellular organization, metabolism, homeostasis, growth/development, reproduction, response to stimuli, and evolution).
+**Benchmarking Multiple Definitions of Life in a Shared Digital World.**
 
-The repository is a Rust workspace with optional Python bindings.
+This repository provides a Rust+Python simulation substrate for empirically comparing how competing operational definitions of life agree and disagree when applied to the same digital organisms across different environment regimes.
+
+**Target venue**: ALIFE 2026 Full Paper.
 
 ## Quick Start
 
@@ -10,12 +12,11 @@ The repository is a Rust workspace with optional Python bindings.
 
 - Rust stable toolchain
 - `uv` for Python environment and packaging tasks
-- `tectonic` for LaTeX paper compilation
 
 ### Build
 
 ```bash
-cargo build --workspace
+cargo build -p alife-defs-core -p alife-defs-cli
 ```
 
 ### Test and Lint
@@ -24,60 +25,30 @@ cargo build --workspace
 ./scripts/check.sh
 ```
 
-### Python Script Lint/Test
+### Python Lint/Test
 
 ```bash
 uv run ruff check scripts tests_python
 uv run pytest tests_python
-uv run python scripts/check_manuscript_consistency.py
-```
-
-### Long-Horizon Niche + Zenodo Metadata
-
-```bash
-uv run python scripts/experiment_niche.py --long-horizon
-uv run python scripts/analyze_phenotype.py > experiments/phenotype_analysis.json
-gzip -c experiments/niche_normal_long.json > experiments/niche_normal_long.json.gz
-uv run python scripts/prepare_zenodo_metadata.py experiments/niche_normal_long.json.gz \
-  --experiment-name niche_long_horizon \
-  --steps 10000 \
-  --seed-start 100 \
-  --seed-end 129 \
-  --paper-binding fig:persistent_clusters=experiments/phenotype_analysis.json \
-  --zenodo-doi 10.5281/zenodo.18710600 \
-  --output docs/research/zenodo_niche_long_horizon_metadata.json
-```
-
-### Artifact Publication Policy (Zenodo)
-
-- Commit code, manifests, compact summaries, and figure-ready outputs.
-- Do not commit large raw experiment outputs to git.
-- Publish heavy artifacts to Zenodo with checksums and commit provenance.
-- Detailed policy: `docs/research/artifact_publication_policy.md`
-
-### Config Compatibility Note
-
-- Scheduled ablation targets are enum-backed (`ablation_targets`) and must be one of:
-  `metabolism`, `boundary`, `homeostasis`, `response`, `reproduction`, `evolution`, `growth`.
-- Unknown target values now fail during config deserialization instead of later runtime validation.
-
-### Run the Feasibility Spike
-
-```bash
-cargo run -p digital-life-spike --release
 ```
 
 ### Build Python Extension (local)
 
 ```bash
-uv run maturin develop --manifest-path crates/digital-life-py/Cargo.toml
+uv run maturin develop --manifest-path crates/alife-defs-py/Cargo.toml
 ```
 
 Then in Python:
 
 ```python
-import digital_life
-print(digital_life.version())
+import alife_defs
+print(alife_defs.version())
+```
+
+### Run the Benchmark CLI
+
+```bash
+cargo run -p alife-defs-cli --release -- benchmark
 ```
 
 ## Repository Docs
@@ -87,15 +58,14 @@ print(digital_life.version())
 - `TECH.md`: technology stack and technical constraints
 - `STRUCTURE.md`: code/documentation layout and conventions
 - `docs/README.md`: documentation index
-- `docs/research/`: research planning artifacts and historical design docs
-- `docs/research/result_manifest_bindings.json`: manifest-to-paper result provenance map
+- `docs/research/research-plan.md`: authoritative research plan (new benchmark direction)
 
 ## Architecture (High-Level)
 
-- `crates/digital-life-core`: simulation core (world, metabolism, genome, NN, spatial systems)
-- `crates/digital-life-py`: PyO3 bindings exposing core functions to Python
-- `crates/spike`: executable benchmark/feasibility experiment runner
-- `python/digital_life`: Python package surface for the extension module
+- `crates/alife-defs-core`: simulation core (world, metabolism, genome, NN, spatial systems)
+- `crates/alife-defs-py`: PyO3 bindings exposing core functions to Python
+- `crates/spike`: executable benchmark/feasibility runner
+- `python/alife_defs`: Python package surface for the extension module
 
 ## Development Workflow
 
@@ -105,4 +75,4 @@ print(digital_life.version())
 
 ## Current Status
 
-This is an active research prototype. APIs and model details may evolve quickly as experiments progress.
+Active research prototype targeting ALIFE 2026. APIs may evolve as the benchmark design is finalized.
