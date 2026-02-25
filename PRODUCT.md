@@ -2,27 +2,28 @@
 
 ## Purpose
 
-Digital Life explores whether autonomous digital organisms can satisfy all seven biological criteria for life through functional analogy rather than simplified proxies.
+ALife Definitions provides an empirical benchmark for comparing competing operational definitions of life. The same digital organisms are evaluated under D1 (7-criteria), D2 (Darwinian/NASA), D3 (autonomy/closure), and D4 (information maintenance) to reveal where and why these definitions agree and disagree.
 
 ## Target Users
 
-- ALife researchers
+- ALife researchers studying definitions and criteria of life
 - Computational biology and complex systems researchers
-- Developers building reproducible simulation experiments
+- Researchers who want to evaluate their own ALife systems against standardized definition adapters
 
 ## Key Features
 
-- Multi-organism continuous 2D simulation
-- Criterion-ablation-friendly simulation configuration
-- Metabolism modes (toy and graph-based)
-- Experiment summary output for quantitative analysis
-- Python bindings for experimentation workflows
+- Multi-organism continuous 2D simulation substrate
+- Config-driven experiment runs with deterministic seeds
+- Python analysis layer for definition adapter implementation and scoring
+- Criterion-ablation hooks enabling D1 functional-analogy tests
+- Experiment summary output for quantitative cross-definition comparison
 
 ## Objectives
 
-- Produce publishable experimental evidence for criterion-level functional behavior
-- Enable reproducible simulation runs and controlled ablations
-- Maintain a fast iteration loop for architecture and experiment design
+- Produce publishable benchmark comparing D1–D4 across shared organism traces
+- Characterize agreement/disagreement structure across environment regimes
+- Provide reusable definition adapters other ALife systems can adopt
+- Maintain reproducible simulation runs with held-out test seeds
 
 ## Non-Goals (Current Phase)
 

@@ -4,69 +4,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Digital Life** is an artificial life (ALife) research project aiming to build a computational system where autonomous digital organisms satisfy all seven biological criteria for life through genuine functional analogy — not simplified proxies.
+**ALife Definitions** is a research project benchmarking multiple operational definitions of life in the same digital world. The Rust+Python simulation substrate (inherited from the digital-life-v1 project) is used to empirically compare how competing definitions agree and disagree across organisms and environment regimes.
 
 **Target venue**: ALIFE 2026 Full Paper (8p), deadline ~April 1, 2026.
 
-**Stance**: Weak ALife — the system is a functional model of life, not a claim of life itself.
+**Stance**: Weak ALife — the system is a functional model, not a claim that the organisms are "alive."
 
-## Document Structure (3-document pipeline)
+## Document Structure
 
 | Document | Role |
 |----------|------|
-| `docs/research/digital-life-project-overview.md` | Initial proposition: 7 criteria specs, risk assessment, prototyping roadmap |
-| `docs/research/unified-review.md` | Peer review (Japanese): critical gaps, risks, prioritized recommendations |
-| `docs/research/action-plan.md` | **Authoritative plan**: 7.5-week schedule, architectural decisions, pivot strategies, statistical design |
+| `docs/research/research-plan.md` | **Authoritative plan**: new benchmark direction, definitions D1–D4, experimental design, adapter templates |
 
-When documents conflict, `docs/research/action-plan.md` takes precedence — it incorporates all review feedback and researcher decisions.
+`docs/archive/digital-life-v1/` contains the prior project's research artifacts (action-plan, unified-review, paper) — read-only historical reference.
 
 ## Architecture Decisions
 
-- **Hybrid two-layer**: Swarm agents (10-50 per organism) form organism-level structures; organisms (10-50) inhabit a continuous 2D environment
-- **Language**: Rust (core simulation) + Python (experiment management, analysis). Bound via PyO3/maturin
+- **Hybrid two-layer substrate**: Swarm agents (10-50 per organism) form organism-level structures; organisms (10-50) inhabit a continuous 2D environment
+- **Language**: Rust (core simulation) + Python (experiment management, analysis, definition adapters). Bound via PyO3/maturin
+- **Build**: `uv` for Python, `cargo` + `maturin develop` for Rust extension
 - **LaTeX**: Use `tectonic` for paper compilation (not pdflatex/latexmk)
-- **Neural controllers**: Evolutionary NN (main). LLM (Ollama) only for a single ablation study experiment
 - **Compute**: Mac Mini M2 Pro. Target: >100 timesteps/sec for 2,500 agents
-- **Metabolism**: Graph-based metabolic networks, genetically encoded and evolvable
-- **Genotype**: Variable-length encoding covering metabolic network + developmental program + NN architecture. Designed for all 7 criteria upfront; initially only 2-3 active
 
-## Seven Biological Criteria
+## Benchmark Definitions
 
-1. **Cellular Organization** — Active boundary maintenance (swarm coordination), degrades without energy
-2. **Metabolism** — Graph-based multi-step transformation network (highest risk, test first)
-3. **Homeostasis** — NN controller regulates internal state vector within viable ranges
-4. **Growth/Development** — Minimal seed → mature organism via genetically encoded developmental program
-5. **Reproduction** — Organism-initiated division when metabolically ready; offspring develop from seed
-6. **Response to Stimuli** — Local sensory field + NN processing → emergent behavioral repertoire
-7. **Evolution** — Heritable genomes, mutation/recombination, differential survival (Level A target; Level B is stretch)
+The central contribution is empirically comparing these four operational definitions on the same organism traces:
 
-## Core Experimental Design
+- **D1** — Textbook 7-criteria (cellular org, metabolism, homeostasis, growth, reproduction, stimuli response, evolution) + functional-analogy test
+- **D2** — Darwinian/NASA (sustained self-reproduction + heritable variation + differential success)
+- **D3** — Autonomy/organizational closure (mutual process dependence; closure score from intervention effects)
+- **D4** — Information maintenance (genome causally predicts survival/reproduction; information is preserved and used)
 
-**Criterion-ablation** is the central experiment: each criterion is individually disabled to measure system degradation, proving functional necessity and interdependence.
+## Experimental Design
+
+**Primary mode (Mode A)**: Run the same organism population; apply multiple definition adapters to the resulting traces.
+
+**Environment regimes**: E1 (baseline), E2 (resource shock), E3 (waste/toxin pressure), E4 (sensing noise). 3–5 regimes total.
 
 **Data separation protocol**:
-- Calibration set: seeds 0-99 (Phase 1-2, threshold tuning)
-- Final test set: seeds 100-199 (Phase 4, evaluation with fixed thresholds)
-- Statistics: Mann-Whitney U, Holm-Bonferroni correction (7 simultaneous tests), Cohen's d
+- Calibration set: seeds 0-99 (threshold tuning, adapter development)
+- Final test set: seeds 100-199 (held-out evaluation with fixed thresholds)
+- Statistics: Mann-Whitney U, Holm-Bonferroni correction, Cohen's d
 
-## Key Concept: Functional Analogy
+## Python Package
 
-A computational process is a functional analogy of a biological criterion iff:
-- (a) It is a **dynamic process** requiring sustained resource consumption
-- (b) Its removal causes **measurable degradation** of organism self-maintenance
-- (c) It forms a **feedback loop** with at least one other criterion
-
-This distinguishes the project from "simplified proxy" approaches. Verify at every Go/No-Go checkpoint.
-
-## Pivot Strategy
-
-| Trigger | Pivot |
-|---------|-------|
-| Metabolic network unsustainable | Graph-based → ODE-based metabolism |
-| Hybrid two-layer unstable | Drop swarm, simplify to agent-based |
-| 7-criteria integration infeasible by deadline | Narrow paper to 3-5 working criteria |
-| Full paper infeasible by Week 4 | Switch to Extended Abstract (2-4p) |
+- Import name: `alife_defs`
+- Project name: `alife-defs`
+- Rust crates: `alife-defs-core`, `alife-defs-py`, `alife-defs-cli`
 
 ## Language Notes
 
-Research documents are bilingual (Japanese + English). `docs/research/unified-review.md` is primarily in Japanese. `docs/research/action-plan.md` uses Japanese headers with English technical terms. When generating research content, match the language of the target document.
+Research documents are bilingual (Japanese + English). When generating research content, match the language of the target document.

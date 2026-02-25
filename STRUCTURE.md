@@ -12,7 +12,7 @@
 
 ## Crates
 
-- `crates/digital-life-core/src/`
+- `crates/alife-defs-core/src/`
   - `constants.rs`: shared compile-time constants (MAX_WORLD_SIZE, RNG_DERIVATION_PRIME, GENOME_DIVERSITY_MAX_PAIRS)
   - `world/mod.rs`: World struct, `step()` orchestrator, experiment harnesses, reproduction helpers
   - `world/phases/`: six simulation phase modules (nn_query, agent_state, boundary, metabolism, growth, environment)
@@ -23,12 +23,12 @@
   - `nn.rs`: neural controller
   - `spatial.rs`: spatial indexing and neighborhood operations
   - `config.rs`: simulation configuration model and validation
-- `crates/digital-life-py/src/lib.rs`: Python binding entry points
-- `crates/spike/src/main.rs`: benchmark and feasibility executable
+- `crates/alife-defs-py/src/lib.rs`: Python binding entry points
+- `crates/alife-defs-cli/src/main.rs`: benchmark and feasibility executable
 
 ## Python Surface
 
-- `python/digital_life/__init__.py`: public Python API exports
+- `python/alife_defs/__init__.py`: public Python API exports
 
 ## Scripts Layout
 
@@ -56,27 +56,6 @@ See `configs/README.md` for provenance of each file.
 ## Documentation Organization
 
 - Root docs (`README.md`, `AGENTS.md`, `PRODUCT.md`, `TECH.md`, `STRUCTURE.md`) are canonical operational docs
-- `docs/research/` stores planning/review artifacts; `action-plan.md` is authoritative
-- `docs/research/unified-review.md` and `docs/research/functional-analogy-definition.md` are historical reference — do not delete
-- Zenodo artifact policy for heavy outputs: `docs/research/artifact_publication_policy.md`
+- `docs/research/research-plan.md` is the authoritative benchmark research plan
+- `docs/archive/digital-life-v1/` contains prior project artifacts — read-only historical reference
 - Repository should keep heavy experiment artifacts out of git; track compact summaries + provenance manifests instead
-
-## Experiment Execution Order
-
-Run scripts in this order; each stage depends on outputs from the prior stage.
-
-| Stage | Script | Key output files |
-|-------|--------|-----------------|
-| 1. Core ablation | `experiment_final_graph.py` | `experiments/final_graph_{condition}.json` |
-| 1. Core ablation | `experiment_final.py` | `experiments/final_{condition}.json` |
-| 1. Evolution | `experiment_evolution.py` | `experiments/evolution_{variant}.json` |
-| 1. Cyclic | `experiment_cyclic.py` | `experiments/cyclic_{condition}.json` |
-| 1. Niche | `experiment_niche.py` | `experiments/niche_{condition}.json` |
-| 2. Analysis | `analyze_results.py` | `experiments/final_graph_statistics.json`, `experiments/final_statistics.json` |
-| 2. Analysis | `analyze_coupling.py` | `experiments/coupling_analysis.json` |
-| 2. Analysis | `analyze_phenotype.py` | `experiments/phenotype_analysis.json` |
-| 2. Analysis | `analyze_evolution_evidence.py` | `experiments/evolution_evidence.json` |
-| 3. Figures | `generate_figures.py` | `paper/figures/fig_*.pdf` |
-
-Most analysis scripts require `experiments/final_graph_normal.json` (produced by
-`experiment_final_graph.py`) as their primary input. Run Stage 1 first in a fresh clone.

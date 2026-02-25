@@ -19,8 +19,8 @@ build/
 *.dylib
 
 # maturin/PyO3 artifacts
-/python/digital_life/*.so
-/python/digital_life/*.dylib
+/python/alife_defs/*.so
+/python/alife_defs/*.dylib
 
 # Experiment output data
 # NOTE: .git/info/exclude used to have blanket rules; they are now consolidated here.

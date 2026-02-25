@@ -10,13 +10,12 @@
 
 ## Research Docs
 
-- `research/digital-life-project-overview.md`
-- `research/unified-review.md`
-- `research/action-plan.md`
+- `research/research-plan.md` — **authoritative benchmark plan** (definitions D1–D4, experimental design, adapter templates)
 - `research/result_manifest_bindings.json`
 - `research/final_graph_manifest_reference.json`
-- `research/ecological_differentiation_policy.md`
 
-Research docs are historical/strategy artifacts for this project phase, with one explicit exception for conflicts: when conflicts arise, prioritize `docs/research/action-plan.md` as the authoritative source for technical decisions and implementation guidance. Operational development rules otherwise live in root-level docs.
+## Archive
 
-Heavy experiment outputs are published via Zenodo per `docs/research/artifact_publication_policy.md`; keep repository-tracked artifacts compact and reproducible.
+- `archive/digital-life-v1/` — prior project artifacts (action-plan, unified-review, paper, scripts); read-only historical reference
+
+Operational development rules live in root-level docs. Research planning lives in `docs/research/`.
