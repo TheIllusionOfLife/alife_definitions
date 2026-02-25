@@ -1,4 +1,4 @@
-"""Digital Life: Artificial life simulation framework."""
+"""ALife Definitions: Benchmark substrate for comparing life definitions."""
 
 from ._core import (
     default_config_json,
