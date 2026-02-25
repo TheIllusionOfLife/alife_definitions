@@ -524,7 +524,7 @@ impl World {
                 families.len()
             );
             // Fail-closed: unknown family_id → false (criterion disabled).
-            families.get(family_id as usize).map_or(false, selector)
+            families.get(family_id as usize).is_some_and(selector)
         }
     }
 
