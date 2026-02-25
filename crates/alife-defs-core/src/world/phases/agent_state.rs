@@ -38,7 +38,12 @@ impl World {
             // Expose boundary with a one-step lag to avoid an extra full pass.
             agent.internal_state[2] = organisms[org_idx].boundary_integrity;
 
-            if config.enable_response {
+            if Self::family_flag(
+                &config.families,
+                organisms[org_idx].family_id,
+                |f| f.enable_response,
+                config.enable_response,
+            ) {
                 agent.velocity[0] += delta[0] as f64 * config.dt;
                 agent.velocity[1] += delta[1] as f64 * config.dt;
             }
@@ -60,7 +65,12 @@ impl World {
             agent.internal_state[0] = (agent.internal_state[0] - h_decay).max(0.0);
             agent.internal_state[1] = (agent.internal_state[1] - h_decay).max(0.0);
 
-            if config.enable_homeostasis {
+            if Self::family_flag(
+                &config.families,
+                organisms[org_idx].family_id,
+                |f| f.enable_homeostasis,
+                config.enable_homeostasis,
+            ) {
                 match config.homeostasis_mode {
                     HomeostasisMode::NnRegulator => {
                         agent.internal_state[0] =

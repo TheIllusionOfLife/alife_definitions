@@ -1,5 +1,5 @@
 use super::*;
-use crate::config::{BoundaryMode, HomeostasisMode};
+use crate::config::{BoundaryMode, FamilyConfig, HomeostasisMode};
 
 fn make_world(num_agents: usize, world_size: f64) -> World {
     let agents: Vec<Agent> = (0..num_agents)
@@ -1686,5 +1686,137 @@ fn setpoint_pid_mode_stabilizes_internal_state_toward_energy_scaled_setpoint() {
     assert!(
         s1 < 1.0,
         "setpoint controller should lower high state toward target"
+    );
+}
+
+// ── PR 2b: Family dispatch tests ──
+
+fn make_mode_b_world(families: Vec<FamilyConfig>, agents_per_organism: usize) -> World {
+    let num_organisms: usize = families.iter().map(|f| f.initial_count).sum();
+    let world_size = 100.0f64;
+    let mut agents = Vec::new();
+    for org_id in 0..num_organisms {
+        for a in 0..agents_per_organism {
+            let global_id = (org_id * agents_per_organism + a) as u32;
+            agents.push(Agent::new(global_id, org_id as u16, [50.0, 50.0]));
+        }
+    }
+    let nn = NeuralNet::from_weights(std::iter::repeat_n(0.0f32, NeuralNet::WEIGHT_COUNT));
+    let nns = vec![nn; num_organisms];
+    let config = SimConfig {
+        world_size,
+        num_organisms,
+        agents_per_organism,
+        families,
+        ..SimConfig::default()
+    };
+    World::new(agents, nns, config).unwrap()
+}
+
+#[test]
+fn world_init_assigns_family_ids_correctly() {
+    // Family 0: 3 organisms, Family 1: 2 organisms → first 3 get id=0, last 2 get id=1.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 2,
+            ..FamilyConfig::default()
+        },
+    ];
+    let world = make_mode_b_world(families, 2);
+    assert_eq!(world.organisms[0].family_id, 0);
+    assert_eq!(world.organisms[1].family_id, 0);
+    assert_eq!(world.organisms[2].family_id, 0);
+    assert_eq!(world.organisms[3].family_id, 1);
+    assert_eq!(world.organisms[4].family_id, 1);
+}
+
+#[test]
+fn family_flag_dispatch_uses_family_config() {
+    // Family 0: enable_growth=true (default); Family 1: enable_growth=false.
+    // An immature organism in family 1 should NOT mature after steps.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 1,
+            enable_growth: true,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 1,
+            enable_growth: false,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.enable_reproduction = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.growth_maturation_steps = 10;
+    // Organisms start at maturity=1.0; force them immature.
+    world.organisms[0].maturity = 0.0; // family 0 — growth enabled
+    world.organisms[1].maturity = 0.0; // family 1 — growth disabled
+    for _ in 0..20 {
+        world.step();
+    }
+    assert!(
+        world.organisms[0].maturity > 0.5,
+        "family 0 (growth=true) should mature: {}",
+        world.organisms[0].maturity
+    );
+    assert!(
+        world.organisms[1].maturity < f32::EPSILON,
+        "family 1 (growth=false) should not mature: {}",
+        world.organisms[1].maturity
+    );
+}
+
+#[test]
+fn family_flag_dispatch_falls_back_to_global() {
+    // Empty families slice → family_flag must return the global value.
+    let no_families: &[FamilyConfig] = &[];
+    assert!(
+        World::family_flag(no_families, 0, |f| f.enable_growth, true),
+        "should return global=true when families is empty"
+    );
+    assert!(
+        !World::family_flag(no_families, 0, |f| f.enable_growth, false),
+        "should return global=false when families is empty"
+    );
+}
+
+#[test]
+fn lineage_event_carries_family_id() {
+    // Mode B: family 0 reproduces. Resulting LineageEvent must carry family_id=0.
+    let families = vec![FamilyConfig {
+        initial_count: 1,
+        ..FamilyConfig::default()
+    }];
+    let mut world = make_mode_b_world(families, 10);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.organisms[0].metabolic_state.energy = 1.0;
+    world.organisms[0].boundary_integrity = 1.0;
+    let summary = world.run_experiment(20, 20);
+    assert!(
+        summary.total_reproduction_events >= 1,
+        "reproduction must occur for this test to be valid"
+    );
+    assert!(
+        !summary.lineage_events.is_empty(),
+        "lineage_events should be non-empty when reproduction occurred"
+    );
+    let event = &summary.lineage_events[0];
+    assert_eq!(
+        event.family_id, 0,
+        "lineage event should carry child's family_id=0"
     );
 }

@@ -4,7 +4,15 @@ use crate::config::BoundaryMode;
 impl World {
     /// Update boundary integrity using homeostasis aggregates from the state phase.
     pub(in crate::world) fn step_boundary_phase(&mut self, boundary_terminal_threshold: f32) {
-        if !self.config.enable_boundary_maintenance {
+        // Fast-path: Mode A with boundary globally disabled.
+        // Dead organisms must still be zeroed so downstream code (metrics, snapshots)
+        // never sees a non-zero boundary_integrity on a dead organism.
+        if self.config.families.is_empty() && !self.config.enable_boundary_maintenance {
+            for org in self.organisms.iter_mut() {
+                if !org.alive {
+                    org.boundary_integrity = 0.0;
+                }
+            }
             return;
         }
 
@@ -20,6 +28,18 @@ impl World {
                     org.boundary_integrity = 0.0;
                     continue;
                 }
+                if !Self::family_flag(
+                    &config.families,
+                    org.family_id,
+                    |f| f.enable_boundary_maintenance,
+                    config.enable_boundary_maintenance,
+                ) {
+                    // Intentional: alive organisms in families with enable_boundary_maintenance=false
+                    // have a frozen boundary_integrity (no decay, no repair). This matches
+                    // Mode A semantics and is the correct behaviour for e.g. F2 (Darwinian)
+                    // where boundary dynamics are not part of the definition being tested.
+                    continue;
+                }
 
                 let energy_deficit =
                     (config.metabolic_viability_floor - org.metabolic_state.energy).max(0.0);
@@ -32,7 +52,12 @@ impl World {
                 } else {
                     0.5
                 };
-                let dev_boundary = if config.enable_growth {
+                let dev_boundary = if Self::family_flag(
+                    &config.families,
+                    org.family_id,
+                    |f| f.enable_growth,
+                    config.enable_growth,
+                ) {
                     org.developmental_program.stage_factors(org.maturity).0
                 } else {
                     1.0

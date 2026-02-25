@@ -1,5 +1,5 @@
 use crate::agent::Agent;
-use crate::config::{AblationTarget, MetabolismMode, SimConfig, SimConfigError};
+use crate::config::{AblationTarget, FamilyConfig, MetabolismMode, SimConfig, SimConfigError};
 use crate::genome::{Genome, MutationRates};
 use crate::metabolism::{MetabolicState, MetabolismEngine};
 use crate::nn::NeuralNet;
@@ -76,10 +76,28 @@ pub struct World {
 pub enum WorldInitError {
     Config(SimConfigError),
     AgentCountOverflow,
-    TooManyAgents { max: usize, actual: usize },
-    NumOrganismsMismatch { expected: usize, actual: usize },
-    AgentCountMismatch { expected: usize, actual: usize },
+    TooManyAgents {
+        max: usize,
+        actual: usize,
+    },
+    NumOrganismsMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    AgentCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
     InvalidOrganismId,
+    /// families[*].initial_count sum does not match num_organisms.
+    FamilyOrganismCountMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    /// families.len() exceeds u16::MAX; family_id is stored as u16.
+    TooManyFamilies {
+        actual: usize,
+    },
 }
 
 impl fmt::Display for WorldInitError {
@@ -103,6 +121,18 @@ impl fmt::Display for WorldInitError {
             WorldInitError::InvalidOrganismId => {
                 write!(f, "all agent organism_ids must be valid indices into nns")
             }
+            WorldInitError::FamilyOrganismCountMismatch { expected, actual } => write!(
+                f,
+                "sum of families[*].initial_count ({expected}) must equal num_organisms \
+                 ({actual}); fix by setting num_organisms = {expected} or adjusting \
+                 FamilyConfig.initial_count values"
+            ),
+            WorldInitError::TooManyFamilies { actual } => write!(
+                f,
+                "families.len() ({actual}) exceeds u16::MAX ({}); \
+                 family_id is stored as u16",
+                u16::MAX
+            ),
         }
     }
 }
@@ -194,6 +224,27 @@ impl World {
             return Err(WorldInitError::InvalidOrganismId);
         }
 
+        // In Mode B (families non-empty) validate family count fits in u16 and
+        // that the sum of initial_counts matches num_organisms exactly.
+        if !config.families.is_empty() {
+            if config.families.len() > u16::MAX as usize {
+                return Err(WorldInitError::TooManyFamilies {
+                    actual: config.families.len(),
+                });
+            }
+            let family_total: usize = config
+                .families
+                .iter()
+                .try_fold(0usize, |acc, f| acc.checked_add(f.initial_count))
+                .ok_or(WorldInitError::AgentCountOverflow)?;
+            if family_total != config.num_organisms {
+                return Err(WorldInitError::FamilyOrganismCountMismatch {
+                    expected: family_total,
+                    actual: config.num_organisms,
+                });
+            }
+        }
+
         let mut organisms: Vec<OrganismRuntime> = nns
             .into_iter()
             .enumerate()
@@ -216,9 +267,25 @@ impl World {
                     metabolism_engine: None,
                     developmental_program,
                     parent_stable_id: None,
+                    family_id: 0,
                 }
             })
             .collect();
+
+        // Mode B: assign family_id to each organism based on families[*].initial_count ranges.
+        if !config.families.is_empty() {
+            let mut org_offset = 0usize;
+            for (fid, family) in config.families.iter().enumerate() {
+                for org in organisms
+                    .iter_mut()
+                    .skip(org_offset)
+                    .take(family.initial_count)
+                {
+                    org.family_id = fid as u16;
+                }
+                org_offset += family.initial_count;
+            }
+        }
 
         for agent in &agents {
             organisms[agent.organism_id as usize]
@@ -313,6 +380,28 @@ impl World {
                 actual: self.organisms.len(),
             });
         }
+        // Reject family changes: organisms carry family_id indices that would become
+        // stale if the families vec changed at runtime. Callers must create a new World
+        // to change family layout.
+        if config.families.len() != self.config.families.len() {
+            return Err(WorldInitError::FamilyOrganismCountMismatch {
+                expected: self.config.families.iter().map(|f| f.initial_count).sum(),
+                actual: config.num_organisms,
+            });
+        }
+        if !config.families.is_empty() {
+            let family_total: usize = config
+                .families
+                .iter()
+                .try_fold(0usize, |acc, f| acc.checked_add(f.initial_count))
+                .ok_or(WorldInitError::AgentCountOverflow)?;
+            if family_total != config.num_organisms {
+                return Err(WorldInitError::FamilyOrganismCountMismatch {
+                    expected: family_total,
+                    actual: config.num_organisms,
+                });
+            }
+        }
         let expected_agent_count = config
             .num_organisms
             .checked_mul(config.agents_per_organism)
@@ -406,6 +495,37 @@ impl World {
         self.config
             .boundary_collapse_threshold
             .max(self.config.death_boundary_threshold)
+    }
+
+    /// Returns the effective enable-flag for a given capability, respecting per-family config.
+    ///
+    /// - Mode A (`families` is empty): returns `global` unchanged.
+    /// - Mode B (`families` is non-empty): returns the per-family selector result.
+    ///   Global flags are intentionally ignored in Mode B; per-family `enable_*` fields are
+    ///   the authoritative ablation mechanism. Scheduled ablation in Mode B should target
+    ///   `FamilyConfig` fields directly.
+    ///
+    /// An out-of-range `family_id` is a programming error: it panics in debug builds
+    /// (via `debug_assert`) and fails closed (`false`) in release to avoid enabling
+    /// a criterion that the family never explicitly opted into.
+    #[inline]
+    pub(crate) fn family_flag(
+        families: &[FamilyConfig],
+        family_id: u16,
+        selector: impl Fn(&FamilyConfig) -> bool,
+        global: bool,
+    ) -> bool {
+        if families.is_empty() {
+            global
+        } else {
+            debug_assert!(
+                (family_id as usize) < families.len(),
+                "family_id {family_id} is out of range for families len {}",
+                families.len()
+            );
+            // Fail-closed: unknown family_id → false (criterion disabled).
+            families.get(family_id as usize).is_some_and(selector)
+        }
     }
 
     fn next_agent_id_checked(&mut self) -> Option<u32> {
@@ -711,7 +831,14 @@ impl World {
             .enumerate()
             .filter_map(|(idx, org)| {
                 let mature_enough = org.maturity >= 1.0;
+                let can_reproduce = Self::family_flag(
+                    &self.config.families,
+                    org.family_id,
+                    |f| f.enable_reproduction,
+                    self.config.enable_reproduction,
+                );
                 (org.alive
+                    && can_reproduce
                     && org.metabolic_state.energy >= self.config.reproduction_min_energy
                     && org.boundary_integrity >= self.config.reproduction_min_boundary
                     && mature_enough)
@@ -761,7 +888,13 @@ impl World {
         center: [f64; 2],
         child_agents: usize,
     ) {
-        let (parent_generation, parent_stable_id, parent_ancestor, mut child_genome) = {
+        let (
+            parent_generation,
+            parent_stable_id,
+            parent_ancestor,
+            mut child_genome,
+            parent_family_id,
+        ) = {
             let parent = &self.organisms[parent_idx];
             if !parent.alive || parent.metabolic_state.energy < self.config.reproduction_energy_cost
             {
@@ -772,11 +905,39 @@ impl World {
                 parent.stable_id,
                 parent.ancestor_genome.clone(),
                 parent.genome.clone(),
+                parent.family_id,
             )
         };
 
-        if self.config.enable_evolution {
-            child_genome.mutate(&mut self.rng, &self.mutation_rates);
+        let evolve = Self::family_flag(
+            &self.config.families,
+            parent_family_id,
+            |f| f.enable_evolution,
+            self.config.enable_evolution,
+        );
+        if evolve {
+            // Apply per-family mutation_rate_multiplier when families are defined.
+            // Only the selection-probability rates are scaled; mutation magnitudes
+            // (point_scale, scale_min/max, value_limit) are unchanged by design —
+            // mutation_rate_multiplier controls how often mutations fire, not how large.
+            let effective_rates = if !self.config.families.is_empty() {
+                let multiplier = self
+                    .config
+                    .families
+                    .get(parent_family_id as usize)
+                    .map(|f| f.mutation_rate_multiplier)
+                    .unwrap_or(1.0); // out-of-range family_id: no-op multiplier (neutral)
+                crate::genome::MutationRates {
+                    // Clamp to 1.0: rates are probabilities and must stay in [0, 1].
+                    point_rate: (self.mutation_rates.point_rate * multiplier).min(1.0),
+                    reset_rate: (self.mutation_rates.reset_rate * multiplier).min(1.0),
+                    scale_rate: (self.mutation_rates.scale_rate * multiplier).min(1.0),
+                    ..self.mutation_rates
+                }
+            } else {
+                self.mutation_rates
+            };
+            child_genome.mutate(&mut self.rng, &effective_rates);
         }
         let child_weights = if child_genome.nn_weights().len() == NeuralNet::WEIGHT_COUNT {
             child_genome.nn_weights().to_vec()
@@ -833,6 +994,7 @@ impl World {
             metabolism_engine: child_metabolism_engine,
             developmental_program,
             parent_stable_id: Some(parent_stable_id),
+            family_id: parent_family_id,
         };
         self.next_organism_stable_id = self.next_organism_stable_id.saturating_add(1);
         let genome_hash = {
@@ -851,6 +1013,7 @@ impl World {
             child_stable_id,
             generation: child_generation,
             genome_hash,
+            family_id: parent_family_id,
         });
         self.organisms.push(child);
         self.org_toroidal_sums.push([0.0, 0.0, 0.0, 0.0]);
@@ -907,7 +1070,13 @@ impl World {
         self.step_metabolism_phase(boundary_terminal_threshold);
         self.step_growth_and_crowding_phase(boundary_terminal_threshold);
 
-        if self.config.enable_reproduction {
+        // In Mode B each family controls its own enable_reproduction flag;
+        // we enter maybe_reproduce() when at least one family allows it.
+        // maybe_reproduce() filters per organism via family_flag, so families with
+        // enable_reproduction=false are silently skipped inside.
+        if self.config.enable_reproduction
+            || self.config.families.iter().any(|f| f.enable_reproduction)
+        {
             self.maybe_reproduce();
         }
         let dead_count = self.organisms.iter().filter(|o| !o.alive).count();

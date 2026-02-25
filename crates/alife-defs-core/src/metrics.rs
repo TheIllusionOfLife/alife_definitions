@@ -41,6 +41,43 @@ pub struct LineageEvent {
     pub generation: u32,
     #[serde(default)]
     pub genome_hash: u64, // FNV-1a hash of child genome vector bytes
+    #[serde(default)]
+    pub family_id: u16, // child's family index (0 in Mode A)
+}
+
+#[cfg(test)]
+mod lineage_event_tests {
+    use super::*;
+
+    #[test]
+    fn family_id_defaults_to_zero_when_missing_from_json() {
+        // Backward-compat: persisted events without the field must deserialize cleanly.
+        let json = r#"{
+            "step": 1,
+            "parent_stable_id": 10,
+            "child_stable_id": 20,
+            "generation": 3,
+            "genome_hash": 999
+        }"#;
+        let event: LineageEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.family_id, 0);
+    }
+
+    #[test]
+    fn family_id_round_trips_through_json() {
+        let original = LineageEvent {
+            step: 5,
+            parent_stable_id: 100,
+            child_stable_id: 200,
+            generation: 7,
+            genome_hash: 42,
+            family_id: 3,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: LineageEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.family_id, 3);
+        assert_eq!(deserialized.step, 5);
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

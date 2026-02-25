@@ -166,6 +166,8 @@ pub struct OrganismRuntime {
     pub developmental_program: DevelopmentalProgram,
     /// Stable ID of the parent organism (None for bootstrap organisms).
     pub parent_stable_id: Option<u64>,
+    /// Index into `SimConfig.families`; 0 in single-family / Mode A runs.
+    pub family_id: u16,
 }
 
 #[cfg(test)]
