@@ -375,7 +375,7 @@ def test_experiment_niche_defaults_and_long_horizon_output(
 
     fake.version = fake_version
     fake.run_niche_experiment_json = fake_run_niche
-    monkeypatch.setitem(sys.modules, "digital_life", fake)
+    monkeypatch.setitem(sys.modules, "alife_defs", fake)
     script_dir = Path(__file__).resolve().parents[1] / "scripts"
     monkeypatch.syspath_prepend(str(script_dir))
 
@@ -413,8 +413,8 @@ def test_experiment_regimes_seed_count_is_n30(monkeypatch: pytest.MonkeyPatch) -
     script_dir = Path(__file__).resolve().parents[1] / "scripts"
     script_path = script_dir / "experiment_regimes.py"
 
-    fake_digital_life = types.SimpleNamespace(version=lambda: "test")
-    monkeypatch.setitem(sys.modules, "digital_life", fake_digital_life)
+    fake_alife_defs = types.SimpleNamespace(version=lambda: "test")
+    monkeypatch.setitem(sys.modules, "alife_defs", fake_alife_defs)
     monkeypatch.syspath_prepend(str(script_dir))
 
     spec = importlib.util.spec_from_file_location("experiment_regimes_under_test", script_path)
@@ -446,7 +446,7 @@ def test_experiment_niche_seed_range_batching(
 
     fake.version = fake_version
     fake.run_niche_experiment_json = fake_run_niche
-    monkeypatch.setitem(sys.modules, "digital_life", fake)
+    monkeypatch.setitem(sys.modules, "alife_defs", fake)
     script_dir = Path(__file__).resolve().parents[1] / "scripts"
     monkeypatch.syspath_prepend(str(script_dir))
 
@@ -478,7 +478,7 @@ def test_experiment_niche_rejects_invalid_seed_ranges(monkeypatch: pytest.Monkey
     fake.run_niche_experiment_json = lambda *_args, **_kwargs: json.dumps(
         {"final_alive_count": 1, "organism_snapshots": []}
     )
-    monkeypatch.setitem(sys.modules, "digital_life", fake)
+    monkeypatch.setitem(sys.modules, "alife_defs", fake)
     script_dir = Path(__file__).resolve().parents[1] / "scripts"
     monkeypatch.syspath_prepend(str(script_dir))
 
