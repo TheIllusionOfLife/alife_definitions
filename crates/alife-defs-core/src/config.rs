@@ -38,6 +38,43 @@ pub enum AblationTarget {
     Growth,
 }
 
+/// Per-family criterion ablation flags and population parameters.
+/// Mirrors the global enable_* flags but scoped to one organism family.
+/// An empty `SimConfig.families` vec means single-family mode (use global flags).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FamilyConfig {
+    // Criterion ablation — mirrors global enable_* flags
+    pub enable_metabolism: bool,
+    pub enable_boundary_maintenance: bool,
+    pub enable_homeostasis: bool,
+    pub enable_response: bool,
+    pub enable_reproduction: bool,
+    pub enable_evolution: bool,
+    pub enable_growth: bool,
+    // Population parameters
+    /// Organisms seeded for this family at world init.
+    pub initial_count: usize,
+    /// Multiplied against global mutation_rate; 1.0 = same rate.
+    pub mutation_rate_multiplier: f32,
+}
+
+impl Default for FamilyConfig {
+    fn default() -> Self {
+        Self {
+            enable_metabolism: true,
+            enable_boundary_maintenance: true,
+            enable_homeostasis: true,
+            enable_response: true,
+            enable_reproduction: true,
+            enable_evolution: true,
+            enable_growth: true,
+            initial_count: 10,
+            mutation_rate_multiplier: 1.0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SimConfig {
@@ -169,6 +206,10 @@ pub struct SimConfig {
     pub environment_cycle_low_rate: f32,
     /// Toggle for sham (no-op) computational process control.
     pub enable_sham_process: bool,
+    /// Per-family configuration for Mode B (multi-family coexistence).
+    /// Empty vec = single-family mode; world phases use global enable_* flags.
+    #[serde(default)]
+    pub families: Vec<FamilyConfig>,
 }
 
 impl Default for SimConfig {
@@ -237,6 +278,7 @@ impl Default for SimConfig {
             environment_cycle_period: 0,
             environment_cycle_low_rate: 0.005,
             enable_sham_process: false,
+            families: Vec::new(),
         }
     }
 }
@@ -319,6 +361,8 @@ define_sim_config_error! {
     InvalidEnvironmentCycleLowRate => "environment_cycle_low_rate must be finite and non-negative";
     ConflictingEnvironmentFeatures => "environment_shift_step and environment_cycle_period are mutually exclusive";
     WorldSizeTooLarge { max: f64, actual: f64 } => "world_size ({actual}) exceeds supported maximum ({max})";
+    InvalidFamilyInitialCount { index: usize } => "family[{}].initial_count must be > 0", index;
+    InvalidFamilyMutationMultiplier { index: usize } => "family[{}].mutation_rate_multiplier must be finite and >= 0", index;
 }
 
 impl std::error::Error for SimConfigError {}
@@ -341,6 +385,7 @@ impl SimConfig {
         self.validate_homeostasis()?;
         self.validate_growth()?;
         self.validate_environment()?;
+        self.validate_families()?;
         Ok(())
     }
 
@@ -593,6 +638,31 @@ impl SimConfig {
         }
         Ok(())
     }
+
+    fn validate_families(&self) -> Result<(), SimConfigError> {
+        let mut total_family_organisms: usize = 0;
+        for (i, f) in self.families.iter().enumerate() {
+            if f.initial_count == 0 {
+                return Err(SimConfigError::InvalidFamilyInitialCount { index: i });
+            }
+            if !(f.mutation_rate_multiplier.is_finite() && f.mutation_rate_multiplier >= 0.0) {
+                return Err(SimConfigError::InvalidFamilyMutationMultiplier { index: i });
+            }
+            total_family_organisms = total_family_organisms.saturating_add(f.initial_count);
+        }
+        if !self.families.is_empty() {
+            let total_agents = total_family_organisms
+                .checked_mul(self.agents_per_organism)
+                .ok_or(SimConfigError::AgentCountOverflow)?;
+            if total_agents > Self::MAX_TOTAL_AGENTS {
+                return Err(SimConfigError::TooManyAgents {
+                    max: Self::MAX_TOTAL_AGENTS,
+                    actual: total_agents,
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -718,6 +788,87 @@ mod tests {
             Err(SimConfigError::TooManyAgents { .. }) => (),
             _ => panic!("Expected TooManyAgents error"),
         }
+    }
+
+    #[test]
+    fn family_config_default_is_valid() {
+        let config = SimConfig {
+            families: vec![FamilyConfig::default()],
+            ..SimConfig::default()
+        };
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn family_config_zero_initial_count_is_rejected() {
+        let config = SimConfig {
+            families: vec![FamilyConfig {
+                initial_count: 0,
+                ..FamilyConfig::default()
+            }],
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidFamilyInitialCount { index: 0 })
+        );
+    }
+
+    #[test]
+    fn family_config_negative_mutation_multiplier_is_rejected() {
+        let config = SimConfig {
+            families: vec![FamilyConfig {
+                mutation_rate_multiplier: -0.1,
+                ..FamilyConfig::default()
+            }],
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidFamilyMutationMultiplier { index: 0 })
+        );
+    }
+
+    #[test]
+    fn family_config_non_finite_mutation_multiplier_is_rejected() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let config = SimConfig {
+                families: vec![FamilyConfig {
+                    mutation_rate_multiplier: bad,
+                    ..FamilyConfig::default()
+                }],
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidFamilyMutationMultiplier { index: 0 }),
+                "expected rejection for multiplier={bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn family_config_aggregate_agent_count_is_validated() {
+        // Two families whose combined initial_count * agents_per_organism exceeds MAX_TOTAL_AGENTS
+        let big = SimConfig::MAX_TOTAL_AGENTS / 2 + 1;
+        let config = SimConfig {
+            agents_per_organism: 1,
+            families: vec![
+                FamilyConfig {
+                    initial_count: big,
+                    ..FamilyConfig::default()
+                },
+                FamilyConfig {
+                    initial_count: big,
+                    ..FamilyConfig::default()
+                },
+            ],
+            ..SimConfig::default()
+        };
+        assert!(matches!(
+            config.validate(),
+            Err(SimConfigError::TooManyAgents { .. })
+        ));
     }
 
     #[test]
@@ -901,6 +1052,14 @@ mod tests {
                     actual: 4096.0,
                 },
                 "world_size (4096) exceeds supported maximum (2048)",
+            ),
+            (
+                SimConfigError::InvalidFamilyInitialCount { index: 2 },
+                "family[2].initial_count must be > 0",
+            ),
+            (
+                SimConfigError::InvalidFamilyMutationMultiplier { index: 1 },
+                "family[1].mutation_rate_multiplier must be finite and >= 0",
             ),
         ];
 

@@ -164,6 +164,39 @@ def test_regime_label_defaults_to_empty_string():
     assert result["regime_label"] == ""
 
 
+# ---------------------------------------------------------------------------
+# PR 2a: FamilyConfig schema additions
+# ---------------------------------------------------------------------------
+
+
+def test_default_config_has_families_field():
+    """families must be present in default config and be an empty list."""
+    cfg = json.loads(alife_defs.default_config_json())
+    assert "families" in cfg
+    assert isinstance(cfg["families"], list)
+    assert cfg["families"] == []
+
+
+def test_families_field_roundtrips_through_validate():
+    """A config with one FamilyConfig must pass validate_config_json."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg["families"] = [
+        {
+            "enable_reproduction": False,
+            "initial_count": 5,
+            "mutation_rate_multiplier": 0.5,
+        }
+    ]
+    assert alife_defs.validate_config_json(json.dumps(cfg)) is True
+
+
+def test_families_validation_rejects_zero_initial_count():
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg["families"] = [{"initial_count": 0}]
+    with pytest.raises(ValueError):
+        alife_defs.validate_config_json(json.dumps(cfg))
+
+
 def test_lineage_event_has_genome_hash():
     """lineage_events items must carry a genome_hash int field.
 

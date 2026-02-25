@@ -140,7 +140,6 @@ def test_main_rejects_unknown_robustness_profile() -> None:
         analyze_coupling.main(robustness_profile="unknown")
 
 
-
 def test_experiment_niche_defaults_and_long_horizon_output(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -334,5 +333,3 @@ def test_analyze_phenotype_long_horizon_sensitivity(tmp_path: Path) -> None:
     assert out["available"] is True
     assert out["long_horizon_path"].endswith("niche_normal_long.json")
     assert "adjusted_rand_index" in out["comparison"]
-
-
