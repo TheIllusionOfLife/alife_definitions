@@ -182,10 +182,28 @@ fn run_evolution_experiment_json_impl(
 fn world_from_config_json(config_json: &str) -> Result<World, String> {
     let mut config: SimConfig =
         serde_json::from_str(config_json).map_err(|e| format!("invalid config json: {e}"))?;
-    // Mode B: derive num_organisms from family initial_counts so callers don't have to
-    // keep the two in sync manually.
+    // Mode B: auto-derive num_organisms from the sum of family initial_counts.
+    // This lives in the binding layer (not the Rust core) so the core can remain strict:
+    // World::new() still validates the invariant independently. The binding makes the Python
+    // API ergonomic — callers don't need to manually sync num_organisms with family sums.
+    //
+    // Conflict detection: if an explicit non-default num_organisms conflicts with the family
+    // sum, we return an error rather than silently overwriting the caller's intent.
     if !config.families.is_empty() {
-        config.num_organisms = config.families.iter().map(|f| f.initial_count).sum();
+        let derived = config
+            .families
+            .iter()
+            .try_fold(0usize, |acc, f| acc.checked_add(f.initial_count))
+            .ok_or_else(|| "families[*].initial_count sum overflows usize".to_string())?;
+        let default_num_organisms = SimConfig::default().num_organisms;
+        if config.num_organisms != default_num_organisms && config.num_organisms != derived {
+            return Err(format!(
+                "num_organisms ({}) conflicts with sum of families[*].initial_count ({}); \
+                 omit num_organisms or set it equal to the family sum",
+                config.num_organisms, derived
+            ));
+        }
+        config.num_organisms = derived;
     }
     let (agents, nns) = bootstrap_entities(
         config.num_organisms,

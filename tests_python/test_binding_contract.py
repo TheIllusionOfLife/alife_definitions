@@ -262,8 +262,9 @@ def test_lineage_event_has_family_id():
     result = json.loads(alife_defs.run_experiment_json(json.dumps(cfg), 500, 50))
     events = result["lineage_events"]
     assert events, "Expected at least one lineage event"
-    assert "family_id" in events[0], f"Missing family_id in lineage event: {events[0]}"
-    assert isinstance(events[0]["family_id"], int)
+    for ev in events:
+        assert "family_id" in ev, f"Missing family_id in lineage event: {ev}"
+        assert isinstance(ev["family_id"], int), f"family_id is not int in: {ev}"
 
 
 def test_mode_b_world_runs_without_error():

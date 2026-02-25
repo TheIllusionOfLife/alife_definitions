@@ -1810,6 +1810,10 @@ fn lineage_event_carries_family_id() {
         summary.total_reproduction_events >= 1,
         "reproduction must occur for this test to be valid"
     );
+    assert!(
+        !summary.lineage_events.is_empty(),
+        "lineage_events should be non-empty when reproduction occurred"
+    );
     let event = &summary.lineage_events[0];
     assert_eq!(
         event.family_id, 0,
