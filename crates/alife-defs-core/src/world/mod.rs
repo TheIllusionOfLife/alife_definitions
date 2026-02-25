@@ -836,8 +836,8 @@ impl World {
         };
         self.next_organism_stable_id = self.next_organism_stable_id.saturating_add(1);
         let genome_hash = {
-            const OFFSET: u64 = 14695981039346656037;
-            const PRIME: u64 = 1099511628211;
+            const OFFSET: u64 = 0xcbf29ce484222325;
+            const PRIME: u64 = 0x100000001b3;
             child
                 .genome
                 .data()

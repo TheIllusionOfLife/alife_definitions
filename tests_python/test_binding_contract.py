@@ -165,9 +165,18 @@ def test_regime_label_defaults_to_empty_string():
 
 
 def test_lineage_event_has_genome_hash():
-    """lineage_events items must carry a genome_hash int field (when reproduction occurs)."""
-    result = run_single(seed=0, overrides={**_MINIMAL_OVERRIDE}, steps=500, sample_every=50)
+    """lineage_events items must carry a genome_hash int field.
+
+    Uses overrides that make reproduction highly likely (low energy threshold,
+    no boundary gate) to avoid a vacuous-pass when no events occur.
+    """
+    overrides = {
+        **_MINIMAL_OVERRIDE,
+        "reproduction_min_energy": 0.31,  # just above default cost (0.30)
+        "reproduction_min_boundary": 0.0,  # remove boundary gate
+    }
+    result = run_single(seed=0, overrides=overrides, steps=500, sample_every=50)
     events = result["lineage_events"]
-    if events:  # only assert if reproduction occurred
-        assert "genome_hash" in events[0], f"Missing genome_hash in lineage event: {events[0]}"
-        assert isinstance(events[0]["genome_hash"], int)
+    assert events, "Expected at least one lineage event; genome_hash could not be verified."
+    assert "genome_hash" in events[0], f"Missing genome_hash in lineage event: {events[0]}"
+    assert isinstance(events[0]["genome_hash"], int)
