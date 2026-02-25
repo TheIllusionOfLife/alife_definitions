@@ -104,6 +104,7 @@ FAMILY_PROFILES = (FAMILY_F1_FULL, FAMILY_F2_DARWINIAN, FAMILY_F3_AUTONOMY)
 TSV_COLUMNS = [
     "condition",
     "seed",
+    "family_id",
     "step",
     "alive_count",
     "energy_mean",
@@ -163,11 +164,19 @@ def print_header() -> None:
     print("\t".join(TSV_COLUMNS))
 
 
-def print_sample(condition: str, seed: int, s: dict) -> None:
-    """Print a single sample row as TSV to stdout."""
+def print_sample(condition: str, seed: int, s: dict, family_id: str = "all") -> None:
+    """Print a single sample row as TSV to stdout.
+
+    Args:
+        condition: Condition name (e.g. "normal", "no_metabolism").
+        seed: Simulation seed.
+        s: Sample dict from RunSummary["samples"] or a FamilyStepMetrics entry.
+        family_id: Family index string ("0", "1", ...) or "all" for the global row.
+    """
     vals = [
         condition,
         str(seed),
+        family_id,
         str(s["step"]),
         str(s["alive_count"]),
         f"{s['energy_mean']:.4f}",
@@ -253,7 +262,12 @@ def run_condition_common(
         results.append(result)
 
         for sample in result["samples"]:
-            print_sample(cond_name, seed, sample)
+            print_sample(cond_name, seed, sample, family_id="all")
+            for fam in sample.get("family_breakdown", []):
+                # FamilyStepMetrics lacks resource_total/spatial_cohesion_mean;
+                # inject step from parent so print_sample can read s["step"].
+                fam_row = {**fam, "step": sample["step"]}
+                print_sample(cond_name, seed, fam_row, family_id=str(fam["family_id"]))
 
         log(f"  seed={seed:3d}  alive={result['final_alive_count']:4d}  {elapsed:.2f}s")
 

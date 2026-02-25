@@ -31,6 +31,31 @@ pub struct StepMetrics {
     pub max_generation: usize,
     pub maturity_mean: f32,
     pub spatial_cohesion_mean: f32,
+    /// Per-family breakdown; empty in Mode A, one entry per family in Mode B.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub family_breakdown: Vec<FamilyStepMetrics>,
+}
+
+/// Per-family population metrics collected at each sample step.
+///
+/// Contains the fields needed by definition adapters D1–D4: vital signs
+/// (energy, waste, boundary), reproduction counts, evolutionary divergence,
+/// and development maturity. Spatial cohesion is omitted here — it can be
+/// derived from the global `StepMetrics.spatial_cohesion_mean` if needed.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct FamilyStepMetrics {
+    pub family_id: u16,
+    pub alive_count: usize,
+    pub population_size: usize,
+    pub energy_mean: f32,
+    pub waste_mean: f32,
+    pub boundary_mean: f32,
+    pub birth_count: usize,
+    pub death_count: usize,
+    pub mean_generation: f32,
+    pub mean_genome_drift: f32,
+    pub genome_diversity: f32,
+    pub maturity_mean: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -154,33 +179,30 @@ fn genome_drift(org: &OrganismRuntime) -> f32 {
     sum_abs / len as f32
 }
 
-fn compute_genome_diversity(organisms: &[OrganismRuntime], step_index: usize) -> f32 {
-    let alive_genomes: Vec<&[f32]> = organisms
-        .iter()
-        .filter(|o| o.alive)
-        .map(|o| o.genome.data())
-        .collect();
-    let n = alive_genomes.len();
+/// Compute mean pairwise L2 distance over a pre-collected genome slice.
+///
+/// `rng_seed` differentiates the random sampling between the global metric
+/// and per-family metrics so that two families with the same alive count at
+/// the same step don't sample identical pairs.
+fn pairwise_genome_diversity(genomes: &[&[f32]], rng_seed: u64) -> f32 {
+    let n = genomes.len();
     if n < 2 {
         return 0.0;
     }
 
-    // Sample up to GENOME_DIVERSITY_MAX_PAIRS random pairs to avoid O(n^2) cost
     let max_pairs = crate::constants::GENOME_DIVERSITY_MAX_PAIRS;
     let total_pairs = n * (n - 1) / 2;
 
     if total_pairs <= max_pairs {
-        // Enumerate all pairs
         let mut sum = 0.0f32;
         for i in 0..n {
             for j in (i + 1)..n {
-                sum += l2_distance(alive_genomes[i], alive_genomes[j]);
+                sum += l2_distance(genomes[i], genomes[j]);
             }
         }
         sum / total_pairs as f32
     } else {
-        // Use deterministic sampling based on step_index for reproducibility
-        let mut sample_rng = ChaCha12Rng::seed_from_u64(step_index as u64);
+        let mut sample_rng = ChaCha12Rng::seed_from_u64(rng_seed);
         let mut sum = 0.0f32;
         for _ in 0..max_pairs {
             let i = sample_rng.random_range(0..n);
@@ -188,9 +210,86 @@ fn compute_genome_diversity(organisms: &[OrganismRuntime], step_index: usize) ->
             if j >= i {
                 j += 1;
             }
-            sum += l2_distance(alive_genomes[i], alive_genomes[j]);
+            sum += l2_distance(genomes[i], genomes[j]);
         }
         sum / max_pairs as f32
+    }
+}
+
+fn compute_genome_diversity(organisms: &[OrganismRuntime], step_index: usize) -> f32 {
+    let alive_genomes: Vec<&[f32]> = organisms
+        .iter()
+        .filter(|o| o.alive)
+        .map(|o| o.genome.data())
+        .collect();
+    pairwise_genome_diversity(&alive_genomes, step_index as u64)
+}
+
+/// Collect per-family metrics for one family at a sample step.
+///
+/// Filters `organisms` by `family_id` to compute population aggregates.
+/// `birth_count`/`death_count` must be passed in from the `World` per-family
+/// counters that are reset each step (they cannot be recomputed from organism
+/// state alone).
+pub fn collect_family_metrics(
+    family_id: u16,
+    step_index: usize,
+    birth_count: usize,
+    death_count: usize,
+    organisms: &[OrganismRuntime],
+) -> FamilyStepMetrics {
+    let alive = organisms
+        .iter()
+        .filter(|o| o.alive && o.family_id == family_id)
+        .count();
+    let total = organisms
+        .iter()
+        .filter(|o| o.family_id == family_id)
+        .count();
+    let denom = alive.max(1) as f32;
+
+    let mut energy_sum = 0.0f32;
+    let mut waste_sum = 0.0f32;
+    let mut boundary_sum = 0.0f32;
+    let mut generation_sum = 0.0f32;
+    let mut drift_sum = 0.0f32;
+    let mut maturity_sum = 0.0f32;
+
+    for org in organisms
+        .iter()
+        .filter(|o| o.alive && o.family_id == family_id)
+    {
+        energy_sum += org.metabolic_state.energy;
+        waste_sum += org.metabolic_state.waste;
+        boundary_sum += org.boundary_integrity;
+        generation_sum += org.generation as f32;
+        drift_sum += genome_drift(org);
+        maturity_sum += org.maturity;
+    }
+
+    // XOR with a family-derived constant so families with equal alive counts
+    // at the same step sample different genome pairs.
+    let rng_seed = (step_index as u64) ^ (family_id as u64).wrapping_mul(0x9e3779b97f4a7c15);
+    let alive_genomes: Vec<&[f32]> = organisms
+        .iter()
+        .filter(|o| o.alive && o.family_id == family_id)
+        .map(|o| o.genome.data())
+        .collect();
+    let genome_diversity = pairwise_genome_diversity(&alive_genomes, rng_seed);
+
+    FamilyStepMetrics {
+        family_id,
+        alive_count: alive,
+        population_size: total,
+        energy_mean: energy_sum / denom,
+        waste_mean: waste_sum / denom,
+        boundary_mean: boundary_sum / denom,
+        birth_count,
+        death_count,
+        mean_generation: generation_sum / denom,
+        mean_genome_drift: drift_sum / denom,
+        genome_diversity,
+        maturity_mean: maturity_sum / denom,
     }
 }
 
@@ -363,5 +462,6 @@ pub fn collect_step_metrics(
         max_generation: max_gen,
         maturity_mean: maturity_sum / denom,
         spatial_cohesion_mean,
+        family_breakdown: Vec::new(),
     }
 }

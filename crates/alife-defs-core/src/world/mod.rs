@@ -52,6 +52,8 @@ pub struct World {
     scheduled_ablation_applied: bool,
     births_last_step: usize,
     deaths_last_step: usize,
+    births_per_family: Vec<usize>,
+    deaths_per_family: Vec<usize>,
     total_births: usize,
     total_deaths: usize,
     mutation_rates: MutationRates,
@@ -338,6 +340,8 @@ impl World {
             scheduled_ablation_applied: false,
             births_last_step: 0,
             deaths_last_step: 0,
+            births_per_family: vec![0; config.families.len()],
+            deaths_per_family: vec![0; config.families.len()],
             total_births: 0,
             total_deaths: 0,
             mutation_rates: Self::mutation_rates_from_config(&config),
@@ -680,7 +684,7 @@ impl World {
         for step in 1..=steps {
             self.step();
             if step % sample_every == 0 || step == steps {
-                samples.push(crate::metrics::collect_step_metrics(
+                let mut metrics = crate::metrics::collect_step_metrics(
                     step,
                     self.step_index,
                     self.config.world_size,
@@ -690,7 +694,21 @@ impl World {
                     self.agent_id_exhaustions_last_step,
                     &self.organisms,
                     &self.agents,
-                ));
+                );
+                if !self.config.families.is_empty() {
+                    for fid in 0..self.config.families.len() {
+                        metrics
+                            .family_breakdown
+                            .push(crate::metrics::collect_family_metrics(
+                                fid as u16,
+                                self.step_index,
+                                self.births_per_family.get(fid).copied().unwrap_or(0),
+                                self.deaths_per_family.get(fid).copied().unwrap_or(0),
+                                &self.organisms,
+                            ));
+                    }
+                }
+                samples.push(metrics);
             }
         }
         Ok(RunSummary {
@@ -781,7 +799,7 @@ impl World {
         for step in 1..=steps {
             self.step();
             if step % sample_every == 0 || step == steps {
-                samples.push(crate::metrics::collect_step_metrics(
+                let mut metrics = crate::metrics::collect_step_metrics(
                     step,
                     self.step_index,
                     self.config.world_size,
@@ -791,7 +809,21 @@ impl World {
                     self.agent_id_exhaustions_last_step,
                     &self.organisms,
                     &self.agents,
-                ));
+                );
+                if !self.config.families.is_empty() {
+                    for fid in 0..self.config.families.len() {
+                        metrics
+                            .family_breakdown
+                            .push(crate::metrics::collect_family_metrics(
+                                fid as u16,
+                                self.step_index,
+                                self.births_per_family.get(fid).copied().unwrap_or(0),
+                                self.deaths_per_family.get(fid).copied().unwrap_or(0),
+                                &self.organisms,
+                            ));
+                    }
+                }
+                samples.push(metrics);
             }
             if snapshot_steps_set.contains(&step) {
                 snapshots.push(self.collect_organism_snapshots(step));
@@ -814,10 +846,14 @@ impl World {
         if let Some(org) = self.organisms.get_mut(org_idx) {
             if org.alive {
                 self.lifespans.push(org.age_steps);
+                let family_id = org.family_id;
                 org.alive = false;
                 org.boundary_integrity = 0.0;
                 self.deaths_last_step += 1;
                 self.total_deaths += 1;
+                if let Some(cnt) = self.deaths_per_family.get_mut(family_id as usize) {
+                    *cnt += 1;
+                }
             }
         }
     }
@@ -1020,6 +1056,9 @@ impl World {
         self.org_counts.push(0);
         self.births_last_step += 1;
         self.total_births += 1;
+        if let Some(cnt) = self.births_per_family.get_mut(parent_family_id as usize) {
+            *cnt += 1;
+        }
     }
 
     fn apply_scheduled_ablation_if_due(&mut self) {
@@ -1052,6 +1091,8 @@ impl World {
         self.apply_scheduled_ablation_if_due();
         self.births_last_step = 0;
         self.deaths_last_step = 0;
+        self.births_per_family.fill(0);
+        self.deaths_per_family.fill(0);
         self.agent_id_exhaustions_last_step = 0;
         let boundary_terminal_threshold = self.terminal_boundary_threshold();
 
