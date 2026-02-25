@@ -39,7 +39,7 @@ def build_conditions() -> dict[str, dict]:
 
 
 def main() -> None:
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Mid-run ablation: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)}), mid-run step={MIDRUN_STEP}"

@@ -35,7 +35,7 @@ CONDITIONS = {
 
 def main():
     """Run cyclic period sweep (4 periods x 2 conditions x 30 seeds)."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Cyclic sweep: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})"

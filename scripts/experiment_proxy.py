@@ -30,7 +30,7 @@ CONDITIONS = {
 
 def main():
     """Run proxy control comparison experiment across 3 metabolism modes."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Proxy control experiment: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})"

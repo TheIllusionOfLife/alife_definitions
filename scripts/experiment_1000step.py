@@ -149,7 +149,7 @@ def summarize(condition: str, results: list[dict]) -> dict | None:
 
 
 def main():
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(f"Experiment: {STEPS} steps, sample every {SAMPLE_EVERY}, seeds {SEEDS[0]}-{SEEDS[-1]}")
     log("")
 

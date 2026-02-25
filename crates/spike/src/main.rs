@@ -1,9 +1,9 @@
-use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
 use alife_defs_core::agent::Agent;
 use alife_defs_core::config::{MetabolismMode, SimConfig};
 use alife_defs_core::nn::NeuralNet;
 use alife_defs_core::world::World;
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;

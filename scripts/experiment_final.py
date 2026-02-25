@@ -22,7 +22,7 @@ GRAPH_OVERRIDES = {"metabolism_mode": "graph"}
 
 def main():
     """Run final criterion-ablation experiment (8 conditions x 30 seeds)."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Final experiment: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})"

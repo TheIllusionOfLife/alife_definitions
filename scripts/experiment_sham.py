@@ -31,7 +31,7 @@ CONDITIONS = {
 
 def main():
     """Run sham ablation control experiment (2 conditions x 30 seeds)."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Sham control: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})"

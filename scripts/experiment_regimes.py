@@ -29,7 +29,7 @@ REGIMES = {
 
 
 def main():
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(f"Regime shift experiment: {STEPS} steps, seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})")
     log(f"Regimes: {list(REGIMES.keys())}")
     log("")

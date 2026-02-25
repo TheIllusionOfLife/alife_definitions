@@ -43,7 +43,7 @@ for _a, _b in PAIRS:
 
 def main():
     """Run pairwise criterion-ablation experiment for 6 criterion pairs."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(
         f"Pairwise ablation experiment: {STEPS} steps, sample every {SAMPLE_EVERY}, "
         f"seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})"

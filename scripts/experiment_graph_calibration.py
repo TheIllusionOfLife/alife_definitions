@@ -44,7 +44,7 @@ def summarize_results(label: str, results: list[dict]) -> dict:
 
 
 def main():
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log(f"GraphMetabolism calibration: {STEPS} steps, seeds {SEEDS[0]}-{SEEDS[-1]}")
     log("")
 

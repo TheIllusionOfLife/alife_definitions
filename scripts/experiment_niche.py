@@ -86,7 +86,7 @@ def main():
     default_name = "niche_normal_long.json" if args.long_horizon else "niche_normal.json"
     snapshot_steps = LONG_HORIZON_SNAPSHOT_STEPS if args.long_horizon else SNAPSHOT_STEPS
 
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     mode = "long-horizon sensitivity" if args.long_horizon else "standard robustness"
     log(f"Ecological niche experiment (per-organism snapshots, {mode})")
     log(f"  Steps: {steps}, sample_every: {SAMPLE_EVERY}")

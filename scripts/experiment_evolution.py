@@ -49,7 +49,7 @@ SHIFT_CONDITIONS = {
 
 def main():
     """Run extended evolution experiments: long run and environmental shift."""
-    log(f"Digital Life v{alife_defs.version()}")
+    log(f"ALife Defs v{alife_defs.version()}")
     log("Evolution strengthening experiment")
     log(f"  Long run: {LONG_STEPS} steps, seeds {SEEDS[0]}-{SEEDS[-1]} (n={len(SEEDS)})")
     log(f"  Shift run: {SHIFT_STEPS} steps, shift at {SHIFT_STEP}")
