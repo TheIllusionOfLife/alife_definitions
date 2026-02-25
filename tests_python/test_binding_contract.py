@@ -197,6 +197,35 @@ def test_families_validation_rejects_zero_initial_count():
         alife_defs.validate_config_json(json.dumps(cfg))
 
 
+# ---------------------------------------------------------------------------
+# Family fixture constants (Mode B)
+# ---------------------------------------------------------------------------
+
+FAMILY_F1_FULL = {
+    "enable_metabolism": True,
+    "enable_boundary_maintenance": True,
+    "enable_homeostasis": True,
+    "enable_response": True,
+    "enable_reproduction": True,
+    "enable_evolution": True,
+    "enable_growth": True,
+    "initial_count": 10,
+    "mutation_rate_multiplier": 1.0,
+}
+
+FAMILY_F2_DARWINIAN = {
+    **FAMILY_F1_FULL,
+    "enable_boundary_maintenance": False,
+    "enable_homeostasis": False,
+}
+
+FAMILY_F3_AUTONOMY = {
+    **FAMILY_F1_FULL,
+    "enable_reproduction": False,
+    "enable_evolution": False,
+}
+
+
 def test_lineage_event_has_genome_hash():
     """lineage_events items must carry a genome_hash int field.
 
@@ -213,3 +242,38 @@ def test_lineage_event_has_genome_hash():
     assert events, "Expected at least one lineage event; genome_hash could not be verified."
     assert "genome_hash" in events[0], f"Missing genome_hash in lineage event: {events[0]}"
     assert isinstance(events[0]["genome_hash"], int)
+
+
+# ---------------------------------------------------------------------------
+# PR 2b: family_id on LineageEvent + Mode B smoke test
+# ---------------------------------------------------------------------------
+
+
+def test_lineage_event_has_family_id():
+    """lineage_events items carry family_id int field in Mode B."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg.update({**_MINIMAL_OVERRIDE, "num_organisms": 4})
+    cfg["families"] = [
+        {**FAMILY_F1_FULL, "initial_count": 2},
+        {**FAMILY_F1_FULL, "initial_count": 2},
+    ]
+    cfg["reproduction_min_energy"] = 0.31
+    cfg["reproduction_min_boundary"] = 0.0
+    result = json.loads(alife_defs.run_experiment_json(json.dumps(cfg), 500, 50))
+    events = result["lineage_events"]
+    assert events, "Expected at least one lineage event"
+    assert "family_id" in events[0], f"Missing family_id in lineage event: {events[0]}"
+    assert isinstance(events[0]["family_id"], int)
+
+
+def test_mode_b_world_runs_without_error():
+    """A 3-family Mode B config must complete a short run."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg.update({**_MINIMAL_OVERRIDE, "num_organisms": 30})
+    cfg["families"] = [
+        dict(FAMILY_F1_FULL),
+        dict(FAMILY_F2_DARWINIAN),
+        dict(FAMILY_F3_AUTONOMY),
+    ]
+    result = json.loads(alife_defs.run_experiment_json(json.dumps(cfg), 20, 5))
+    assert result["schema_version"] == 1

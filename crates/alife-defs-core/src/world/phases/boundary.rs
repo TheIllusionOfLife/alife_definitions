@@ -4,7 +4,8 @@ use crate::config::BoundaryMode;
 impl World {
     /// Update boundary integrity using homeostasis aggregates from the state phase.
     pub(in crate::world) fn step_boundary_phase(&mut self, boundary_terminal_threshold: f32) {
-        if !self.config.enable_boundary_maintenance {
+        // Fast-path: Mode A with boundary globally disabled.
+        if self.config.families.is_empty() && !self.config.enable_boundary_maintenance {
             return;
         }
 
@@ -20,6 +21,14 @@ impl World {
                     org.boundary_integrity = 0.0;
                     continue;
                 }
+                if !Self::family_flag(
+                    &config.families,
+                    org.family_id,
+                    |f| f.enable_boundary_maintenance,
+                    config.enable_boundary_maintenance,
+                ) {
+                    continue;
+                }
 
                 let energy_deficit =
                     (config.metabolic_viability_floor - org.metabolic_state.energy).max(0.0);
@@ -32,7 +41,12 @@ impl World {
                 } else {
                     0.5
                 };
-                let dev_boundary = if config.enable_growth {
+                let dev_boundary = if Self::family_flag(
+                    &config.families,
+                    org.family_id,
+                    |f| f.enable_growth,
+                    config.enable_growth,
+                ) {
                     org.developmental_program.stage_factors(org.maturity).0
                 } else {
                     1.0

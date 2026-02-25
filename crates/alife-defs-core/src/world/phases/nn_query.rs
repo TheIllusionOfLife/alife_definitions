@@ -34,7 +34,12 @@ impl World {
             }
 
             // Inline effective_sensing_radius logic to avoid borrow conflicts
-            let dev_sensing = if config.enable_growth {
+            let dev_sensing = if Self::family_flag(
+                &config.families,
+                organisms[org_idx].family_id,
+                |f| f.enable_growth,
+                config.enable_growth,
+            ) {
                 organisms[org_idx]
                     .developmental_program
                     .stage_factors(organisms[org_idx].maturity)

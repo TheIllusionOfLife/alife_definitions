@@ -180,8 +180,13 @@ fn run_evolution_experiment_json_impl(
 }
 
 fn world_from_config_json(config_json: &str) -> Result<World, String> {
-    let config: SimConfig =
+    let mut config: SimConfig =
         serde_json::from_str(config_json).map_err(|e| format!("invalid config json: {e}"))?;
+    // Mode B: derive num_organisms from family initial_counts so callers don't have to
+    // keep the two in sync manually.
+    if !config.families.is_empty() {
+        config.num_organisms = config.families.iter().map(|f| f.initial_count).sum();
+    }
     let (agents, nns) = bootstrap_entities(
         config.num_organisms,
         config.agents_per_organism,

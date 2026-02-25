@@ -41,6 +41,8 @@ pub struct LineageEvent {
     pub generation: u32,
     #[serde(default)]
     pub genome_hash: u64, // FNV-1a hash of child genome vector bytes
+    #[serde(default)]
+    pub family_id: u16, // child's family index (0 in Mode A)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

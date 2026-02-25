@@ -3,7 +3,8 @@ use super::super::World;
 impl World {
     /// Update per-organism metabolism and consume resource field.
     pub(in crate::world) fn step_metabolism_phase(&mut self, boundary_terminal_threshold: f32) {
-        if !self.config.enable_metabolism {
+        // Fast-path: Mode A with metabolism globally disabled.
+        if self.config.families.is_empty() && !self.config.enable_metabolism {
             return;
         }
         let world_size = self.config.world_size;
@@ -11,6 +12,14 @@ impl World {
         let mut to_kill = Vec::new();
         for (org_idx, org) in self.organisms.iter_mut().enumerate() {
             if !org.alive {
+                continue;
+            }
+            if !Self::family_flag(
+                &self.config.families,
+                org.family_id,
+                |f| f.enable_metabolism,
+                self.config.enable_metabolism,
+            ) {
                 continue;
             }
             let center = if self.org_counts[org_idx] > 0 {
@@ -35,7 +44,12 @@ impl World {
             let flux = engine.step(&mut org.metabolic_state, external, self.config.dt as f32);
             let energy_delta = org.metabolic_state.energy - pre_energy;
             if energy_delta > 0.0 {
-                let growth_factor = if self.config.enable_growth {
+                let growth_factor = if Self::family_flag(
+                    &self.config.families,
+                    org.family_id,
+                    |f| f.enable_growth,
+                    self.config.enable_growth,
+                ) {
                     org.developmental_program.stage_factors(org.maturity).2
                 } else {
                     self.config.growth_immature_metabolic_efficiency

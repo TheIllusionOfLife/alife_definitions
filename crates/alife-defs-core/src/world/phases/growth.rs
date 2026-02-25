@@ -22,7 +22,13 @@ impl World {
                     continue;
                 }
 
-                if config.enable_growth && org.maturity < 1.0 {
+                if Self::family_flag(
+                    &config.families,
+                    org.family_id,
+                    |f| f.enable_growth,
+                    config.enable_growth,
+                ) && org.maturity < 1.0
+                {
                     let base_rate = 1.0 / config.growth_maturation_steps as f32;
                     let rate = base_rate * org.developmental_program.maturation_rate_modifier;
                     org.maturity = (org.maturity + rate).min(1.0);
