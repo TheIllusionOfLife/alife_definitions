@@ -9,6 +9,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from types import MappingProxyType
 
 import alife_defs
 
@@ -55,41 +56,49 @@ CONDITIONS = {
     **{f"no_{criterion}": {flag: False} for criterion, flag in CRITERION_TO_FLAG.items()},
 }
 
-# Mode B family profiles — passed as elements of the "families" config list
-FAMILY_F1_FULL = {
-    "enable_metabolism": True,
-    "enable_boundary_maintenance": True,
-    "enable_homeostasis": True,
-    "enable_response": True,
-    "enable_reproduction": True,
-    "enable_evolution": True,
-    "enable_growth": True,
-    "initial_count": 10,
-    "mutation_rate_multiplier": 1.0,
-}
-FAMILY_F2_DARWINIAN = {
-    "enable_metabolism": True,
-    "enable_boundary_maintenance": False,
-    "enable_homeostasis": False,
-    "enable_response": True,
-    "enable_reproduction": True,
-    "enable_evolution": True,
-    "enable_growth": True,
-    "initial_count": 10,
-    "mutation_rate_multiplier": 1.0,
-}
-FAMILY_F3_AUTONOMY = {
-    "enable_metabolism": True,
-    "enable_boundary_maintenance": True,
-    "enable_homeostasis": True,
-    "enable_response": True,
-    "enable_reproduction": False,
-    "enable_evolution": False,
-    "enable_growth": True,
-    "initial_count": 10,
-    "mutation_rate_multiplier": 1.0,
-}
-FAMILY_PROFILES = [FAMILY_F1_FULL, FAMILY_F2_DARWINIAN, FAMILY_F3_AUTONOMY]
+# Mode B family profiles — passed as elements of the "families" config list.
+# Wrapped in MappingProxyType to prevent accidental in-place mutation of shared state.
+# Callers that need to modify fields should use dict(FAMILY_F1_FULL, key=value).
+FAMILY_F1_FULL = MappingProxyType(
+    {
+        "enable_metabolism": True,
+        "enable_boundary_maintenance": True,
+        "enable_homeostasis": True,
+        "enable_response": True,
+        "enable_reproduction": True,
+        "enable_evolution": True,
+        "enable_growth": True,
+        "initial_count": 10,
+        "mutation_rate_multiplier": 1.0,
+    }
+)
+FAMILY_F2_DARWINIAN = MappingProxyType(
+    {
+        "enable_metabolism": True,
+        "enable_boundary_maintenance": False,
+        "enable_homeostasis": False,
+        "enable_response": True,
+        "enable_reproduction": True,
+        "enable_evolution": True,
+        "enable_growth": True,
+        "initial_count": 10,
+        "mutation_rate_multiplier": 1.0,
+    }
+)
+FAMILY_F3_AUTONOMY = MappingProxyType(
+    {
+        "enable_metabolism": True,
+        "enable_boundary_maintenance": True,
+        "enable_homeostasis": True,
+        "enable_response": True,
+        "enable_reproduction": False,
+        "enable_evolution": False,
+        "enable_growth": True,
+        "initial_count": 10,
+        "mutation_rate_multiplier": 1.0,
+    }
+)
+FAMILY_PROFILES = (FAMILY_F1_FULL, FAMILY_F2_DARWINIAN, FAMILY_F3_AUTONOMY)
 
 # TSV column headers for experiment output
 TSV_COLUMNS = [

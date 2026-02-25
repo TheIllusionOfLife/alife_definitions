@@ -41,7 +41,7 @@ pub enum AblationTarget {
 /// Per-family criterion ablation flags and population parameters.
 /// Mirrors the global enable_* flags but scoped to one organism family.
 /// An empty `SimConfig.families` vec means single-family mode (use global flags).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct FamilyConfig {
     // Criterion ablation — mirrors global enable_* flags
@@ -640,12 +640,25 @@ impl SimConfig {
     }
 
     fn validate_families(&self) -> Result<(), SimConfigError> {
+        let mut total_family_organisms: usize = 0;
         for (i, f) in self.families.iter().enumerate() {
             if f.initial_count == 0 {
                 return Err(SimConfigError::InvalidFamilyInitialCount { index: i });
             }
             if !(f.mutation_rate_multiplier.is_finite() && f.mutation_rate_multiplier >= 0.0) {
                 return Err(SimConfigError::InvalidFamilyMutationMultiplier { index: i });
+            }
+            total_family_organisms = total_family_organisms.saturating_add(f.initial_count);
+        }
+        if !self.families.is_empty() {
+            let total_agents = total_family_organisms
+                .checked_mul(self.agents_per_organism)
+                .ok_or(SimConfigError::AgentCountOverflow)?;
+            if total_agents > Self::MAX_TOTAL_AGENTS {
+                return Err(SimConfigError::TooManyAgents {
+                    max: Self::MAX_TOTAL_AGENTS,
+                    actual: total_agents,
+                });
             }
         }
         Ok(())
@@ -795,7 +808,10 @@ mod tests {
             }],
             ..SimConfig::default()
         };
-        assert!(config.validate().is_err());
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidFamilyInitialCount { index: 0 })
+        );
     }
 
     #[test]
@@ -807,7 +823,52 @@ mod tests {
             }],
             ..SimConfig::default()
         };
-        assert!(config.validate().is_err());
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidFamilyMutationMultiplier { index: 0 })
+        );
+    }
+
+    #[test]
+    fn family_config_non_finite_mutation_multiplier_is_rejected() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let config = SimConfig {
+                families: vec![FamilyConfig {
+                    mutation_rate_multiplier: bad,
+                    ..FamilyConfig::default()
+                }],
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidFamilyMutationMultiplier { index: 0 }),
+                "expected rejection for multiplier={bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn family_config_aggregate_agent_count_is_validated() {
+        // Two families whose combined initial_count * agents_per_organism exceeds MAX_TOTAL_AGENTS
+        let big = SimConfig::MAX_TOTAL_AGENTS / 2 + 1;
+        let config = SimConfig {
+            agents_per_organism: 1,
+            families: vec![
+                FamilyConfig {
+                    initial_count: big,
+                    ..FamilyConfig::default()
+                },
+                FamilyConfig {
+                    initial_count: big,
+                    ..FamilyConfig::default()
+                },
+            ],
+            ..SimConfig::default()
+        };
+        assert!(matches!(
+            config.validate(),
+            Err(SimConfigError::TooManyAgents { .. })
+        ));
     }
 
     #[test]
@@ -991,6 +1052,14 @@ mod tests {
                     actual: 4096.0,
                 },
                 "world_size (4096) exceeds supported maximum (2048)",
+            ),
+            (
+                SimConfigError::InvalidFamilyInitialCount { index: 2 },
+                "family[2].initial_count must be > 0",
+            ),
+            (
+                SimConfigError::InvalidFamilyMutationMultiplier { index: 1 },
+                "family[1].mutation_rate_multiplier must be finite and >= 0",
             ),
         ];
 
