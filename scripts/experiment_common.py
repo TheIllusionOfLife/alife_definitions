@@ -98,11 +98,19 @@ def make_config_dict(seed: int, overrides: dict) -> dict:
     return config
 
 
-def run_single(seed: int, overrides: dict, steps: int = 2000, sample_every: int = 50) -> dict:
+def run_single(
+    seed: int,
+    overrides: dict,
+    steps: int = 2000,
+    sample_every: int = 50,
+    regime_label: str = "",
+) -> dict:
     """Run a single experiment and return parsed results."""
     config_json = make_config(seed, overrides)
     result_json = alife_defs.run_experiment_json(config_json, steps, sample_every)
-    return json.loads(result_json)
+    result = json.loads(result_json)
+    result["regime_label"] = regime_label
+    return result
 
 
 def print_header() -> None:

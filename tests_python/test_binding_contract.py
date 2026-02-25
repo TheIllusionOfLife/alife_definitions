@@ -11,6 +11,8 @@ import json
 import alife_defs
 import pytest
 
+from scripts.experiment_common import run_single
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -143,3 +145,38 @@ def test_validate_config_json_rejects_oversized_world():
     cfg["world_size"] = 99_999.0  # exceeds MAX_WORLD_SIZE — caught at config validation layer
     with pytest.raises(Exception, match="world_size"):
         alife_defs.validate_config_json(json.dumps(cfg))
+
+
+# ---------------------------------------------------------------------------
+# PR 1: regime_label + genome_hash additions
+# ---------------------------------------------------------------------------
+
+
+def test_regime_label_present():
+    """regime_label must be stamped by the Python layer and round-trip correctly."""
+    result = run_single(seed=0, overrides={**_MINIMAL_OVERRIDE}, regime_label="E1_baseline")
+    assert result["regime_label"] == "E1_baseline"
+
+
+def test_regime_label_defaults_to_empty_string():
+    """regime_label defaults to empty string when not provided."""
+    result = run_single(seed=0, overrides={**_MINIMAL_OVERRIDE})
+    assert result["regime_label"] == ""
+
+
+def test_lineage_event_has_genome_hash():
+    """lineage_events items must carry a genome_hash int field.
+
+    Uses overrides that make reproduction highly likely (low energy threshold,
+    no boundary gate) to avoid a vacuous-pass when no events occur.
+    """
+    overrides = {
+        **_MINIMAL_OVERRIDE,
+        "reproduction_min_energy": 0.31,  # just above default cost (0.30)
+        "reproduction_min_boundary": 0.0,  # remove boundary gate
+    }
+    result = run_single(seed=0, overrides=overrides, steps=500, sample_every=50)
+    events = result["lineage_events"]
+    assert events, "Expected at least one lineage event; genome_hash could not be verified."
+    assert "genome_hash" in events[0], f"Missing genome_hash in lineage event: {events[0]}"
+    assert isinstance(events[0]["genome_hash"], int)
