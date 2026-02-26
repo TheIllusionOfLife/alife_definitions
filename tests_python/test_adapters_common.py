@@ -8,48 +8,8 @@ Validates:
 
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
-
 import numpy as np
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-
-import alife_defs
-from experiment_common import FAMILY_PROFILES, TUNED_BASELINE
-
-# ---------------------------------------------------------------------------
-# Module-scoped fixture: Mode B run shared across all adapter tests
-# ---------------------------------------------------------------------------
-
-
-def _make_mode_b_config(seed: int = 42) -> dict:
-    """Build a Mode B config for adapter testing."""
-    cfg = json.loads(alife_defs.default_config_json())
-    cfg.update(TUNED_BASELINE)
-    cfg["seed"] = seed
-    cfg["num_organisms"] = 30
-    cfg["agents_per_organism"] = 25
-    cfg["families"] = [dict(fp) for fp in FAMILY_PROFILES]
-    return cfg
-
-
-@pytest.fixture(scope="module")
-def mode_b_run() -> dict:
-    """Mode B run: 30 orgs, 25 agents, 2000 steps, sample_every=50, seed=42.
-
-    Produces 40 sample points — long enough for stable evolutionary signals
-    and lineage events. Shared across all adapter test modules via conftest.
-    """
-    cfg = _make_mode_b_config(seed=42)
-    result_json = alife_defs.run_experiment_json(json.dumps(cfg), 2000, 50)
-    result = json.loads(result_json)
-    result["regime_label"] = "E1"
-    return result
-
 
 # ---------------------------------------------------------------------------
 # AdapterResult schema tests

@@ -127,11 +127,18 @@ def _parse_seed_range(spec: str) -> list[int]:
     seeds: list[int] = []
     for part in spec.split(","):
         part = part.strip()
+        if not part:
+            raise ValueError(f"Invalid seed specification: '{spec}'")
         if "-" in part:
             lo, hi = part.split("-", 1)
-            seeds.extend(range(int(lo), int(hi) + 1))
+            lo_i, hi_i = int(lo), int(hi)
+            if hi_i < lo_i:
+                raise ValueError(f"Invalid seed range '{part}': start must be <= end")
+            seeds.extend(range(lo_i, hi_i + 1))
         else:
             seeds.append(int(part))
+    if not seeds:
+        raise ValueError(f"No seeds parsed from specification: '{spec}'")
     return sorted(set(seeds))
 
 

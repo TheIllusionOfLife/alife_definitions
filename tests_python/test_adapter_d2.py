@@ -10,31 +10,7 @@ Validates:
 
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
-
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-
-import alife_defs
-from experiment_common import FAMILY_PROFILES, TUNED_BASELINE
-
-
-@pytest.fixture(scope="module")
-def mode_b_run() -> dict:
-    cfg = json.loads(alife_defs.default_config_json())
-    cfg.update(TUNED_BASELINE)
-    cfg["seed"] = 42
-    cfg["num_organisms"] = 30
-    cfg["agents_per_organism"] = 25
-    cfg["families"] = [dict(fp) for fp in FAMILY_PROFILES]
-    result_json = alife_defs.run_experiment_json(json.dumps(cfg), 2000, 50)
-    result = json.loads(result_json)
-    result["regime_label"] = "E1"
-    return result
 
 
 @pytest.fixture(scope="module")

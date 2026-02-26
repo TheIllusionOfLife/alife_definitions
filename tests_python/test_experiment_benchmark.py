@@ -171,6 +171,28 @@ class TestRegimeConfigs:
 
 
 # ---------------------------------------------------------------------------
+# Seed range parsing
+# ---------------------------------------------------------------------------
+
+
+class TestSeedRangeParsing:
+    def test_inverted_range_raises(self, benchmark_module):
+        with pytest.raises(ValueError, match="start must be <= end"):
+            benchmark_module._parse_seed_range("10-0")
+
+    def test_empty_part_raises(self, benchmark_module):
+        with pytest.raises(ValueError, match="Invalid seed specification"):
+            benchmark_module._parse_seed_range(",")
+
+    def test_valid_range(self, benchmark_module):
+        assert benchmark_module._parse_seed_range("0-4") == [0, 1, 2, 3, 4]
+
+    def test_mixed_spec(self, benchmark_module):
+        result = benchmark_module._parse_seed_range("0,5-7,10")
+        assert result == [0, 5, 6, 7, 10]
+
+
+# ---------------------------------------------------------------------------
 # Family count
 # ---------------------------------------------------------------------------
 

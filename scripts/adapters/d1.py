@@ -138,10 +138,10 @@ def _score_dynamic(criterion: str, series: dict[str, np.ndarray]) -> float:
     signal = series[signal_name]
 
     if criterion == "homeostasis":
-        # Homeostasis: low CV indicates stability — invert the test
+        # Homeostasis: low CV indicates stability. The alpha score is a binary
+        # check that the process is active (i.e., not static), requiring CV
+        # to be above a noise floor. The beta score then rewards lower CV.
         cv = coefficient_of_variation(signal)
-        # Score higher when CV is LOW (good homeostasis)
-        # But still need *some* variance to prove it's active
         return 1.0 if cv > CV_NOISE_FLOOR else 0.0
 
     if criterion == "reproduction":

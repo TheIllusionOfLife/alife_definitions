@@ -53,9 +53,9 @@ def score_d3(
     # Build directed influence matrix
     edges, n_significant, edge_details = _build_influence_graph(series, rng)
 
-    # Find largest SCC
+    # Find largest SCC — singleton SCCs don't count as closure
     scc_size = _largest_scc_size(edges)
-    closure = scc_size / N_PROCESSES
+    closure = 0.0 if scc_size <= 1 else scc_size / N_PROCESSES
 
     # Persistence requirement — measures self-maintenance duration.
     # For D3 (autonomy), we care about whether the system maintained itself
@@ -73,7 +73,7 @@ def score_d3(
         persistence = 0.0
 
     # Combined score
-    score = closure * min(1.0, persistence)
+    score = closure * persistence
 
     return AdapterResult(
         definition="D3",
@@ -128,8 +128,9 @@ def _build_influence_graph(
             granger_result = best_granger_with_lag_correction(src, tgt, GRANGER_MAX_LAG)
             granger_p = granger_result["best_p_corrected"] if granger_result else 1.0
 
-            # Use minimum p-value (either method can detect the edge)
-            min_p = min(te_p, granger_p)
+            # Combine two tests conservatively per pair before global FDR.
+            # Bonferroni for m=2: p_pair = min(1, 2 * min(p1, p2))
+            min_p = min(1.0, 2.0 * min(te_p, granger_p))
 
             pair_results.append(
                 {

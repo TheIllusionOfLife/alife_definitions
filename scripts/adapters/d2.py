@@ -27,6 +27,16 @@ from .common import (
 DEFAULT_THRESHOLD = 0.3
 GENOME_LENGTH = 256  # matches analyze_evolution_evidence.py
 
+# Reproduction scoring thresholds
+REPROD_LINEAGE_EVENT_TARGET = 50.0  # events for max lineage_score
+REPROD_PERSISTENCE_TARGET = 0.8  # persistence for max persistence_score
+
+# Mutation parameters — must match default Rust config (mutation_point_rate,
+# mutation_point_scale). Used for analytical h² approximation.
+# WARNING: If experiments override mutation parameters, this score may be inaccurate.
+MUTATION_POINT_RATE = 0.02
+MUTATION_POINT_SCALE = 0.15
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -108,10 +118,10 @@ def _score_reproduction(
     if lineage:
         n_events = len(lineage)
         # Scale: 50+ events is strong sustained reproduction
-        lineage_score = float(np.clip(n_events / 50.0, 0.0, 1.0))
+        lineage_score = float(np.clip(n_events / REPROD_LINEAGE_EVENT_TARGET, 0.0, 1.0))
 
     # Combine: take the max of both signals
-    combined = max(persistence / 0.8, lineage_score)
+    combined = max(persistence / REPROD_PERSISTENCE_TARGET, lineage_score)
     return float(np.clip(combined, 0.0, 1.0))
 
 
@@ -148,11 +158,8 @@ def _score_heritability(lineage: list[dict]) -> float:
     # Hash diversity ratio: low unique/total means high similarity (heritability)
     diversity_ratio = unique_total / total
 
-    # Analytical h² approximation
-    # Use mutation parameters from tuned baseline
-    point_rate = 0.02  # from tuned_baseline
-    mutation_scale = 0.15
-    mutation_variance = point_rate * GENOME_LENGTH * mutation_scale**2
+    # Analytical h² approximation using default mutation parameters.
+    mutation_variance = MUTATION_POINT_RATE * GENOME_LENGTH * MUTATION_POINT_SCALE**2
 
     # Standing variance proxied by hash diversity
     standing_variance = diversity_ratio * 100  # scale to comparable range
