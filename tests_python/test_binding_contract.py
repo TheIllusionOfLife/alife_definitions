@@ -351,3 +351,65 @@ def test_family_breakdown_alive_counts_sum_to_global():
             f"Per-family alive_count sum ({breakdown_total}) != global alive_count "
             f"({sample['alive_count']}) at step {sample['step']}"
         )
+
+
+# ---------------------------------------------------------------------------
+# PR 3: E4 sensing noise + E5 spatial patchiness
+# ---------------------------------------------------------------------------
+
+
+def test_default_config_has_sensing_noise_scale():
+    """default_config_json must include sensing_noise_scale == 0.0."""
+    cfg = json.loads(alife_defs.default_config_json())
+    assert "sensing_noise_scale" in cfg, "sensing_noise_scale missing from default config"
+    assert cfg["sensing_noise_scale"] == 0.0, (
+        f"sensing_noise_scale must default to 0.0, got {cfg['sensing_noise_scale']}"
+    )
+
+
+def test_default_config_has_resource_patch_fields():
+    """default_config_json must include resource_patch_count and resource_patch_scale."""
+    cfg = json.loads(alife_defs.default_config_json())
+    assert "resource_patch_count" in cfg, "resource_patch_count missing from default config"
+    assert "resource_patch_scale" in cfg, "resource_patch_scale missing from default config"
+    assert cfg["resource_patch_count"] == 0, (
+        f"resource_patch_count must default to 0, got {cfg['resource_patch_count']}"
+    )
+    assert cfg["resource_patch_scale"] == 1.0, (
+        f"resource_patch_scale must default to 1.0, got {cfg['resource_patch_scale']}"
+    )
+
+
+def test_e4_config_passes_validate():
+    """sensing_noise_scale > 0 must pass validate_config_json."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg["sensing_noise_scale"] = 0.5
+    assert alife_defs.validate_config_json(json.dumps(cfg)) is True
+
+
+def test_e5_config_passes_validate():
+    """resource_patch_count > 0 with resource_patch_scale > 1 must pass validate_config_json."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg["resource_patch_count"] = 4
+    cfg["resource_patch_scale"] = 2.0
+    assert alife_defs.validate_config_json(json.dumps(cfg)) is True
+
+
+def test_e4_run_completes():
+    """A short run with sensing_noise_scale=0.5 must return valid RunSummary."""
+    result = json.loads(
+        alife_defs.run_experiment_json(_make_config(sensing_noise_scale=0.5), 10, 5)
+    )
+    assert result["schema_version"] == 1
+    assert isinstance(result["samples"], list)
+    assert len(result["samples"]) > 0
+
+
+def test_e5_run_completes():
+    """A short run with resource_patch_count=4 must return valid RunSummary."""
+    result = json.loads(
+        alife_defs.run_experiment_json(_make_config(resource_patch_count=4), 10, 5)
+    )
+    assert result["schema_version"] == 1
+    assert isinstance(result["samples"], list)
+    assert len(result["samples"]) > 0
