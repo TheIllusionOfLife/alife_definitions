@@ -1824,6 +1824,54 @@ fn lineage_event_carries_family_id() {
 // ── PR 2c: Per-family metrics tests ──
 
 #[test]
+fn family_breakdown_birth_death_counts_sum_to_global() {
+    // Per-family birth_count and death_count must sum to the global values
+    // in StepMetrics. Both counters share the same reset/increment site, so
+    // any divergence would indicate a bug in the counter bookkeeping.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 3,
+            enable_boundary_maintenance: false,
+            enable_homeostasis: false,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    world.config.enable_metabolism = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.reproduction_min_energy = 0.31;
+    world.config.reproduction_min_boundary = 0.0;
+    for org in world.organisms.iter_mut() {
+        org.metabolic_state.energy = 1.0;
+        org.boundary_integrity = 1.0;
+    }
+    // sample_every=1 so each sample captures one step's counters exactly.
+    let summary = world.run_experiment(10, 1);
+    for sample in &summary.samples {
+        let breakdown_births: usize = sample.family_breakdown.iter().map(|f| f.birth_count).sum();
+        let breakdown_deaths: usize = sample.family_breakdown.iter().map(|f| f.death_count).sum();
+        assert_eq!(
+            breakdown_births, sample.birth_count,
+            "sum of per-family birth_counts ({breakdown_births}) != global birth_count ({}) \
+             at step {}",
+            sample.birth_count, sample.step
+        );
+        assert_eq!(
+            breakdown_deaths, sample.death_count,
+            "sum of per-family death_counts ({breakdown_deaths}) != global death_count ({}) \
+             at step {}",
+            sample.death_count, sample.step
+        );
+    }
+}
+
+#[test]
 fn step_metrics_family_breakdown_length_matches_families() {
     // Mode B: 3 families → family_breakdown must have exactly 3 entries per sample.
     let families = vec![
