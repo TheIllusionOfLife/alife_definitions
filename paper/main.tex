@@ -1,0 +1,128 @@
+\documentclass[letterpaper]{article}
+\usepackage{natbib,alifeconf}
+\usepackage{graphicx,amsmath,amssymb,booktabs,xcolor,multirow}
+\usepackage{url,hyperref}
+
+\title{Life Definitions Disagree: An Empirical Benchmark\\of Competing Operationalizations in a Shared Digital Ecology}
+\author{Anonymous}
+
+\begin{document}
+\maketitle
+
+% ============================================================================
+\begin{abstract}
+Multiple operational definitions of life exist, yet they are rarely applied to
+the same system under controlled conditions.  We present an empirical benchmark
+comparing four definitions---textbook 7-criteria (D1), Darwinian/NASA (D2),
+autonomy/organizational closure (D3), and information maintenance (D4)---by
+scoring the same organism populations across five environment regimes in a
+shared digital ecology.  Three co-existing family types with different ablated
+capabilities serve as natural controls.  We report the disagreement structure
+among definitions, identify regime-dependent divergences, and evaluate
+predictive validity against population robustness.  Our benchmark suite and
+adapter code are released as an open artifact for the ALife community.
+\end{abstract}
+
+Submission type: \textbf{Full Paper}
+
+% ============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+% Why definitions matter (life detection, ALife foundations)
+% Gap: most work adopts one definition
+% Your approach: empirical comparison in the same world
+
+\textbf{[TODO]} Motivate the benchmark: no prior work systematically compares
+multiple definitions on the same digital organisms.
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+% Definitions of life (brief, functional)
+% Benchmarking philosophies (not deep philosophy---keep it ALife)
+
+\textbf{[TODO]} Brief survey of D1--D4 lineage and prior benchmarking efforts.
+
+% ============================================================================
+\section{System and Baseline}
+\label{sec:system}
+
+% Summarize your current system as substrate
+% Cite that the 7-criteria integration exists and is validated
+
+\textbf{[TODO]} Hybrid swarm-organism substrate, Mode~B with three family
+profiles (F1~full, F2~Darwinian, F3~autonomy).
+
+% ============================================================================
+\section{Definition Adapters}
+\label{sec:adapters}
+
+% D1--D4 operationalizations
+% Trace schema
+
+\subsection{D1: Textbook 7-Criteria}
+\textbf{[TODO]} Dynamic, degradation, coupling conditions per criterion;
+geometric mean aggregate.
+
+\subsection{D2: Darwinian / NASA}
+\textbf{[TODO]} Sustained reproduction, heritability, differential success.
+
+\subsection{D3: Autonomy / Organizational Closure}
+\textbf{[TODO]} Transfer entropy influence graph, SCC closure score.
+
+\subsection{D4: Information Maintenance}
+\textbf{[TODO]} Genome causally predicts fitness, information preserved
+across generations.
+
+% ============================================================================
+\section{Experiments}
+\label{sec:experiments}
+
+% Regimes E1--E5
+% Held-out seeds
+% Metrics and stats
+
+\textbf{[TODO]} Five regimes (E1--E5), calibration seeds 0--99,
+test seeds 100--199, statistical methods.
+
+% ============================================================================
+\section{Results}
+\label{sec:results}
+
+% Disagreement heatmaps
+% Agreement matrix
+% Predictive validity under perturbations
+% Case studies
+
+\textbf{[TODO]} Heatmaps, Cohen's $\kappa$, Spearman rank correlations,
+case studies of diagnostic disagreements.
+
+% ============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+% What disagreements imply
+% Limits: adapter dependence, substrate bias
+% How others can plug in their systems
+
+\textbf{[TODO]} Interpretation of disagreement structure, limitations,
+extensibility of the benchmark.
+
+% ============================================================================
+\section{Artifact Release}
+\label{sec:artifact}
+
+% Benchmark suite structure + minimal reproduction instructions
+
+\textbf{[TODO]} Repository structure, reproduction instructions, adapter API.
+
+% ============================================================================
+\section*{Acknowledgments}
+\textbf{[TODO]}
+
+\bibliographystyle{apalike}
+\bibliography{references}
+
+\end{document}
