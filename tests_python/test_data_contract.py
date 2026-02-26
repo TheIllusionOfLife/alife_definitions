@@ -4,6 +4,9 @@ Parses the markdown document to extract documented field names per struct,
 runs a minimal simulation, and asserts bidirectional coverage:
   - every documented field exists in the output (no phantom fields)
   - every output field is documented (no undocumented fields)
+
+Module-scoped fixtures cache simulation results so each expensive run
+(Mode A, Mode B, lineage, snapshot) executes only once across all tests.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ import re
 from pathlib import Path
 
 import alife_defs
+import pytest
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -40,7 +44,7 @@ _MINIMAL_OVERRIDE = {
 
 
 # ---------------------------------------------------------------------------
-# Markdown field-name parser
+# Markdown parsers
 # ---------------------------------------------------------------------------
 
 
@@ -61,7 +65,7 @@ def _parse_documented_fields(section_heading: str) -> set[str]:
     match = pattern.search(text)
     assert match, f"Section '{section_heading}' not found in {_CONTRACT_PATH}"
 
-    # Grab text from the heading to the next heading of same or higher level
+    # Grab text from the heading to the next heading or horizontal rule
     start = match.end()
     next_heading = re.search(r"^(?:#{1,3}\s|---$)", text[start:], re.MULTILINE)
     block = text[start : start + next_heading.start()] if next_heading else text[start:]
@@ -78,30 +82,41 @@ def _parse_documented_fields(section_heading: str) -> set[str]:
     return fields
 
 
+def _parse_documented_schema_version() -> int:
+    """Extract the schema version number from the document header."""
+    text = _CONTRACT_PATH.read_text()
+    m = re.search(r"\*\*Schema version\*\*:\s*(\d+)", text)
+    assert m, "Schema version not found in data-contract.md header"
+    return int(m.group(1))
+
+
 # ---------------------------------------------------------------------------
-# Simulation helpers
+# Module-scoped fixtures — each simulation runs once, shared across tests
 # ---------------------------------------------------------------------------
 
 
-def _run_mode_a(steps: int = 100, sample_every: int = 10) -> dict:
-    """Run a short Mode A simulation and return parsed JSON."""
+def _make_config(**extra) -> str:
     cfg = json.loads(alife_defs.default_config_json())
     cfg.update(_MINIMAL_OVERRIDE)
-    return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every))
+    cfg.update(extra)
+    return json.dumps(cfg)
 
 
-def _run_with_snapshots(steps: int = 20, sample_every: int = 10) -> dict:
-    """Run a short simulation with snapshot collection and return parsed JSON."""
-    cfg = json.loads(alife_defs.default_config_json())
-    cfg.update(_MINIMAL_OVERRIDE)
-    snapshot_steps = json.dumps([steps])  # snapshot at last step
-    return json.loads(
-        alife_defs.run_niche_experiment_json(json.dumps(cfg), steps, sample_every, snapshot_steps)
-    )
+@pytest.fixture(scope="module")
+def mode_a_result() -> dict:
+    """Mode A run (100 steps) — shared by RunSummary and StepMetrics tests."""
+    return json.loads(alife_defs.run_experiment_json(_make_config(), 100, 10))
 
 
-def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
-    """Run a short Mode B (3-family) simulation and return parsed JSON."""
+@pytest.fixture(scope="module")
+def mode_a_lineage_result() -> dict:
+    """Mode A run (500 steps) — long enough to produce lineage events."""
+    return json.loads(alife_defs.run_experiment_json(_make_config(), 500, 50))
+
+
+@pytest.fixture(scope="module")
+def mode_b_result() -> dict:
+    """Mode B run (100 steps, 3 families)."""
     cfg = json.loads(alife_defs.default_config_json())
     cfg.update({**_MINIMAL_OVERRIDE, "num_organisms": 30})
     cfg["families"] = [
@@ -139,7 +154,14 @@ def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
             "mutation_rate_multiplier": 1.0,
         },
     ]
-    return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every))
+    return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), 100, 10))
+
+
+@pytest.fixture(scope="module")
+def snapshot_result() -> dict:
+    """Mode A run with snapshot collection at final step."""
+    snapshot_steps = json.dumps([20])
+    return json.loads(alife_defs.run_niche_experiment_json(_make_config(), 20, 10, snapshot_steps))
 
 
 # ---------------------------------------------------------------------------
@@ -151,29 +173,29 @@ class TestDocumentExists:
     def test_data_contract_file_exists(self):
         assert _CONTRACT_PATH.exists(), f"Data contract document not found at {_CONTRACT_PATH}"
 
-    def test_schema_version_documented(self):
-        text = _CONTRACT_PATH.read_text()
-        assert "schema_version" in text
+    def test_schema_version_synced(self, mode_a_result):
+        """Documented schema version must match the value in simulation output."""
+        documented = _parse_documented_schema_version()
+        assert mode_a_result["schema_version"] == documented, (
+            f"Schema version mismatch: doc says {documented}, "
+            f"output says {mode_a_result['schema_version']}"
+        )
 
 
 class TestRunSummaryContract:
     """Every RunSummary field must be documented and vice versa."""
 
-    def test_documented_fields_exist_in_output(self):
+    def test_documented_fields_exist_in_output(self, mode_a_result):
         doc_fields = _parse_documented_fields("RunSummary")
         skip = _CONDITIONALLY_ABSENT.get("RunSummary", set())
-        result = _run_mode_a()
         for field in doc_fields - skip:
-            assert field in result, (
+            assert field in mode_a_result, (
                 f"Documented RunSummary field `{field}` missing from simulation output"
             )
 
-    def test_output_fields_are_documented(self):
+    def test_output_fields_are_documented(self, mode_a_result):
         doc_fields = _parse_documented_fields("RunSummary")
-        result = _run_mode_a()
-        # regime_label is stamped by Python layer — documented separately
-        output_fields = set(result.keys())
-        for field in output_fields:
+        for field in mode_a_result:
             assert field in doc_fields, (
                 f"Undocumented RunSummary field `{field}` found in simulation output"
             )
@@ -182,21 +204,19 @@ class TestRunSummaryContract:
 class TestStepMetricsContract:
     """Every StepMetrics field must be documented and vice versa."""
 
-    def test_documented_fields_exist_in_output(self):
+    def test_documented_fields_exist_in_output(self, mode_a_result):
         doc_fields = _parse_documented_fields("StepMetrics")
         skip = _CONDITIONALLY_ABSENT.get("StepMetrics", set())
-        result = _run_mode_a()
-        assert result["samples"], "Expected at least one sample"
-        sample = result["samples"][0]
+        assert mode_a_result["samples"], "Expected at least one sample"
+        sample = mode_a_result["samples"][0]
         for field in doc_fields - skip:
             assert field in sample, (
                 f"Documented StepMetrics field `{field}` missing from simulation output"
             )
 
-    def test_output_fields_are_documented(self):
+    def test_output_fields_are_documented(self, mode_a_result):
         doc_fields = _parse_documented_fields("StepMetrics")
-        result = _run_mode_a()
-        sample = result["samples"][0]
+        sample = mode_a_result["samples"][0]
         for field in sample:
             assert field in doc_fields, (
                 f"Undocumented StepMetrics field `{field}` found in simulation output"
@@ -206,20 +226,18 @@ class TestStepMetricsContract:
 class TestFamilyStepMetricsContract:
     """Every FamilyStepMetrics field must be documented and vice versa."""
 
-    def test_documented_fields_exist_in_output(self):
+    def test_documented_fields_exist_in_output(self, mode_b_result):
         doc_fields = _parse_documented_fields("FamilyStepMetrics")
-        result = _run_mode_b()
-        assert result["samples"], "Expected at least one sample"
-        sample = result["samples"][0]
+        assert mode_b_result["samples"], "Expected at least one sample"
+        sample = mode_b_result["samples"][0]
         assert sample.get("family_breakdown"), "Expected family_breakdown in Mode B"
         fam = sample["family_breakdown"][0]
         for field in doc_fields:
             assert field in fam, f"Documented FamilyStepMetrics field `{field}` missing from output"
 
-    def test_output_fields_are_documented(self):
+    def test_output_fields_are_documented(self, mode_b_result):
         doc_fields = _parse_documented_fields("FamilyStepMetrics")
-        result = _run_mode_b()
-        fam = result["samples"][0]["family_breakdown"][0]
+        fam = mode_b_result["samples"][0]["family_breakdown"][0]
         for field in fam:
             assert field in doc_fields, (
                 f"Undocumented FamilyStepMetrics field `{field}` found in output"
@@ -229,19 +247,19 @@ class TestFamilyStepMetricsContract:
 class TestLineageEventContract:
     """Every LineageEvent field must be documented and vice versa."""
 
-    def test_documented_fields_exist_in_output(self):
+    def test_documented_fields_exist_in_output(self, mode_a_lineage_result):
         doc_fields = _parse_documented_fields("LineageEvent")
-        result = _run_mode_a(steps=500)
-        assert result["lineage_events"], "Expected at least one lineage event for contract test"
-        event = result["lineage_events"][0]
+        events = mode_a_lineage_result["lineage_events"]
+        assert events, "Expected at least one lineage event for contract test"
+        event = events[0]
         for field in doc_fields:
             assert field in event, f"Documented LineageEvent field `{field}` missing from output"
 
-    def test_output_fields_are_documented(self):
+    def test_output_fields_are_documented(self, mode_a_lineage_result):
         doc_fields = _parse_documented_fields("LineageEvent")
-        result = _run_mode_a(steps=500)
-        assert result["lineage_events"], "Expected at least one lineage event"
-        event = result["lineage_events"][0]
+        events = mode_a_lineage_result["lineage_events"]
+        assert events, "Expected at least one lineage event"
+        event = events[0]
         for field in event:
             assert field in doc_fields, f"Undocumented LineageEvent field `{field}` found in output"
 
@@ -249,13 +267,10 @@ class TestLineageEventContract:
 class TestSnapshotContract:
     """OrganismSnapshot and SnapshotFrame fields must be documented."""
 
-    def test_snapshot_frame_fields_bidirectional(self):
+    def test_snapshot_frame_fields_bidirectional(self, snapshot_result):
         doc_fields = _parse_documented_fields("SnapshotFrame")
-        result = _run_with_snapshots()
-        assert result["organism_snapshots"], "Expected at least one snapshot frame"
-        frame = result["organism_snapshots"][0]
-        frame_keys = {k for k in frame if k != "organisms"}  # organisms is a nested list
-        frame_keys.add("organisms")  # re-add as documented
+        assert snapshot_result["organism_snapshots"], "Expected at least one snapshot frame"
+        frame = snapshot_result["organism_snapshots"][0]
         for field in doc_fields:
             assert field in frame, f"Documented SnapshotFrame field `{field}` missing from output"
         for field in frame:
@@ -263,11 +278,10 @@ class TestSnapshotContract:
                 f"Undocumented SnapshotFrame field `{field}` found in output"
             )
 
-    def test_organism_snapshot_fields_bidirectional(self):
+    def test_organism_snapshot_fields_bidirectional(self, snapshot_result):
         doc_fields = _parse_documented_fields("OrganismSnapshot")
-        result = _run_with_snapshots()
-        assert result["organism_snapshots"], "Expected at least one snapshot frame"
-        frame = result["organism_snapshots"][0]
+        assert snapshot_result["organism_snapshots"], "Expected at least one snapshot frame"
+        frame = snapshot_result["organism_snapshots"][0]
         assert frame["organisms"], "Expected at least one organism in snapshot"
         org = frame["organisms"][0]
         for field in doc_fields:
