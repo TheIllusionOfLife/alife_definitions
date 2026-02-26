@@ -17,23 +17,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import time
 from pathlib import Path
 
+import alife_defs
 from experiment_common import (
     FAMILY_PROFILES,
-    TUNED_BASELINE,
     experiment_output_dir,
     log,
     make_config_dict,
-    make_e4_config,
-    make_e5_config,
     safe_path,
 )
 from experiment_manifest import write_manifest
-
-import alife_defs
 
 # ---------------------------------------------------------------------------
 # Regime definitions
@@ -156,12 +151,8 @@ def _parse_regimes(spec: str) -> list[str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run benchmark harness")
-    parser.add_argument(
-        "--seeds", default="0-99", help="Seed range (e.g. '0-99', '0-4')"
-    )
-    parser.add_argument(
-        "--regimes", default=",".join(ALL_REGIMES), help="Comma-separated regimes"
-    )
+    parser.add_argument("--seeds", default="0-99", help="Seed range (e.g. '0-99', '0-4')")
+    parser.add_argument("--regimes", default=",".join(ALL_REGIMES), help="Comma-separated regimes")
     parser.add_argument("--resume", action="store_true", help="Skip existing seed files")
     parser.add_argument("--steps", type=int, default=2000, help="Steps per run")
     parser.add_argument("--sample-every", type=int, default=50, help="Sample interval")
@@ -171,7 +162,8 @@ def main() -> None:
     regimes = _parse_regimes(args.regimes)
     out_dir = experiment_output_dir() / "benchmark"
 
-    log(f"Benchmark: {len(regimes)} regimes × {len(seeds)} seeds = {len(regimes) * len(seeds)} runs")
+    n_runs = len(regimes) * len(seeds)
+    log(f"Benchmark: {len(regimes)} regimes x {len(seeds)} seeds = {n_runs} runs")
     log(f"Output: {out_dir}")
 
     total_start = time.perf_counter()

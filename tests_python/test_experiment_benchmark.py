@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -101,7 +100,7 @@ class TestBenchmarkResume:
         seed_file = regime_dir / "seed_000.json"
         seed_file.write_text(json.dumps(dummy))
 
-        results = benchmark_module.run_benchmark(
+        benchmark_module.run_benchmark(
             seeds=[0],
             regimes=["E1"],
             out_dir=tmp_path,
