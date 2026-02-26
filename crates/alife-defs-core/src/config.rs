@@ -296,7 +296,7 @@ impl Default for SimConfig {
             enable_sham_process: false,
             sensing_noise_scale: 0.0,
             resource_patch_count: 0,
-            resource_patch_scale: 1.0,
+            resource_patch_scale: default_resource_patch_scale(),
             families: Vec::new(),
         }
     }
@@ -1104,10 +1104,108 @@ mod tests {
                 SimConfigError::InvalidFamilyMutationMultiplier { index: 1 },
                 "family[1].mutation_rate_multiplier must be finite and >= 0",
             ),
+            (
+                SimConfigError::InvalidSensingNoiseScale,
+                "sensing_noise_scale must be finite and non-negative",
+            ),
+            (
+                SimConfigError::InvalidResourcePatchScale,
+                "resource_patch_scale must be finite and non-negative",
+            ),
+            (
+                SimConfigError::InvalidResourcePatchCount {
+                    max: 256,
+                    actual: 300,
+                },
+                "resource_patch_count (300) exceeds maximum (256)",
+            ),
         ];
 
         for (err, expected) in cases {
             assert_eq!(err.to_string(), expected);
         }
+    }
+
+    // --- E4/E5 validation paths ---
+
+    #[test]
+    fn validate_rejects_negative_sensing_noise_scale() {
+        let config = SimConfig {
+            sensing_noise_scale: -0.1,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidSensingNoiseScale)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_sensing_noise_scale() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let config = SimConfig {
+                sensing_noise_scale: bad,
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidSensingNoiseScale),
+                "sensing_noise_scale={bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_negative_resource_patch_scale() {
+        let config = SimConfig {
+            resource_patch_scale: -0.5,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidResourcePatchScale)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_resource_patch_scale() {
+        for bad in [f32::NAN, f32::INFINITY] {
+            let config = SimConfig {
+                resource_patch_scale: bad,
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidResourcePatchScale),
+                "resource_patch_scale={bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_excessive_resource_patch_count() {
+        let config = SimConfig {
+            resource_patch_count: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidResourcePatchCount {
+                max: SimConfig::MAX_RESOURCE_PATCH_COUNT,
+                actual: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+            })
+        );
+    }
+
+    #[test]
+    fn validate_accepts_valid_e4_e5_configs() {
+        // sensing_noise_scale = 0.5 and resource_patch_count = 4 are valid.
+        let config = SimConfig {
+            sensing_noise_scale: 0.5,
+            resource_patch_count: 4,
+            resource_patch_scale: 2.0,
+            ..SimConfig::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }
