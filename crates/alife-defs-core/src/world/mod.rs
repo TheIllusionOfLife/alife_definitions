@@ -435,7 +435,19 @@ impl World {
             });
         }
         if (self.config.world_size - config.world_size).abs() > f64::EPSILON {
-            self.resource_field = ResourceField::new(config.world_size, 1.0, 1.0);
+            self.resource_field = if config.resource_patch_count > 0 {
+                let mut patch_rng = ChaCha12Rng::seed_from_u64(config.seed.wrapping_add(2));
+                ResourceField::new_with_patches(
+                    config.world_size,
+                    1.0,
+                    1.0,
+                    config.resource_patch_count,
+                    config.resource_patch_scale,
+                    &mut patch_rng,
+                )
+            } else {
+                ResourceField::new(config.world_size, 1.0, 1.0)
+            };
         }
         self.current_resource_rate = config.resource_regeneration_rate;
         self.config = config;

@@ -51,6 +51,10 @@ impl ResourceField {
         patch_scale: f32,
         rng: &mut impl rand::Rng,
     ) -> Self {
+        debug_assert!(
+            patch_scale >= 0.0 && patch_scale.is_finite(),
+            "patch_scale must be finite and non-negative, got {patch_scale}"
+        );
         let mut field = Self::new(world_size, cell_size, initial_value);
         if patch_count == 0 || (patch_scale - 1.0).abs() < f32::EPSILON {
             return field; // uniform — rate_multiplier stays empty
