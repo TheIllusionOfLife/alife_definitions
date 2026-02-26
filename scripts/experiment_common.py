@@ -124,6 +124,33 @@ TSV_COLUMNS = [
 ]
 
 
+def make_e4_config(base: dict, noise_scale: float) -> dict:
+    """Return a copy of *base* with E4 sensing noise applied.
+
+    Args:
+        base: Config dict (e.g. from ``make_config_dict``).
+        noise_scale: Standard deviation of Gaussian noise added to each NN
+            sensory input.  Use 0.0 to disable.
+    """
+    return {**base, "sensing_noise_scale": noise_scale}
+
+
+def make_e5_config(base: dict, patch_count: int, patch_scale: float) -> dict:
+    """Return a copy of *base* with E5 spatial patchiness applied.
+
+    Args:
+        base: Config dict (e.g. from ``make_config_dict``).
+        patch_count: Number of high-resource patch centres to place.
+        patch_scale: Peak regeneration multiplier at patch centres (>1 concentrates
+            resources; 1.0 = uniform).
+    """
+    return {
+        **base,
+        "resource_patch_count": patch_count,
+        "resource_patch_scale": patch_scale,
+    }
+
+
 def log(msg: str) -> None:
     """Write a message to stderr for progress reporting."""
     print(msg, file=sys.stderr)

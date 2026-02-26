@@ -206,10 +206,26 @@ pub struct SimConfig {
     pub environment_cycle_low_rate: f32,
     /// Toggle for sham (no-op) computational process control.
     pub enable_sham_process: bool,
+    /// E4 regime: standard deviation of Gaussian noise added to each NN sensory input.
+    /// 0.0 = no noise (default). Applied only to organisms with enable_response = true.
+    #[serde(default)]
+    pub sensing_noise_scale: f32,
+    /// E5 regime: number of high-resource patches placed in the resource field.
+    /// 0 = uniform (default).
+    #[serde(default)]
+    pub resource_patch_count: usize,
+    /// E5 regime: peak resource-regeneration multiplier at patch centres.
+    /// Values > 1.0 concentrate resources spatially; 1.0 = uniform (default).
+    #[serde(default = "default_resource_patch_scale")]
+    pub resource_patch_scale: f32,
     /// Per-family configuration for Mode B (multi-family coexistence).
     /// Empty vec = single-family mode; world phases use global enable_* flags.
     #[serde(default)]
     pub families: Vec<FamilyConfig>,
+}
+
+fn default_resource_patch_scale() -> f32 {
+    1.0
 }
 
 impl Default for SimConfig {
@@ -278,6 +294,9 @@ impl Default for SimConfig {
             environment_cycle_period: 0,
             environment_cycle_low_rate: 0.005,
             enable_sham_process: false,
+            sensing_noise_scale: 0.0,
+            resource_patch_count: 0,
+            resource_patch_scale: 1.0,
             families: Vec::new(),
         }
     }
@@ -363,6 +382,8 @@ define_sim_config_error! {
     WorldSizeTooLarge { max: f64, actual: f64 } => "world_size ({actual}) exceeds supported maximum ({max})";
     InvalidFamilyInitialCount { index: usize } => "family[{}].initial_count must be > 0", index;
     InvalidFamilyMutationMultiplier { index: usize } => "family[{}].mutation_rate_multiplier must be finite and >= 0", index;
+    InvalidSensingNoiseScale => "sensing_noise_scale must be finite and non-negative";
+    InvalidResourcePatchScale => "resource_patch_scale must be finite and non-negative";
 }
 
 impl std::error::Error for SimConfigError {}
@@ -385,6 +406,7 @@ impl SimConfig {
         self.validate_homeostasis()?;
         self.validate_growth()?;
         self.validate_environment()?;
+        self.validate_e4_e5()?;
         self.validate_families()?;
         Ok(())
     }
@@ -635,6 +657,16 @@ impl SimConfig {
         }
         if self.environment_shift_step > 0 && self.environment_cycle_period > 0 {
             return Err(SimConfigError::ConflictingEnvironmentFeatures);
+        }
+        Ok(())
+    }
+
+    fn validate_e4_e5(&self) -> Result<(), SimConfigError> {
+        if !(self.sensing_noise_scale.is_finite() && self.sensing_noise_scale >= 0.0) {
+            return Err(SimConfigError::InvalidSensingNoiseScale);
+        }
+        if !(self.resource_patch_scale.is_finite() && self.resource_patch_scale >= 0.0) {
+            return Err(SimConfigError::InvalidResourcePatchScale);
         }
         Ok(())
     }

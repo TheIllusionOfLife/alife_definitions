@@ -2026,8 +2026,7 @@ fn sensing_noise_zero_is_identity() {
 
     for i in 0..4 {
         assert_eq!(
-            world1.agents[i].velocity,
-            world2.agents[i].velocity,
+            world1.agents[i].velocity, world2.agents[i].velocity,
             "agent {i}: velocities must be identical when noise_scale=0"
         );
     }
@@ -2049,10 +2048,12 @@ fn sensing_noise_nonzero_perturbs_nn_output() {
     world_noisy.step();
 
     // At least one agent should have a different velocity due to noise.
-    let any_differ = (0..4).any(|i| {
-        world_clean.agents[i].velocity != world_noisy.agents[i].velocity
-    });
-    assert!(any_differ, "sensing_noise_scale=0.5 must perturb at least one agent's velocity");
+    let any_differ =
+        (0..4).any(|i| world_clean.agents[i].velocity != world_noisy.agents[i].velocity);
+    assert!(
+        any_differ,
+        "sensing_noise_scale=0.5 must perturb at least one agent's velocity"
+    );
 }
 
 #[test]
@@ -2080,7 +2081,10 @@ fn resource_patch_nonzero_count_produces_variance() {
     let mut rng = ChaCha12Rng::seed_from_u64(42);
     let field = ResourceField::new_with_patches(100.0, 1.0, 1.0, 4, 3.0, &mut rng);
     let m = field.rate_multiplier();
-    assert!(!m.is_empty(), "patch_count=4 must produce non-empty rate_multiplier");
+    assert!(
+        !m.is_empty(),
+        "patch_count=4 must produce non-empty rate_multiplier"
+    );
     let min = m.iter().cloned().fold(f32::INFINITY, f32::min);
     let max = m.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
     assert!(
@@ -2128,7 +2132,10 @@ fn e4_and_e5_combined_run_without_error() {
         world.step();
     }
     // If we reach here, no panic occurred.
-    assert!(world.organism_count() >= 0);
+    assert!(
+        world.organism_count() > 0,
+        "at least one organism should remain"
+    );
 }
 
 #[test]

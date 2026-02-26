@@ -325,12 +325,30 @@ impl World {
         let org_count = organisms.len();
         let agent_count = agents.len();
         let next_organism_stable_id = org_count as u64;
+
+        // E5: build patchy resource field when patch_count > 0; use a separate
+        // seeded RNG (seed+2) so the patch layout is deterministic per seed and
+        // independent of the organism RNG (seed) and graph-metabolism RNG (seed+1).
+        let resource_field = if config.resource_patch_count > 0 {
+            let mut patch_rng = ChaCha12Rng::seed_from_u64(config.seed.wrapping_add(2));
+            ResourceField::new_with_patches(
+                world_size,
+                1.0,
+                1.0,
+                config.resource_patch_count,
+                config.resource_patch_scale,
+                &mut patch_rng,
+            )
+        } else {
+            ResourceField::new(world_size, 1.0, 1.0)
+        };
+
         Ok(Self {
             agents,
             organisms,
             config: config.clone(),
             metabolism,
-            resource_field: ResourceField::new(world_size, 1.0, 1.0),
+            resource_field,
             org_toroidal_sums: vec![[0.0, 0.0, 0.0, 0.0]; org_count],
             org_counts: vec![0; org_count],
             rng: ChaCha12Rng::seed_from_u64(config.seed),

@@ -407,9 +407,7 @@ def test_e4_run_completes():
 
 def test_e5_run_completes():
     """A short run with resource_patch_count=4 must return valid RunSummary."""
-    result = json.loads(
-        alife_defs.run_experiment_json(_make_config(resource_patch_count=4), 10, 5)
-    )
+    result = json.loads(alife_defs.run_experiment_json(_make_config(resource_patch_count=4), 10, 5))
     assert result["schema_version"] == 1
     assert isinstance(result["samples"], list)
     assert len(result["samples"]) > 0
