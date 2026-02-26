@@ -278,3 +278,76 @@ def test_mode_b_world_runs_without_error():
     ]
     result = json.loads(alife_defs.run_experiment_json(json.dumps(cfg), 20, 5))
     assert result["schema_version"] == 1
+
+
+# ---------------------------------------------------------------------------
+# PR 2c: Per-family metrics & bindings
+# ---------------------------------------------------------------------------
+
+
+def _make_mode_b_config(steps_to_run: int = 100) -> str:
+    """Build a 3-family Mode B config for PR 2c contract tests."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg.update({**_MINIMAL_OVERRIDE, "num_organisms": 30})
+    cfg["families"] = [
+        dict(FAMILY_F1_FULL),
+        dict(FAMILY_F2_DARWINIAN),
+        dict(FAMILY_F3_AUTONOMY),
+    ]
+    return json.dumps(cfg)
+
+
+def test_family_breakdown_present_in_mode_b():
+    """samples[i].family_breakdown has one entry per family in Mode B."""
+    result = json.loads(alife_defs.run_experiment_json(_make_mode_b_config(), 100, 10))
+    assert result["samples"], "expected at least one sample"
+    for sample in result["samples"]:
+        assert "family_breakdown" in sample, (
+            f"family_breakdown missing from sample at step {sample['step']}"
+        )
+        assert len(sample["family_breakdown"]) == 3, (
+            f"expected 3 family_breakdown entries, got {len(sample['family_breakdown'])} "
+            f"at step {sample['step']}"
+        )
+        first = sample["family_breakdown"][0]
+        required_keys = {
+            "family_id",
+            "alive_count",
+            "population_size",
+            "energy_mean",
+            "waste_mean",
+            "boundary_mean",
+            "birth_count",
+            "death_count",
+            "mean_generation",
+            "mean_genome_drift",
+            "genome_diversity",
+            "maturity_mean",
+        }
+        assert required_keys.issubset(first.keys()), (
+            f"Missing keys in FamilyStepMetrics: {required_keys - first.keys()}"
+        )
+
+
+def test_family_breakdown_absent_in_mode_a():
+    """samples[i] has no family_breakdown field (or empty list) in Mode A."""
+    result = json.loads(alife_defs.run_experiment_json(_make_config(), 20, 5))
+    for sample in result["samples"]:
+        breakdown = sample.get("family_breakdown", [])
+        assert breakdown == [], (
+            f"Mode A sample at step {sample['step']} must have no family_breakdown, got {breakdown}"
+        )
+
+
+def test_family_breakdown_alive_counts_sum_to_global():
+    """Sum of per-family alive_counts must equal the global alive_count."""
+    result = json.loads(alife_defs.run_experiment_json(_make_mode_b_config(), 100, 10))
+    for sample in result["samples"]:
+        breakdown = sample.get("family_breakdown", [])
+        if not breakdown:
+            continue
+        breakdown_total = sum(f["alive_count"] for f in breakdown)
+        assert breakdown_total == sample["alive_count"], (
+            f"Per-family alive_count sum ({breakdown_total}) != global alive_count "
+            f"({sample['alive_count']}) at step {sample['step']}"
+        )

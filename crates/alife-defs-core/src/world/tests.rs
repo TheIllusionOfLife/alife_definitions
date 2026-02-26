@@ -1820,3 +1820,187 @@ fn lineage_event_carries_family_id() {
         "lineage event should carry child's family_id=0"
     );
 }
+
+// ── PR 2c: Per-family metrics tests ──
+
+#[test]
+fn family_breakdown_birth_death_counts_sum_to_global() {
+    // Per-family birth_count and death_count must sum to the global values
+    // in StepMetrics. Both counters share the same reset/increment site, so
+    // any divergence would indicate a bug in the counter bookkeeping.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 3,
+            enable_boundary_maintenance: false,
+            enable_homeostasis: false,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    world.config.enable_metabolism = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.reproduction_min_energy = 0.31;
+    world.config.reproduction_min_boundary = 0.0;
+    for org in world.organisms.iter_mut() {
+        org.metabolic_state.energy = 1.0;
+        org.boundary_integrity = 1.0;
+    }
+    // sample_every=1 so each sample captures one step's counters exactly.
+    let summary = world.run_experiment(10, 1);
+    for sample in &summary.samples {
+        let breakdown_births: usize = sample.family_breakdown.iter().map(|f| f.birth_count).sum();
+        let breakdown_deaths: usize = sample.family_breakdown.iter().map(|f| f.death_count).sum();
+        assert_eq!(
+            breakdown_births, sample.birth_count,
+            "sum of per-family birth_counts ({breakdown_births}) != global birth_count ({}) \
+             at step {}",
+            sample.birth_count, sample.step
+        );
+        assert_eq!(
+            breakdown_deaths, sample.death_count,
+            "sum of per-family death_counts ({breakdown_deaths}) != global death_count ({}) \
+             at step {}",
+            sample.death_count, sample.step
+        );
+    }
+}
+
+#[test]
+fn step_metrics_family_breakdown_length_matches_families() {
+    // Mode B: 3 families → family_breakdown must have exactly 3 entries per sample.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 3,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    let summary = world.run_experiment(10, 10);
+    assert!(!summary.samples.is_empty());
+    for sample in &summary.samples {
+        assert_eq!(
+            sample.family_breakdown.len(),
+            3,
+            "expected 3 family_breakdown entries for 3-family Mode B run"
+        );
+    }
+}
+
+#[test]
+fn family_breakdown_alive_counts_sum_to_global() {
+    // The sum of per-family alive_counts must equal the global alive_count.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 4,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 4,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 4,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    let summary = world.run_experiment(20, 10);
+    for sample in &summary.samples {
+        let breakdown_total: usize = sample.family_breakdown.iter().map(|f| f.alive_count).sum();
+        assert_eq!(
+            breakdown_total, sample.alive_count,
+            "sum of per-family alive_counts ({breakdown_total}) must equal \
+             global alive_count ({}) at step {}",
+            sample.alive_count, sample.step
+        );
+    }
+}
+
+#[test]
+fn mode_a_step_metrics_has_no_family_breakdown() {
+    // Mode A (no families vec): family_breakdown must be empty — no extra work done.
+    let mut world = make_world(5, 100.0);
+    let summary = world.run_experiment(10, 10);
+    assert!(!summary.samples.is_empty());
+    for sample in &summary.samples {
+        assert!(
+            sample.family_breakdown.is_empty(),
+            "Mode A samples must have no family_breakdown, got {} entries",
+            sample.family_breakdown.len()
+        );
+    }
+}
+
+#[test]
+fn family_breakdown_birth_count_zero_for_no_reproduction_family() {
+    // Family 1 (F3-style) has enable_reproduction=false. Its birth_count
+    // in family_breakdown must remain 0 even when family 0 reproduces.
+    let families = vec![
+        FamilyConfig {
+            initial_count: 3,
+            enable_reproduction: true,
+            enable_boundary_maintenance: false,
+            enable_homeostasis: false,
+            ..FamilyConfig::default()
+        },
+        FamilyConfig {
+            initial_count: 3,
+            enable_reproduction: false,
+            ..FamilyConfig::default()
+        },
+    ];
+    let mut world = make_mode_b_world(families, 5);
+    // Tune to make reproduction easy for family 0.
+    world.config.enable_metabolism = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.reproduction_min_energy = 0.31;
+    world.config.reproduction_min_boundary = 0.0;
+    for org in world.organisms.iter_mut() {
+        org.metabolic_state.energy = 1.0;
+        org.boundary_integrity = 1.0;
+    }
+
+    // sample_every=1 so we capture births from steps 1–3 (the window where
+    // energy = 1.0 → 0.70 → 0.40 → 0.10, triggering reproduction each step).
+    let summary = world.run_experiment(10, 1);
+    // Family 0 should have reproduced at least once.
+    let f0_births: usize = summary
+        .samples
+        .iter()
+        .flat_map(|s| s.family_breakdown.iter())
+        .filter(|f| f.family_id == 0)
+        .map(|f| f.birth_count)
+        .sum();
+    assert!(
+        f0_births >= 1,
+        "family 0 must reproduce for this test to be valid (got {f0_births} births)"
+    );
+    // Family 1 must have zero births across all samples.
+    let f1_births: usize = summary
+        .samples
+        .iter()
+        .flat_map(|s| s.family_breakdown.iter())
+        .filter(|f| f.family_id == 1)
+        .map(|f| f.birth_count)
+        .sum();
+    assert_eq!(
+        f1_births, 0,
+        "family with enable_reproduction=false must have zero births, got {f1_births}"
+    );
+}
