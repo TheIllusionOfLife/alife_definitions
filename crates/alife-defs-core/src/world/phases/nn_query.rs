@@ -20,8 +20,13 @@ impl World {
         deltas.reserve(agents.len());
 
         // E4: build the noise distribution once; None when noise is disabled (scale=0).
+        // Normal::new only fails for non-positive or NaN std_dev; we guard > 0.0 so
+        // .expect() is safe and makes invariant violations loud rather than silent.
         let noise_distr: Option<Normal<f32>> = if config.sensing_noise_scale > 0.0 {
-            Normal::new(0.0f32, config.sensing_noise_scale).ok()
+            Some(
+                Normal::new(0.0f32, config.sensing_noise_scale)
+                    .expect("sensing_noise_scale validated > 0.0"),
+            )
         } else {
             None
         };

@@ -384,6 +384,7 @@ define_sim_config_error! {
     InvalidFamilyMutationMultiplier { index: usize } => "family[{}].mutation_rate_multiplier must be finite and >= 0", index;
     InvalidSensingNoiseScale => "sensing_noise_scale must be finite and non-negative";
     InvalidResourcePatchScale => "resource_patch_scale must be finite and non-negative";
+    InvalidResourcePatchCount { max: usize, actual: usize } => "resource_patch_count ({actual}) exceeds maximum ({max})";
 }
 
 impl std::error::Error for SimConfigError {}
@@ -661,12 +662,22 @@ impl SimConfig {
         Ok(())
     }
 
+    /// Maximum resource patch count.  Caps the O(grid × patches) initialization cost
+    /// to ≈ 256 × 2048² ≈ 1 billion ops in the worst case (MAX_WORLD_SIZE grid).
+    pub const MAX_RESOURCE_PATCH_COUNT: usize = 256;
+
     fn validate_e4_e5(&self) -> Result<(), SimConfigError> {
         if !(self.sensing_noise_scale.is_finite() && self.sensing_noise_scale >= 0.0) {
             return Err(SimConfigError::InvalidSensingNoiseScale);
         }
         if !(self.resource_patch_scale.is_finite() && self.resource_patch_scale >= 0.0) {
             return Err(SimConfigError::InvalidResourcePatchScale);
+        }
+        if self.resource_patch_count > Self::MAX_RESOURCE_PATCH_COUNT {
+            return Err(SimConfigError::InvalidResourcePatchCount {
+                max: Self::MAX_RESOURCE_PATCH_COUNT,
+                actual: self.resource_patch_count,
+            });
         }
         Ok(())
     }

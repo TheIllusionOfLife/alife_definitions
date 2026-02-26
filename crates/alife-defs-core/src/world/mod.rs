@@ -434,7 +434,12 @@ impl World {
                 actual: self.agents.len(),
             });
         }
-        if (self.config.world_size - config.world_size).abs() > f64::EPSILON {
+        let world_size_changed = (self.config.world_size - config.world_size).abs() > f64::EPSILON;
+        let patch_params_changed = self.config.resource_patch_count != config.resource_patch_count
+            || (self.config.resource_patch_scale - config.resource_patch_scale).abs()
+                > f32::EPSILON
+            || self.config.seed != config.seed;
+        if world_size_changed || patch_params_changed {
             self.resource_field = if config.resource_patch_count > 0 {
                 let mut patch_rng = ChaCha12Rng::seed_from_u64(config.seed.wrapping_add(2));
                 ResourceField::new_with_patches(

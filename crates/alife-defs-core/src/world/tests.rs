@@ -2161,3 +2161,45 @@ fn config_rejects_negative_resource_patch_scale() {
         "resource_patch_scale < 0 must fail validation"
     );
 }
+
+#[test]
+fn config_rejects_excessive_resource_patch_count() {
+    let config = SimConfig {
+        resource_patch_count: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+        ..SimConfig::default()
+    };
+    assert!(
+        config.validate().is_err(),
+        "resource_patch_count above MAX must fail validation"
+    );
+}
+
+#[test]
+fn set_config_rebuilds_resource_field_on_patch_param_change() {
+    // A world starts with no patches; set_config enabling patches must rebuild
+    // the resource field with non-trivial rate multipliers.
+    let mut world = make_world(4, 100.0);
+    assert!(
+        world.resource_field().rate_multiplier().is_empty(),
+        "default world must have uniform resource field"
+    );
+
+    let mut cfg = world.config().clone();
+    cfg.resource_patch_count = 4;
+    cfg.resource_patch_scale = 3.0;
+    world
+        .set_config(cfg)
+        .expect("enabling patches via set_config must succeed");
+
+    let m = world.resource_field().rate_multiplier();
+    assert!(
+        !m.is_empty(),
+        "set_config with resource_patch_count=4 must produce non-empty rate_multiplier"
+    );
+    let min = m.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max = m.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        max - min > 1e-4,
+        "rate_multiplier must have variance after set_config, got min={min} max={max}"
+    );
+}
