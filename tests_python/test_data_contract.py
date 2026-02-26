@@ -63,7 +63,7 @@ def _parse_documented_fields(section_heading: str) -> set[str]:
 
     # Grab text from the heading to the next heading of same or higher level
     start = match.end()
-    next_heading = re.search(r"^#{1,3}\s", text[start:], re.MULTILINE)
+    next_heading = re.search(r"^(?:#{1,3}\s|---$)", text[start:], re.MULTILINE)
     block = text[start : start + next_heading.start()] if next_heading else text[start:]
 
     # Extract backtick-wrapped field names from the first column of markdown tables
@@ -88,6 +88,16 @@ def _run_mode_a(steps: int = 100, sample_every: int = 10) -> dict:
     cfg = json.loads(alife_defs.default_config_json())
     cfg.update(_MINIMAL_OVERRIDE)
     return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every))
+
+
+def _run_with_snapshots(steps: int = 20, sample_every: int = 10) -> dict:
+    """Run a short simulation with snapshot collection and return parsed JSON."""
+    cfg = json.loads(alife_defs.default_config_json())
+    cfg.update(_MINIMAL_OVERRIDE)
+    snapshot_steps = json.dumps([steps])  # snapshot at last step
+    return json.loads(
+        alife_defs.run_niche_experiment_json(json.dumps(cfg), steps, sample_every, snapshot_steps)
+    )
 
 
 def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
@@ -239,28 +249,33 @@ class TestLineageEventContract:
 class TestSnapshotContract:
     """OrganismSnapshot and SnapshotFrame fields must be documented."""
 
-    def test_organism_snapshot_fields_documented(self):
-        doc_fields = _parse_documented_fields("OrganismSnapshot")
-        expected = {
-            "stable_id",
-            "generation",
-            "age_steps",
-            "energy",
-            "waste",
-            "boundary_integrity",
-            "maturity",
-            "center_x",
-            "center_y",
-            "n_agents",
-        }
-        assert doc_fields == expected, (
-            f"OrganismSnapshot doc fields mismatch: {doc_fields.symmetric_difference(expected)}"
-        )
-
-    def test_snapshot_frame_fields_documented(self):
+    def test_snapshot_frame_fields_bidirectional(self):
         doc_fields = _parse_documented_fields("SnapshotFrame")
-        expected = {"step", "organisms"}
-        assert doc_fields == expected
+        result = _run_with_snapshots()
+        assert result["organism_snapshots"], "Expected at least one snapshot frame"
+        frame = result["organism_snapshots"][0]
+        frame_keys = {k for k in frame if k != "organisms"}  # organisms is a nested list
+        frame_keys.add("organisms")  # re-add as documented
+        for field in doc_fields:
+            assert field in frame, f"Documented SnapshotFrame field `{field}` missing from output"
+        for field in frame:
+            assert field in doc_fields, (
+                f"Undocumented SnapshotFrame field `{field}` found in output"
+            )
+
+    def test_organism_snapshot_fields_bidirectional(self):
+        doc_fields = _parse_documented_fields("OrganismSnapshot")
+        result = _run_with_snapshots()
+        assert result["organism_snapshots"], "Expected at least one snapshot frame"
+        frame = result["organism_snapshots"][0]
+        assert frame["organisms"], "Expected at least one organism in snapshot"
+        org = frame["organisms"][0]
+        for field in doc_fields:
+            assert field in org, f"Documented OrganismSnapshot field `{field}` missing from output"
+        for field in org:
+            assert field in doc_fields, (
+                f"Undocumented OrganismSnapshot field `{field}` found in output"
+            )
 
 
 class TestSimConfigContract:

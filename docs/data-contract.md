@@ -255,7 +255,7 @@ Per-family criterion ablation and population parameters (Mode B).
 
 ## Annotated Example
 
-Minimal 2-step Mode B run with 2 families (truncated for readability):
+Minimal 10-step Mode B run with 2 families, sampled every 5 steps (2 sample points, truncated for readability):
 
 ```json
 {
