@@ -13,13 +13,20 @@ import re
 from pathlib import Path
 
 import alife_defs
-import pytest
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 _CONTRACT_PATH = Path(__file__).resolve().parent.parent / "docs" / "data-contract.md"
+
+# Fields that may be absent from raw Rust JSON output:
+# - skip_serializing_if = "Vec::is_empty": omitted when the vec is empty
+# - Python-layer stamps: added by experiment_common, not by Rust
+_CONDITIONALLY_ABSENT = {
+    "RunSummary": {"organism_snapshots", "regime_label"},
+    "StepMetrics": {"family_breakdown"},
+}
 
 _MINIMAL_OVERRIDE = {
     "num_organisms": 4,
@@ -67,9 +74,7 @@ def _parse_documented_fields(section_heading: str) -> set[str]:
         if m:
             fields.add(m.group(1))
 
-    assert fields, (
-        f"No fields parsed from section '{section_heading}' — check table format"
-    )
+    assert fields, f"No fields parsed from section '{section_heading}' — check table format"
     return fields
 
 
@@ -82,9 +87,7 @@ def _run_mode_a(steps: int = 100, sample_every: int = 10) -> dict:
     """Run a short Mode A simulation and return parsed JSON."""
     cfg = json.loads(alife_defs.default_config_json())
     cfg.update(_MINIMAL_OVERRIDE)
-    return json.loads(
-        alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every)
-    )
+    return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every))
 
 
 def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
@@ -126,9 +129,7 @@ def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
             "mutation_rate_multiplier": 1.0,
         },
     ]
-    return json.loads(
-        alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every)
-    )
+    return json.loads(alife_defs.run_experiment_json(json.dumps(cfg), steps, sample_every))
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +139,7 @@ def _run_mode_b(steps: int = 100, sample_every: int = 10) -> dict:
 
 class TestDocumentExists:
     def test_data_contract_file_exists(self):
-        assert _CONTRACT_PATH.exists(), (
-            f"Data contract document not found at {_CONTRACT_PATH}"
-        )
+        assert _CONTRACT_PATH.exists(), f"Data contract document not found at {_CONTRACT_PATH}"
 
     def test_schema_version_documented(self):
         text = _CONTRACT_PATH.read_text()
@@ -152,8 +151,9 @@ class TestRunSummaryContract:
 
     def test_documented_fields_exist_in_output(self):
         doc_fields = _parse_documented_fields("RunSummary")
+        skip = _CONDITIONALLY_ABSENT.get("RunSummary", set())
         result = _run_mode_a()
-        for field in doc_fields:
+        for field in doc_fields - skip:
             assert field in result, (
                 f"Documented RunSummary field `{field}` missing from simulation output"
             )
@@ -174,10 +174,11 @@ class TestStepMetricsContract:
 
     def test_documented_fields_exist_in_output(self):
         doc_fields = _parse_documented_fields("StepMetrics")
+        skip = _CONDITIONALLY_ABSENT.get("StepMetrics", set())
         result = _run_mode_a()
         assert result["samples"], "Expected at least one sample"
         sample = result["samples"][0]
-        for field in doc_fields:
+        for field in doc_fields - skip:
             assert field in sample, (
                 f"Documented StepMetrics field `{field}` missing from simulation output"
             )
@@ -203,9 +204,7 @@ class TestFamilyStepMetricsContract:
         assert sample.get("family_breakdown"), "Expected family_breakdown in Mode B"
         fam = sample["family_breakdown"][0]
         for field in doc_fields:
-            assert field in fam, (
-                f"Documented FamilyStepMetrics field `{field}` missing from output"
-            )
+            assert field in fam, f"Documented FamilyStepMetrics field `{field}` missing from output"
 
     def test_output_fields_are_documented(self):
         doc_fields = _parse_documented_fields("FamilyStepMetrics")
@@ -223,14 +222,10 @@ class TestLineageEventContract:
     def test_documented_fields_exist_in_output(self):
         doc_fields = _parse_documented_fields("LineageEvent")
         result = _run_mode_a(steps=500)
-        assert result["lineage_events"], (
-            "Expected at least one lineage event for contract test"
-        )
+        assert result["lineage_events"], "Expected at least one lineage event for contract test"
         event = result["lineage_events"][0]
         for field in doc_fields:
-            assert field in event, (
-                f"Documented LineageEvent field `{field}` missing from output"
-            )
+            assert field in event, f"Documented LineageEvent field `{field}` missing from output"
 
     def test_output_fields_are_documented(self):
         doc_fields = _parse_documented_fields("LineageEvent")
@@ -238,9 +233,7 @@ class TestLineageEventContract:
         assert result["lineage_events"], "Expected at least one lineage event"
         event = result["lineage_events"][0]
         for field in event:
-            assert field in doc_fields, (
-                f"Undocumented LineageEvent field `{field}` found in output"
-            )
+            assert field in doc_fields, f"Undocumented LineageEvent field `{field}` found in output"
 
 
 class TestSnapshotContract:
@@ -249,8 +242,16 @@ class TestSnapshotContract:
     def test_organism_snapshot_fields_documented(self):
         doc_fields = _parse_documented_fields("OrganismSnapshot")
         expected = {
-            "stable_id", "generation", "age_steps", "energy", "waste",
-            "boundary_integrity", "maturity", "center_x", "center_y", "n_agents",
+            "stable_id",
+            "generation",
+            "age_steps",
+            "energy",
+            "waste",
+            "boundary_integrity",
+            "maturity",
+            "center_x",
+            "center_y",
+            "n_agents",
         }
         assert doc_fields == expected, (
             f"OrganismSnapshot doc fields mismatch: {doc_fields.symmetric_difference(expected)}"
@@ -289,9 +290,15 @@ class TestFamilyConfigContract:
     def test_all_family_config_fields_documented(self):
         doc_fields = _parse_documented_fields("FamilyConfig")
         expected = {
-            "enable_metabolism", "enable_boundary_maintenance", "enable_homeostasis",
-            "enable_response", "enable_reproduction", "enable_evolution",
-            "enable_growth", "initial_count", "mutation_rate_multiplier",
+            "enable_metabolism",
+            "enable_boundary_maintenance",
+            "enable_homeostasis",
+            "enable_response",
+            "enable_reproduction",
+            "enable_evolution",
+            "enable_growth",
+            "initial_count",
+            "mutation_rate_multiplier",
         }
         assert doc_fields == expected, (
             f"FamilyConfig doc fields mismatch: {doc_fields.symmetric_difference(expected)}"
