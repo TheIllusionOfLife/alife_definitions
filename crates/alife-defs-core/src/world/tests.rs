@@ -2004,3 +2004,202 @@ fn family_breakdown_birth_count_zero_for_no_reproduction_family() {
         "family with enable_reproduction=false must have zero births, got {f1_births}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// PR 3: E4 sensing noise + E5 spatial patchiness
+// ---------------------------------------------------------------------------
+
+#[test]
+fn sensing_noise_zero_is_identity() {
+    // Two worlds with identical seeds and noise_scale=0.0 must produce identical
+    // velocities after one step (confirms noise=0 adds no stochasticity).
+    let mut world1 = make_world(4, 100.0);
+    world1.config.sensing_noise_scale = 0.0;
+    world1.config.enable_reproduction = false;
+
+    let mut world2 = make_world(4, 100.0);
+    world2.config.sensing_noise_scale = 0.0;
+    world2.config.enable_reproduction = false;
+
+    world1.step();
+    world2.step();
+
+    for i in 0..4 {
+        assert_eq!(
+            world1.agents[i].velocity, world2.agents[i].velocity,
+            "agent {i}: velocities must be identical when noise_scale=0"
+        );
+    }
+}
+
+#[test]
+fn sensing_noise_nonzero_perturbs_nn_output() {
+    // A world with large sensing noise must produce different velocities than
+    // a zero-noise world with the same seed (noise changes NN inputs).
+    let mut world_clean = make_world(4, 100.0);
+    world_clean.config.sensing_noise_scale = 0.0;
+    world_clean.config.enable_reproduction = false;
+
+    let mut world_noisy = make_world(4, 100.0);
+    world_noisy.config.sensing_noise_scale = 0.5;
+    world_noisy.config.enable_reproduction = false;
+
+    world_clean.step();
+    world_noisy.step();
+
+    // At least one agent should have a different velocity due to noise.
+    let any_differ =
+        (0..4).any(|i| world_clean.agents[i].velocity != world_noisy.agents[i].velocity);
+    assert!(
+        any_differ,
+        "sensing_noise_scale=0.5 must perturb at least one agent's velocity"
+    );
+}
+
+#[test]
+fn resource_patch_zero_count_is_uniform() {
+    // ResourceField built without patches must have an empty rate_multiplier
+    // (the uniform / no-patch sentinel).
+    use crate::resource::ResourceField;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+    let mut rng = ChaCha12Rng::seed_from_u64(0);
+    let field = ResourceField::new_with_patches(100.0, 1.0, 1.0, 0, 1.0, &mut rng);
+    assert!(
+        field.rate_multiplier().is_empty(),
+        "patch_count=0 must produce empty rate_multiplier (uniform)"
+    );
+}
+
+#[test]
+fn resource_patch_nonzero_count_produces_variance() {
+    // A patchy field must have non-trivial variance in its rate_multiplier:
+    // not all values can be the same.
+    use crate::resource::ResourceField;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+    let mut rng = ChaCha12Rng::seed_from_u64(42);
+    let field = ResourceField::new_with_patches(100.0, 1.0, 1.0, 4, 3.0, &mut rng);
+    let m = field.rate_multiplier();
+    assert!(
+        !m.is_empty(),
+        "patch_count=4 must produce non-empty rate_multiplier"
+    );
+    let min = m.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max = m.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        max - min > 1e-4,
+        "rate_multiplier must have non-trivial variance for patch_scale=3.0, got min={min} max={max}"
+    );
+}
+
+#[test]
+fn resource_patch_multiplier_mean_is_one() {
+    // Normalization must preserve global resource budget: mean(rate_multiplier) ≈ 1.0.
+    use crate::resource::ResourceField;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+    let mut rng = ChaCha12Rng::seed_from_u64(7);
+    let field = ResourceField::new_with_patches(100.0, 1.0, 1.0, 6, 2.5, &mut rng);
+    let m = field.rate_multiplier();
+    assert!(!m.is_empty());
+    let mean = m.iter().sum::<f32>() / m.len() as f32;
+    assert!(
+        (mean - 1.0).abs() < 1e-4,
+        "mean(rate_multiplier) must equal 1.0, got {mean}"
+    );
+}
+
+#[test]
+fn e4_and_e5_combined_run_without_error() {
+    // Smoke test: a world with both E4 sensing noise and E5 spatial patches
+    // must run for 10 steps without panicking.
+    let agents: Vec<Agent> = (0..10)
+        .map(|i| Agent::new(i as u32, 0, [50.0, 50.0]))
+        .collect();
+    let nn = NeuralNet::from_weights(std::iter::repeat_n(0.1f32, NeuralNet::WEIGHT_COUNT));
+    let config = SimConfig {
+        world_size: 100.0,
+        num_organisms: 1,
+        agents_per_organism: 10,
+        sensing_noise_scale: 0.3,
+        resource_patch_count: 4,
+        resource_patch_scale: 2.0,
+        ..SimConfig::default()
+    };
+    let mut world = World::new(agents, vec![nn], config).unwrap();
+    for _ in 0..10 {
+        world.step();
+    }
+    // If we reach here, no panic occurred.
+    assert!(
+        world.organism_count() > 0,
+        "at least one organism should remain"
+    );
+}
+
+#[test]
+fn config_rejects_negative_sensing_noise_scale() {
+    let config = SimConfig {
+        sensing_noise_scale: -0.1,
+        ..SimConfig::default()
+    };
+    assert!(
+        config.validate().is_err(),
+        "sensing_noise_scale < 0 must fail validation"
+    );
+}
+
+#[test]
+fn config_rejects_negative_resource_patch_scale() {
+    let config = SimConfig {
+        resource_patch_scale: -0.5,
+        ..SimConfig::default()
+    };
+    assert!(
+        config.validate().is_err(),
+        "resource_patch_scale < 0 must fail validation"
+    );
+}
+
+#[test]
+fn config_rejects_excessive_resource_patch_count() {
+    let config = SimConfig {
+        resource_patch_count: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+        ..SimConfig::default()
+    };
+    assert!(
+        config.validate().is_err(),
+        "resource_patch_count above MAX must fail validation"
+    );
+}
+
+#[test]
+fn set_config_rebuilds_resource_field_on_patch_param_change() {
+    // A world starts with no patches; set_config enabling patches must rebuild
+    // the resource field with non-trivial rate multipliers.
+    let mut world = make_world(4, 100.0);
+    assert!(
+        world.resource_field().rate_multiplier().is_empty(),
+        "default world must have uniform resource field"
+    );
+
+    let mut cfg = world.config().clone();
+    cfg.resource_patch_count = 4;
+    cfg.resource_patch_scale = 3.0;
+    world
+        .set_config(cfg)
+        .expect("enabling patches via set_config must succeed");
+
+    let m = world.resource_field().rate_multiplier();
+    assert!(
+        !m.is_empty(),
+        "set_config with resource_patch_count=4 must produce non-empty rate_multiplier"
+    );
+    let min = m.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max = m.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    assert!(
+        max - min > 1e-4,
+        "rate_multiplier must have variance after set_config, got min={min} max={max}"
+    );
+}

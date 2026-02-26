@@ -9,6 +9,11 @@ pub struct ResourceField {
     data: Vec<f32>,
     total: f64,
     initial_value: f32,
+    /// Per-cell regeneration rate multiplier for E5 spatial patchiness.
+    /// Empty = uniform (all cells use the global rate as-is).
+    /// When non-empty, `regenerate(rate)` uses `rate * multiplier[i]` per cell.
+    /// Invariant: mean(rate_multiplier) ≈ 1.0 when non-empty (global budget preserved).
+    rate_multiplier: Vec<f32>,
 }
 
 impl ResourceField {
@@ -27,19 +32,104 @@ impl ResourceField {
             data,
             total,
             initial_value,
+            rate_multiplier: Vec::new(),
         }
+    }
+
+    /// Build a resource field with spatially patchy regeneration rates (E5 regime).
+    ///
+    /// `patch_count` centres are placed uniformly at random.  Each cell's regeneration
+    /// multiplier is the Gaussian falloff to the nearest patch centre (toroidal distance).
+    /// The multipliers are normalized so `mean == 1.0`, preserving global resource budget.
+    ///
+    /// When `patch_count == 0` the field is identical to `ResourceField::new()` (uniform).
+    pub fn new_with_patches(
+        world_size: f64,
+        cell_size: f64,
+        initial_value: f32,
+        patch_count: usize,
+        patch_scale: f32,
+        rng: &mut impl rand::Rng,
+    ) -> Self {
+        debug_assert!(
+            patch_scale >= 0.0 && patch_scale.is_finite(),
+            "patch_scale must be finite and non-negative, got {patch_scale}"
+        );
+        let mut field = Self::new(world_size, cell_size, initial_value);
+        if patch_count == 0 || (patch_scale - 1.0).abs() < f32::EPSILON {
+            return field; // uniform — rate_multiplier stays empty
+        }
+
+        let n_cells = field.width * field.height;
+        let ws = world_size as f32;
+        // sigma: half the average inter-patch spacing so patches blend without dead zones
+        let sigma = ws / (2.0 * (patch_count as f32).sqrt().max(1.0));
+
+        // Random patch centres (world-space coordinates)
+        let centers: Vec<(f32, f32)> = (0..patch_count)
+            .map(|_| (rng.random::<f32>() * ws, rng.random::<f32>() * ws))
+            .collect();
+
+        let mut multipliers = vec![0.0f32; n_cells];
+        for cy in 0..field.height {
+            for cx in 0..field.width {
+                let cell_x = (cx as f32 + 0.5) * cell_size as f32;
+                let cell_y = (cy as f32 + 0.5) * cell_size as f32;
+
+                // Maximum Gaussian falloff across all patch centres (toroidal distance)
+                let max_falloff = centers
+                    .iter()
+                    .map(|&(px, py)| {
+                        let dx = (cell_x - px).abs();
+                        let dy = (cell_y - py).abs();
+                        let dx = dx.min(ws - dx); // toroidal wrap
+                        let dy = dy.min(ws - dy);
+                        let dist2 = dx * dx + dy * dy;
+                        (-dist2 / (2.0 * sigma * sigma)).exp()
+                    })
+                    .fold(0.0f32, f32::max);
+
+                multipliers[cy * field.width + cx] = 1.0 + (patch_scale - 1.0) * max_falloff;
+            }
+        }
+
+        // Normalize so mean(multiplier) == 1.0 (global resource budget invariant)
+        let mean = multipliers.iter().sum::<f32>() / n_cells as f32;
+        if mean > 0.0 {
+            for m in &mut multipliers {
+                *m /= mean;
+            }
+        }
+
+        field.rate_multiplier = multipliers;
+        field
     }
 
     /// Regenerate resources toward the initial value at the given rate per step.
     ///
     /// Cells are capped at `initial_value`; cells already at or above it are unchanged.
+    /// When a `rate_multiplier` is set (E5 regime) each cell uses `rate * multiplier[i]`.
     pub fn regenerate(&mut self, rate: f32) {
         debug_assert!(rate >= 0.0, "regeneration rate cannot be negative");
-        for cell in &mut self.data {
-            let before = *cell;
-            *cell = (*cell + rate).min(self.initial_value);
-            self.total += (*cell - before) as f64;
+        if self.rate_multiplier.is_empty() {
+            for cell in &mut self.data {
+                let before = *cell;
+                *cell = (*cell + rate).min(self.initial_value);
+                self.total += (*cell - before) as f64;
+            }
+        } else {
+            for (i, cell) in self.data.iter_mut().enumerate() {
+                let effective_rate = rate * self.rate_multiplier[i];
+                let before = *cell;
+                *cell = (*cell + effective_rate).min(self.initial_value);
+                self.total += (*cell - before) as f64;
+            }
         }
+    }
+
+    /// Read-only view of the per-cell regeneration multipliers (empty = uniform).
+    pub fn rate_multiplier(&self) -> &[f32] {
+        &self.rate_multiplier
     }
 
     /// Get resource value at position. Coordinates wrap toroidally.

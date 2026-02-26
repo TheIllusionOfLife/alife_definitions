@@ -1,5 +1,6 @@
 use crate::spatial;
 use crate::spatial::AgentLocation;
+use rand_distr::{Distribution, Normal};
 use rstar::RTree;
 
 use super::super::World;
@@ -13,9 +14,22 @@ impl World {
         let agents = &self.agents;
         let organisms = &self.organisms;
         let config = &self.config;
+        let rng = &mut self.rng;
 
         deltas.clear();
         deltas.reserve(agents.len());
+
+        // E4: build the noise distribution once; None when noise is disabled (scale=0).
+        // Normal::new only fails for non-positive or NaN std_dev; we guard > 0.0 so
+        // .expect() is safe and makes invariant violations loud rather than silent.
+        let noise_distr: Option<Normal<f32>> = if config.sensing_noise_scale > 0.0 {
+            Some(
+                Normal::new(0.0f32, config.sensing_noise_scale)
+                    .expect("sensing_noise_scale validated > 0.0"),
+            )
+        } else {
+            None
+        };
 
         let org_count = organisms.len();
         if neighbor_sums.len() != org_count {
@@ -60,7 +74,7 @@ impl World {
             neighbor_sums[org_idx] += neighbor_count as f32;
             neighbor_counts[org_idx] += 1;
 
-            let input: [f32; 8] = [
+            let mut input: [f32; 8] = [
                 (agent.position[0] / config.world_size) as f32,
                 (agent.position[1] / config.world_size) as f32,
                 (agent.velocity[0] / config.max_speed) as f32,
@@ -70,6 +84,22 @@ impl World {
                 agent.internal_state[2],
                 neighbor_count as f32 / config.neighbor_norm as f32,
             ];
+
+            // E4: add Gaussian noise to NN inputs for responsive organisms.
+            if let Some(ref dist) = noise_distr {
+                let enable_response = Self::family_flag(
+                    &config.families,
+                    organisms[org_idx].family_id,
+                    |f| f.enable_response,
+                    config.enable_response,
+                );
+                if enable_response {
+                    for v in &mut input {
+                        *v = (*v + dist.sample(rng)).clamp(-1.0, 1.0);
+                    }
+                }
+            }
+
             let nn = &organisms[org_idx].nn;
             deltas.push(nn.forward(&input));
         }

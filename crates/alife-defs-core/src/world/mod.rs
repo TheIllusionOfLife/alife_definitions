@@ -325,12 +325,30 @@ impl World {
         let org_count = organisms.len();
         let agent_count = agents.len();
         let next_organism_stable_id = org_count as u64;
+
+        // E5: build patchy resource field when patch_count > 0; use a separate
+        // seeded RNG (seed+2) so the patch layout is deterministic per seed and
+        // independent of the organism RNG (seed) and graph-metabolism RNG (seed+1).
+        let resource_field = if config.resource_patch_count > 0 {
+            let mut patch_rng = ChaCha12Rng::seed_from_u64(config.seed.wrapping_add(2));
+            ResourceField::new_with_patches(
+                world_size,
+                1.0,
+                1.0,
+                config.resource_patch_count,
+                config.resource_patch_scale,
+                &mut patch_rng,
+            )
+        } else {
+            ResourceField::new(world_size, 1.0, 1.0)
+        };
+
         Ok(Self {
             agents,
             organisms,
             config: config.clone(),
             metabolism,
-            resource_field: ResourceField::new(world_size, 1.0, 1.0),
+            resource_field,
             org_toroidal_sums: vec![[0.0, 0.0, 0.0, 0.0]; org_count],
             org_counts: vec![0; org_count],
             rng: ChaCha12Rng::seed_from_u64(config.seed),
@@ -416,8 +434,25 @@ impl World {
                 actual: self.agents.len(),
             });
         }
-        if (self.config.world_size - config.world_size).abs() > f64::EPSILON {
-            self.resource_field = ResourceField::new(config.world_size, 1.0, 1.0);
+        let world_size_changed = (self.config.world_size - config.world_size).abs() > f64::EPSILON;
+        let patch_params_changed = self.config.resource_patch_count != config.resource_patch_count
+            || (self.config.resource_patch_scale - config.resource_patch_scale).abs()
+                > f32::EPSILON
+            || self.config.seed != config.seed;
+        if world_size_changed || patch_params_changed {
+            self.resource_field = if config.resource_patch_count > 0 {
+                let mut patch_rng = ChaCha12Rng::seed_from_u64(config.seed.wrapping_add(2));
+                ResourceField::new_with_patches(
+                    config.world_size,
+                    1.0,
+                    1.0,
+                    config.resource_patch_count,
+                    config.resource_patch_scale,
+                    &mut patch_rng,
+                )
+            } else {
+                ResourceField::new(config.world_size, 1.0, 1.0)
+            };
         }
         self.current_resource_rate = config.resource_regeneration_rate;
         self.config = config;

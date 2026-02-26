@@ -206,10 +206,26 @@ pub struct SimConfig {
     pub environment_cycle_low_rate: f32,
     /// Toggle for sham (no-op) computational process control.
     pub enable_sham_process: bool,
+    /// E4 regime: standard deviation of Gaussian noise added to each NN sensory input.
+    /// 0.0 = no noise (default). Applied only to organisms with enable_response = true.
+    #[serde(default)]
+    pub sensing_noise_scale: f32,
+    /// E5 regime: number of high-resource patches placed in the resource field.
+    /// 0 = uniform (default).
+    #[serde(default)]
+    pub resource_patch_count: usize,
+    /// E5 regime: peak resource-regeneration multiplier at patch centres.
+    /// Values > 1.0 concentrate resources spatially; 1.0 = uniform (default).
+    #[serde(default = "default_resource_patch_scale")]
+    pub resource_patch_scale: f32,
     /// Per-family configuration for Mode B (multi-family coexistence).
     /// Empty vec = single-family mode; world phases use global enable_* flags.
     #[serde(default)]
     pub families: Vec<FamilyConfig>,
+}
+
+fn default_resource_patch_scale() -> f32 {
+    1.0
 }
 
 impl Default for SimConfig {
@@ -278,6 +294,9 @@ impl Default for SimConfig {
             environment_cycle_period: 0,
             environment_cycle_low_rate: 0.005,
             enable_sham_process: false,
+            sensing_noise_scale: 0.0,
+            resource_patch_count: 0,
+            resource_patch_scale: default_resource_patch_scale(),
             families: Vec::new(),
         }
     }
@@ -363,6 +382,9 @@ define_sim_config_error! {
     WorldSizeTooLarge { max: f64, actual: f64 } => "world_size ({actual}) exceeds supported maximum ({max})";
     InvalidFamilyInitialCount { index: usize } => "family[{}].initial_count must be > 0", index;
     InvalidFamilyMutationMultiplier { index: usize } => "family[{}].mutation_rate_multiplier must be finite and >= 0", index;
+    InvalidSensingNoiseScale => "sensing_noise_scale must be finite and non-negative";
+    InvalidResourcePatchScale => "resource_patch_scale must be finite and non-negative";
+    InvalidResourcePatchCount { max: usize, actual: usize } => "resource_patch_count ({actual}) exceeds maximum ({max})";
 }
 
 impl std::error::Error for SimConfigError {}
@@ -385,6 +407,7 @@ impl SimConfig {
         self.validate_homeostasis()?;
         self.validate_growth()?;
         self.validate_environment()?;
+        self.validate_e4_e5()?;
         self.validate_families()?;
         Ok(())
     }
@@ -635,6 +658,26 @@ impl SimConfig {
         }
         if self.environment_shift_step > 0 && self.environment_cycle_period > 0 {
             return Err(SimConfigError::ConflictingEnvironmentFeatures);
+        }
+        Ok(())
+    }
+
+    /// Maximum resource patch count.  Caps the O(grid × patches) initialization cost
+    /// to ≈ 256 × 2048² ≈ 1 billion ops in the worst case (MAX_WORLD_SIZE grid).
+    pub const MAX_RESOURCE_PATCH_COUNT: usize = 256;
+
+    fn validate_e4_e5(&self) -> Result<(), SimConfigError> {
+        if !(self.sensing_noise_scale.is_finite() && self.sensing_noise_scale >= 0.0) {
+            return Err(SimConfigError::InvalidSensingNoiseScale);
+        }
+        if !(self.resource_patch_scale.is_finite() && self.resource_patch_scale >= 0.0) {
+            return Err(SimConfigError::InvalidResourcePatchScale);
+        }
+        if self.resource_patch_count > Self::MAX_RESOURCE_PATCH_COUNT {
+            return Err(SimConfigError::InvalidResourcePatchCount {
+                max: Self::MAX_RESOURCE_PATCH_COUNT,
+                actual: self.resource_patch_count,
+            });
         }
         Ok(())
     }
@@ -1061,10 +1104,108 @@ mod tests {
                 SimConfigError::InvalidFamilyMutationMultiplier { index: 1 },
                 "family[1].mutation_rate_multiplier must be finite and >= 0",
             ),
+            (
+                SimConfigError::InvalidSensingNoiseScale,
+                "sensing_noise_scale must be finite and non-negative",
+            ),
+            (
+                SimConfigError::InvalidResourcePatchScale,
+                "resource_patch_scale must be finite and non-negative",
+            ),
+            (
+                SimConfigError::InvalidResourcePatchCount {
+                    max: 256,
+                    actual: 300,
+                },
+                "resource_patch_count (300) exceeds maximum (256)",
+            ),
         ];
 
         for (err, expected) in cases {
             assert_eq!(err.to_string(), expected);
         }
+    }
+
+    // --- E4/E5 validation paths ---
+
+    #[test]
+    fn validate_rejects_negative_sensing_noise_scale() {
+        let config = SimConfig {
+            sensing_noise_scale: -0.1,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidSensingNoiseScale)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_sensing_noise_scale() {
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let config = SimConfig {
+                sensing_noise_scale: bad,
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidSensingNoiseScale),
+                "sensing_noise_scale={bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_negative_resource_patch_scale() {
+        let config = SimConfig {
+            resource_patch_scale: -0.5,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidResourcePatchScale)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_resource_patch_scale() {
+        for bad in [f32::NAN, f32::INFINITY] {
+            let config = SimConfig {
+                resource_patch_scale: bad,
+                ..SimConfig::default()
+            };
+            assert_eq!(
+                config.validate(),
+                Err(SimConfigError::InvalidResourcePatchScale),
+                "resource_patch_scale={bad} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_excessive_resource_patch_count() {
+        let config = SimConfig {
+            resource_patch_count: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+            ..SimConfig::default()
+        };
+        assert_eq!(
+            config.validate(),
+            Err(SimConfigError::InvalidResourcePatchCount {
+                max: SimConfig::MAX_RESOURCE_PATCH_COUNT,
+                actual: SimConfig::MAX_RESOURCE_PATCH_COUNT + 1,
+            })
+        );
+    }
+
+    #[test]
+    fn validate_accepts_valid_e4_e5_configs() {
+        // sensing_noise_scale = 0.5 and resource_patch_count = 4 are valid.
+        let config = SimConfig {
+            sensing_noise_scale: 0.5,
+            resource_patch_count: 4,
+            resource_patch_scale: 2.0,
+            ..SimConfig::default()
+        };
+        assert!(config.validate().is_ok());
     }
 }

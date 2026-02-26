@@ -7,6 +7,7 @@ edition.workspace = true
 rstar.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
+rand_distr.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
