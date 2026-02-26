@@ -8,6 +8,10 @@
 - `../TECH.md`
 - `../STRUCTURE.md`
 
+## Data Contract
+
+- `data-contract.md` — **frozen simulation output schema** (RunSummary, StepMetrics, SimConfig, environment regimes)
+
 ## Research Docs
 
 - `research/research-plan.md` — **authoritative benchmark plan** (definitions D1–D4, experimental design, adapter templates)
