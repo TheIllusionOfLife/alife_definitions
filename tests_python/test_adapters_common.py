@@ -90,6 +90,24 @@ class TestTimeSeriesExtraction:
 
 
 # ---------------------------------------------------------------------------
+# Family discovery
+# ---------------------------------------------------------------------------
+
+
+class TestFamilyDiscovery:
+    def test_discover_family_ids(self, mode_b_run):
+        from adapters.common import discover_family_ids
+
+        ids = discover_family_ids(mode_b_run)
+        assert ids == [0, 1, 2]
+
+    def test_discover_empty_run(self):
+        from adapters.common import discover_family_ids
+
+        assert discover_family_ids({"samples": []}) == []
+
+
+# ---------------------------------------------------------------------------
 # Lineage extraction
 # ---------------------------------------------------------------------------
 

@@ -183,8 +183,9 @@ def main() -> None:
         resume=args.resume,
     )
 
-    # Write manifest
-    base_config = make_config_dict(0, {})
+    # Write manifest — use _build_mode_b_config so families are included
+    # in the digest, matching the actual executed config.
+    base_config = _build_mode_b_config(0, {})
     write_manifest(
         out_dir / "benchmark_manifest.json",
         experiment_name="benchmark",

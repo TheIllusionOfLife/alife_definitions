@@ -76,6 +76,19 @@ def extract_family_series(run_summary: dict, family_id: int) -> dict[str, np.nda
     return {f: np.array(v, dtype=float) for f, v in series.items()}
 
 
+def discover_family_ids(run_summary: dict) -> list[int]:
+    """Discover all family IDs present in the run data.
+
+    Scans the first sample's family_breakdown to find all family IDs,
+    rather than assuming a fixed set.
+    """
+    samples = run_summary.get("samples", [])
+    if not samples:
+        return []
+    breakdown = samples[0].get("family_breakdown", [])
+    return sorted(entry["family_id"] for entry in breakdown)
+
+
 def extract_family_lineage(run_summary: dict, family_id: int) -> list[dict]:
     """Extract lineage events for a specific family."""
     return [e for e in run_summary.get("lineage_events", []) if e.get("family_id") == family_id]

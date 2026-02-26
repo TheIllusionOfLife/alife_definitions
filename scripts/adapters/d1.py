@@ -17,6 +17,7 @@ from analyses.results.statistics import cohens_d
 from .common import (
     AdapterResult,
     coefficient_of_variation,
+    discover_family_ids,
     extract_family_series,
     sigmoid,
 )
@@ -87,7 +88,8 @@ def score_d1(
 
     # Extract time series for target family and all families
     target = extract_family_series(run_summary, family_id)
-    all_families = {fid: extract_family_series(run_summary, fid) for fid in range(3)}
+    family_ids = discover_family_ids(run_summary)
+    all_families = {fid: extract_family_series(run_summary, fid) for fid in family_ids}
 
     criteria_scores: dict[str, float] = {}
     coupling_scores: dict[str, float] = {}

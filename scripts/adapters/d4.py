@@ -20,6 +20,7 @@ from scipy import stats
 
 from .common import (
     AdapterResult,
+    discover_family_ids,
     extract_family_lineage,
     extract_family_series,
 )
@@ -51,7 +52,8 @@ def score_d4(
     lineage = extract_family_lineage(run_summary, family_id)
 
     # Extract all families for cross-family baseline
-    all_families = {fid: extract_family_series(run_summary, fid) for fid in range(3)}
+    family_ids = discover_family_ids(run_summary)
+    all_families = {fid: extract_family_series(run_summary, fid) for fid in family_ids}
 
     s_present = _score_info_present(series, all_families)
     s_causal = _score_info_causal(series, rng)

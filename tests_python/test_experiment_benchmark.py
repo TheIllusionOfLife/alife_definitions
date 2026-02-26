@@ -128,6 +128,19 @@ class TestBenchmarkResume:
 
 
 # ---------------------------------------------------------------------------
+# Manifest content
+# ---------------------------------------------------------------------------
+
+
+class TestManifestContent:
+    def test_manifest_includes_families(self, benchmark_module):
+        """Manifest base_config should include families for reproducibility."""
+        config = benchmark_module._build_mode_b_config(0, {})
+        assert "families" in config
+        assert len(config["families"]) == 3
+
+
+# ---------------------------------------------------------------------------
 # Regime configs
 # ---------------------------------------------------------------------------
 
