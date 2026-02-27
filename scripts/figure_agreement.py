@@ -185,7 +185,12 @@ def figure_case_study(run_summary: dict | None, out_path: Path) -> None:
         return
 
     plt = _setup_matplotlib()
-    from adapters.common import extract_family_series
+    from adapters.common import discover_family_ids, extract_family_series
+
+    available_fids = set(discover_family_ids(run_summary))
+    if not ({1, 2} <= available_fids):
+        print("SKIP: case study requires family IDs 1 and 2")
+        return
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(7, 2.8), sharey=True)
 

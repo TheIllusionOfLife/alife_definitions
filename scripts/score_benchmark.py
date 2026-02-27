@@ -87,20 +87,28 @@ def score_run(
 
 
 def _column_order(rows: list[dict]) -> list[str]:
-    """Determine stable column order from row dicts."""
+    """Determine stable column order from the union of all row keys."""
     if not rows:
         return []
+    # Collect all keys preserving first-seen order
+    all_keys: list[str] = []
+    all_keys_set: set[str] = set()
+    for row in rows:
+        for key in row:
+            if key not in all_keys_set:
+                all_keys.append(key)
+                all_keys_set.add(key)
     # Fixed prefix columns, then definition columns in order
     prefix = ["regime", "seed", "family_id"]
     seen: set[str] = set(prefix)
     rest: list[str] = []
     for defn in DEFINITIONS:
-        for key in rows[0]:
+        for key in all_keys:
             if key.startswith(f"{defn}_") and key not in seen:
                 rest.append(key)
                 seen.add(key)
     # Any remaining keys
-    for key in rows[0]:
+    for key in all_keys:
         if key not in seen:
             rest.append(key)
             seen.add(key)
@@ -154,6 +162,7 @@ def main() -> None:
 
     all_rows: list[dict] = []
     n_missing = 0
+    n_runs = 0
 
     for regime in regimes:
         regime_dir = safe_path(data_dir, regime)
@@ -169,6 +178,7 @@ def main() -> None:
 
             rows = score_run(run_summary, regime=regime, seed=seed)
             all_rows.extend(rows)
+            n_runs += 1
             log(f"  scored {regime}/seed_{seed:03d} ({len(rows)} families)")
 
     if n_missing:
@@ -176,7 +186,7 @@ def main() -> None:
 
     # TSV to stdout
     sys.stdout.write(format_tsv(all_rows))
-    log(f"Score matrix: {len(all_rows)} rows ({len(all_rows) // 3} runs)")
+    log(f"Score matrix: {len(all_rows)} rows ({n_runs} runs)")
 
 
 if __name__ == "__main__":

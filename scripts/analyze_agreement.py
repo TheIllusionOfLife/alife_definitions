@@ -153,10 +153,17 @@ def fleiss_kappa(ratings: np.ndarray) -> float:
         Fleiss' kappa statistic.
     """
     n_items, n_cats = ratings.shape
-    n_raters = int(ratings[0].sum())
-
-    if n_items == 0 or n_raters <= 1:
+    if n_items == 0:
         return 0.0
+
+    n_raters = int(ratings[0].sum())
+    if n_raters <= 1:
+        return 0.0
+
+    # Validate all rows have the same rater count
+    row_sums = ratings.sum(axis=1)
+    if not np.all(row_sums == n_raters):
+        return float("nan")
 
     # Proportion of assignments to each category
     p_j = ratings.sum(axis=0) / (n_items * n_raters)

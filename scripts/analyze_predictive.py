@@ -53,6 +53,9 @@ def balanced_accuracy(y_true: list[bool], y_pred: list[bool]) -> float:
 def roc_auc_score(y_true: list[bool], y_scores: list[float]) -> float:
     """Compute ROC-AUC using the trapezoidal rule.
 
+    Groups tied scores so that the ROC curve steps correctly when
+    multiple samples share the same score value.
+
     Returns NaN if only one class is present.
     """
     n_pos = sum(y_true)
@@ -68,11 +71,17 @@ def roc_auc_score(y_true: list[bool], y_scores: list[float]) -> float:
     tp = 0
     fp = 0
 
-    for _score, label in pairs:
-        if label:
-            tp += 1
-        else:
-            fp += 1
+    # Group by unique score to handle ties correctly
+    i = 0
+    while i < len(pairs):
+        # Advance through all samples with the same score
+        current_score = pairs[i][0]
+        while i < len(pairs) and pairs[i][0] == current_score:
+            if pairs[i][1]:
+                tp += 1
+            else:
+                fp += 1
+            i += 1
         tpr_list.append(tp / n_pos)
         fpr_list.append(fp / n_neg)
 
@@ -118,15 +127,15 @@ def sensitivity_sweep(
     threshold: float,
     delta: float = 0.2,
 ) -> dict:
-    """Evaluate balanced accuracy at threshold and ±delta."""
+    """Evaluate balanced accuracy at threshold and ±delta (additive)."""
     preds_at = [s >= threshold for s in scores]
     ba_at = balanced_accuracy(labels, preds_at)
 
-    thresh_minus = max(0.0, threshold * (1.0 - delta))
+    thresh_minus = max(0.0, threshold - delta)
     preds_minus = [s >= thresh_minus for s in scores]
     ba_minus = balanced_accuracy(labels, preds_minus)
 
-    thresh_plus = min(1.0, threshold * (1.0 + delta))
+    thresh_plus = min(1.0, threshold + delta)
     preds_plus = [s >= thresh_plus for s in scores]
     ba_plus = balanced_accuracy(labels, preds_plus)
 
@@ -214,9 +223,25 @@ def _precompute_all_scores(
 
 
 def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
-    """Convert alive AUCs to binary labels using median as threshold."""
-    median_auc = float(np.median(aucs)) if aucs else 0.0
+    """Convert alive AUCs to binary labels using median as threshold.
+
+    When all AUCs are identical (e.g. all organisms die), the median
+    split produces a single-class target. In this case we log a warning
+    and return all-False labels — callers should check for single-class
+    before computing metrics.
+    """
+    if not aucs:
+        return [], 0.0
+    median_auc = float(np.median(aucs))
     labels = [a > median_auc for a in aucs]
+    if len(set(labels)) <= 1:
+        import sys
+
+        print(
+            f"WARNING: degenerate labels — all AUCs equal ({median_auc:.4f}), "
+            "single-class target produced",
+            file=sys.stderr,
+        )
     return labels, median_auc
 
 
