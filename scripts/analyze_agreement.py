@@ -206,9 +206,7 @@ def analyze_agreement(score_rows: list[dict]) -> dict:
     # Pairwise analysis (6 pairs)
     for di, dj in combinations(DEFINITIONS, 2):
         pair_key = f"{di}_{dj}"
-        pairwise = compute_pairwise(
-            def_scores[di], def_scores[dj], def_passes[di], def_passes[dj]
-        )
+        pairwise = compute_pairwise(def_scores[di], def_scores[dj], def_passes[di], def_passes[dj])
 
         # Disagreement characterization
         disagree_rows = []
@@ -221,12 +219,14 @@ def analyze_agreement(score_rows: list[dict]) -> dict:
                 pi = bool(int(pi))
             if isinstance(pj, str):
                 pj = bool(int(pj))
-            disagree_rows.append({
-                "regime": row.get("regime", ""),
-                "family_id": row.get("family_id", 0),
-                "Di_pass": bool(pi),
-                "Dj_pass": bool(pj),
-            })
+            disagree_rows.append(
+                {
+                    "regime": row.get("regime", ""),
+                    "family_id": row.get("family_id", 0),
+                    "Di_pass": bool(pi),
+                    "Dj_pass": bool(pj),
+                }
+            )
 
         pairwise["disagreements"] = characterize_disagreements(disagree_rows)
         result["pairwise"][pair_key] = pairwise

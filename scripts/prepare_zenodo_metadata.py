@@ -9,7 +9,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
@@ -37,9 +36,13 @@ def prepare() -> None:
                 print(f"  {regime_dir.name}: {n} seed files")
 
     # Copy analysis artifacts
-    for name in ["score_matrix.tsv", "agreement_analysis.json",
-                 "predictive_analysis.json", "frozen_thresholds.json",
-                 "benchmark_manifest.json"]:
+    for name in [
+        "score_matrix.tsv",
+        "agreement_analysis.json",
+        "predictive_analysis.json",
+        "frozen_thresholds.json",
+        "benchmark_manifest.json",
+    ]:
         src = BENCHMARK_DIR / name
         if src.exists():
             shutil.copy2(src, STAGING_DIR / name)

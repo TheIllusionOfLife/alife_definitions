@@ -4,7 +4,8 @@ Loads benchmark JSONs from experiments/benchmark/, runs all four definition
 adapters on each (regime × seed × family), and outputs a TSV to stdout.
 
 Usage:
-    uv run python -m scripts.score_benchmark --data-dir experiments/benchmark --seeds 0-4 --regimes E1
+    uv run python -m scripts.score_benchmark --data-dir experiments/benchmark \
+        --seeds 0-4 --regimes E1
 """
 
 from __future__ import annotations

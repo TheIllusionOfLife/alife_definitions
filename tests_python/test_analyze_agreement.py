@@ -12,7 +12,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Cohen's kappa
 # ---------------------------------------------------------------------------
@@ -141,11 +140,13 @@ class TestFleissKappa:
         # 4 raters all agree on each item
         # ratings[i] = counts of each category for item i
         # 3 items, 2 categories, 4 raters all agree
-        ratings = np.array([
-            [4, 0],  # all say category 0
-            [0, 4],  # all say category 1
-            [4, 0],  # all say category 0
-        ])
+        ratings = np.array(
+            [
+                [4, 0],  # all say category 0
+                [0, 4],  # all say category 1
+                [4, 0],  # all say category 0
+            ]
+        )
         assert fleiss_kappa(ratings) == pytest.approx(1.0)
 
     def test_random_near_zero(self):
@@ -182,7 +183,7 @@ class TestIntegration:
         # 6 pairs: C(4,2)
         assert len(result["pairwise"]) == 6
         # Each pair has required keys
-        for pair_key, pair_data in result["pairwise"].items():
+        for _pair_key, pair_data in result["pairwise"].items():
             assert "cohens_kappa" in pair_data
             assert "spearman_rho" in pair_data
 

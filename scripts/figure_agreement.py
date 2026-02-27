@@ -14,8 +14,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
-from itertools import combinations
 from pathlib import Path
 
 import numpy as np
@@ -31,15 +29,17 @@ def _setup_matplotlib():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.size": 9,
-        "axes.labelsize": 10,
-        "axes.titlesize": 11,
-        "figure.dpi": 300,
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.05,
-    })
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.size": 9,
+            "axes.labelsize": 10,
+            "axes.titlesize": 11,
+            "figure.dpi": 300,
+            "savefig.bbox": "tight",
+            "savefig.pad_inches": 0.05,
+        }
+    )
     return plt
 
 
@@ -113,8 +113,18 @@ def figure_agreement_matrix(rows: list[dict], out_path: Path) -> None:
         for j, dj in enumerate(DEFINITIONS):
             if i == j:
                 continue
-            passes_i = [bool(int(r[f"{di}_pass"])) if isinstance(r[f"{di}_pass"], str) else bool(r[f"{di}_pass"]) for r in rows]
-            passes_j = [bool(int(r[f"{dj}_pass"])) if isinstance(r[f"{dj}_pass"], str) else bool(r[f"{dj}_pass"]) for r in rows]
+            passes_i = [
+                bool(int(r[f"{di}_pass"]))
+                if isinstance(r[f"{di}_pass"], str)
+                else bool(r[f"{di}_pass"])
+                for r in rows
+            ]
+            passes_j = [
+                bool(int(r[f"{dj}_pass"]))
+                if isinstance(r[f"{dj}_pass"], str)
+                else bool(r[f"{dj}_pass"])
+                for r in rows
+            ]
             scores_i = [float(r[f"{di}_score"]) for r in rows]
             scores_j = [float(r[f"{dj}_score"]) for r in rows]
 
@@ -233,10 +243,14 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
         # Plot a point at (1-specificity, sensitivity) from the frozen threshold
         ba = metrics.get("balanced_accuracy", 0.5)
         recall = metrics.get("recall", 0.5)
-        precision = metrics.get("precision", 0.5)
         ax.scatter([1 - (2 * ba - recall)], [recall], color=color, s=40, zorder=5)
-        ax.annotate(label, xy=(0.05, 0.95 - 0.08 * DEFINITIONS.index(defn)),
-                    xycoords="axes fraction", fontsize=7, color=color)
+        ax.annotate(
+            label,
+            xy=(0.05, 0.95 - 0.08 * DEFINITIONS.index(defn)),
+            xycoords="axes fraction",
+            fontsize=7,
+            color=color,
+        )
 
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")

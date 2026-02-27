@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-
 from adapters import score_all
 from adapters.common import discover_family_ids, extract_family_series
 
@@ -281,18 +280,10 @@ def evaluate_definition(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Predictive validity analysis")
     parser.add_argument("data_dir", type=Path, help="Benchmark data directory")
-    parser.add_argument(
-        "--cal-seeds", default="0-99", help="Calibration seed range"
-    )
-    parser.add_argument(
-        "--test-seeds", default="100-199", help="Test seed range"
-    )
-    parser.add_argument(
-        "--regimes", default="E1,E2,E3,E4,E5", help="Comma-separated regimes"
-    )
-    parser.add_argument(
-        "-o", "--output", type=Path, help="Output JSON (default: stdout)"
-    )
+    parser.add_argument("--cal-seeds", default="0-99", help="Calibration seed range")
+    parser.add_argument("--test-seeds", default="100-199", help="Test seed range")
+    parser.add_argument("--regimes", default="E1,E2,E3,E4,E5", help="Comma-separated regimes")
+    parser.add_argument("-o", "--output", type=Path, help="Output JSON (default: stdout)")
     args = parser.parse_args()
 
     from experiment_common import log, safe_path
@@ -336,7 +327,7 @@ def main() -> None:
             results["definitions"][defn] = metrics
             log(f"  ROC-AUC: {metrics['roc_auc']:.3f}")
         else:
-            log(f"  No test data — skipping evaluation")
+            log("  No test data — skipping evaluation")
 
     output = json.dumps(results, indent=2)
     if args.output:

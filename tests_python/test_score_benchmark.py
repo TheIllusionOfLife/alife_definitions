@@ -13,7 +13,6 @@ import io
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Column schema
 # ---------------------------------------------------------------------------
@@ -98,9 +97,9 @@ class TestScoresMatchAdapters:
             row = build_score_row(mode_b_run, regime="E1", seed=42, family_id=fid)
             direct = score_all(mode_b_run, family_id=fid)
             for defn in ["D1", "D2", "D3", "D4"]:
-                assert row[f"{defn}_score"] == pytest.approx(
-                    direct[defn].score, abs=1e-9
-                ), f"F{fid}/{defn} mismatch"
+                assert row[f"{defn}_score"] == pytest.approx(direct[defn].score, abs=1e-9), (
+                    f"F{fid}/{defn} mismatch"
+                )
 
 
 # ---------------------------------------------------------------------------
