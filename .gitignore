@@ -46,6 +46,9 @@ paper/*.log
 paper/*.out
 paper/*.synctex.gz
 
+# Zenodo staging
+/zenodo_staging/
+
 # IDE/editor
 .idea/
 .vscode/

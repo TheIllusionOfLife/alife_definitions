@@ -1,0 +1,21 @@
+{
+  "title": "ALife Definitions Benchmark: Data and Code",
+  "description": "Empirical benchmark comparing four operational definitions of life (textbook 7-criteria, Darwinian/NASA, autonomy/organizational closure, information maintenance) on the same digital organisms across five environment regimes. Includes simulation code, definition adapters, raw benchmark data, score matrices, and analysis scripts.",
+  "creators": [
+    {
+      "name": "Anonymous"
+    }
+  ],
+  "upload_type": "dataset",
+  "access_right": "open",
+  "license": "MIT",
+  "keywords": [
+    "artificial life",
+    "benchmark",
+    "definitions of life",
+    "digital evolution",
+    "operational definitions"
+  ],
+  "related_identifiers": [],
+  "notes": "Anonymized for double-blind review. Creator names and affiliations will be added post-acceptance."
+}
