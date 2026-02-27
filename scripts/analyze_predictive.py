@@ -184,13 +184,20 @@ def extract_family_alive_auc(
 # ---------------------------------------------------------------------------
 
 
-def _collect_scores_and_labels(
-    defn: str,
+def _precompute_all_scores(
     data: list[dict],
     tail_fraction: float,
-) -> tuple[list[float], list[bool], float]:
-    """Score runs and compute alive labels. Returns (scores, labels, median_auc)."""
-    scores: list[float] = []
+) -> tuple[dict[str, list[float]], list[float]]:
+    """Score all runs once and return per-definition scores and alive AUCs.
+
+    Calls ``score_all()`` once per (run, family) instead of once per
+    (definition, run, family), avoiding 4x redundant computation.
+
+    Returns:
+        Tuple of (scores_by_defn, aucs) where scores_by_defn maps each
+        definition name to a list of scores aligned with aucs.
+    """
+    scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
     aucs: list[float] = []
 
     for entry in data:
@@ -198,13 +205,19 @@ def _collect_scores_and_labels(
         family_ids = discover_family_ids(run)
         for fid in family_ids:
             result = score_all(run, family_id=fid)
-            scores.append(result[defn].score)
+            for d in DEFINITIONS:
+                scores_by_defn[d].append(result[d].score)
             auc = extract_family_alive_auc(run, fid, tail_fraction)
             aucs.append(auc)
 
+    return scores_by_defn, aucs
+
+
+def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
+    """Convert alive AUCs to binary labels using median as threshold."""
     median_auc = float(np.median(aucs)) if aucs else 0.0
     labels = [a > median_auc for a in aucs]
-    return scores, labels, median_auc
+    return labels, median_auc
 
 
 def calibrate_definition(
@@ -222,9 +235,11 @@ def calibrate_definition(
     Returns:
         Optimal threshold maximizing balanced accuracy.
     """
-    scores, labels, _median = _collect_scores_and_labels(defn, cal_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction)
+    scores = scores_by_defn[defn]
     if not scores:
         return 0.5
+    labels, _median = _make_labels(aucs)
     thresh, _ba = sweep_threshold(scores, labels)
     return thresh
 
@@ -239,7 +254,9 @@ def evaluate_definition(
 
     Returns dict with roc_auc, precision, recall, balanced_accuracy.
     """
-    scores, labels, _median = _collect_scores_and_labels(defn, test_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction)
+    scores = scores_by_defn[defn]
+    labels, _median = _make_labels(aucs)
 
     if not scores:
         return {
@@ -278,6 +295,7 @@ def evaluate_definition(
 
 
 def main() -> None:
+    """CLI entry point: calibrate thresholds and evaluate predictive validity."""
     parser = argparse.ArgumentParser(description="Predictive validity analysis")
     parser.add_argument("data_dir", type=Path, help="Benchmark data directory")
     parser.add_argument("--cal-seeds", default="0-99", help="Calibration seed range")
@@ -286,15 +304,15 @@ def main() -> None:
     parser.add_argument("-o", "--output", type=Path, help="Output JSON (default: stdout)")
     args = parser.parse_args()
 
-    from experiment_common import log, safe_path
-    from score_benchmark import _parse_regimes, _parse_seed_range
+    from experiment_common import log, parse_regimes, parse_seed_range, safe_path
 
     data_dir = args.data_dir.resolve()
-    cal_seeds = _parse_seed_range(args.cal_seeds)
-    test_seeds = _parse_seed_range(args.test_seeds)
-    regimes = _parse_regimes(args.regimes)
+    cal_seeds = parse_seed_range(args.cal_seeds)
+    test_seeds = parse_seed_range(args.test_seeds)
+    regimes = parse_regimes(args.regimes)
 
     def load_runs(seeds: list[int]) -> list[dict]:
+        """Load benchmark run JSONs for given seeds across all regimes."""
         runs = []
         for regime in regimes:
             regime_dir = safe_path(data_dir, regime)
@@ -302,10 +320,8 @@ def main() -> None:
                 path = regime_dir / f"seed_{seed:03d}.json"
                 if not path.exists():
                     continue
-                import json as _json
-
                 with open(path) as f:
-                    run = _json.load(f)
+                    run = json.load(f)
                 runs.append({"run": run, "regime": regime, "seed": seed})
         return runs
 

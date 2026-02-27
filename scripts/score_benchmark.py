@@ -19,7 +19,7 @@ from pathlib import Path
 
 from adapters import score_all
 from adapters.common import AdapterResult, discover_family_ids
-from experiment_common import log, safe_path
+from experiment_common import log, parse_regimes, parse_seed_range, safe_path
 
 # ---------------------------------------------------------------------------
 # Core scoring functions
@@ -131,36 +131,12 @@ def format_tsv(rows: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CLI helpers (reuse from experiment_benchmark)
-# ---------------------------------------------------------------------------
-
-
-def _parse_seed_range(spec: str) -> list[int]:
-    """Parse seed specification like '0-99' or '0,1,5-10'."""
-    seeds: list[int] = []
-    for part in spec.split(","):
-        part = part.strip()
-        if not part:
-            raise ValueError(f"Invalid seed specification: '{spec}'")
-        if "-" in part:
-            lo, hi = part.split("-", 1)
-            seeds.extend(range(int(lo), int(hi) + 1))
-        else:
-            seeds.append(int(part))
-    return sorted(set(seeds))
-
-
-def _parse_regimes(spec: str) -> list[str]:
-    """Parse comma-separated regime names."""
-    return [r.strip() for r in spec.split(",") if r.strip()]
-
-
-# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
+    """CLI entry point: score benchmark runs and output TSV to stdout."""
     parser = argparse.ArgumentParser(description="Score benchmark runs with D1–D4")
     parser.add_argument(
         "--data-dir",
@@ -173,8 +149,8 @@ def main() -> None:
     args = parser.parse_args()
 
     data_dir = args.data_dir.resolve()
-    seeds = _parse_seed_range(args.seeds)
-    regimes = _parse_regimes(args.regimes)
+    seeds = parse_seed_range(args.seeds)
+    regimes = parse_regimes(args.regimes)
 
     all_rows: list[dict] = []
     n_missing = 0

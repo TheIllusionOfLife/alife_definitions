@@ -114,7 +114,7 @@ def characterize_disagreements(rows: list[dict]) -> dict:
             continue
         total += 1
         regime = row["regime"]
-        fid = row["family_id"]
+        fid = int(row["family_id"])
 
         if di and not dj:
             i_acc_j_rej += 1
@@ -222,7 +222,7 @@ def analyze_agreement(score_rows: list[dict]) -> dict:
             disagree_rows.append(
                 {
                     "regime": row.get("regime", ""),
-                    "family_id": row.get("family_id", 0),
+                    "family_id": int(row.get("family_id", 0)),
                     "Di_pass": bool(pi),
                     "Dj_pass": bool(pj),
                 }
@@ -260,6 +260,7 @@ def analyze_agreement(score_rows: list[dict]) -> dict:
 
 
 def main() -> None:
+    """CLI entry point: read score matrix TSV and output agreement JSON."""
     parser = argparse.ArgumentParser(description="Analyze agreement among D1–D4")
     parser.add_argument("tsv_file", type=Path, help="Score matrix TSV file")
     parser.add_argument("-o", "--output", type=Path, help="Output JSON file (default: stdout)")

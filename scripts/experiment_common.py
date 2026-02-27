@@ -255,6 +255,40 @@ def experiment_output_dir() -> Path:
     return out_dir
 
 
+def parse_seed_range(spec: str) -> list[int]:
+    """Parse seed specification like '0-99' or '0,1,5-10'.
+
+    Args:
+        spec: Comma-separated list of integers or ranges (e.g. '0-99', '0,1,5-10').
+
+    Returns:
+        Sorted deduplicated list of seed integers.
+    """
+    seeds: list[int] = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            raise ValueError(f"Invalid seed specification: '{spec}'")
+        if "-" in part:
+            lo, hi = part.split("-", 1)
+            seeds.extend(range(int(lo), int(hi) + 1))
+        else:
+            seeds.append(int(part))
+    return sorted(set(seeds))
+
+
+def parse_regimes(spec: str) -> list[str]:
+    """Parse comma-separated regime names.
+
+    Args:
+        spec: Comma-separated regime names (e.g. 'E1,E2,E3').
+
+    Returns:
+        List of regime name strings.
+    """
+    return [r.strip() for r in spec.split(",") if r.strip()]
+
+
 def load_json(path: Path) -> list[dict]:
     """Load a JSON file and return its contents, or empty list if missing."""
     if not path.exists():

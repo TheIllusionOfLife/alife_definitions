@@ -18,7 +18,7 @@ Benchmark paper submission to ALIFE 2026.
 
 Zenodo dataset structure:
 
-```
+```text
 alife-definitions-benchmark-v1.0/
 ├── benchmark/
 │   ├── E1/seed_000.json ... seed_199.json

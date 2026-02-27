@@ -270,6 +270,7 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point: generate publication figures from score matrix."""
     parser = argparse.ArgumentParser(description="Generate agreement figures")
     parser.add_argument("tsv_file", type=Path, help="Score matrix TSV")
     parser.add_argument("--case-study-json", type=Path, help="Single run JSON for case study")
