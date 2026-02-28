@@ -22,10 +22,10 @@ from experiment_common import FAMILY_PROFILES, TUNED_BASELINE
 
 @pytest.fixture(scope="session")
 def mode_b_run() -> dict:
-    """Mode B run: 30 orgs, 25 agents, 2000 steps, sample_every=50, seed=42.
+    """Mode B run: 30 orgs, 25 agents, 2000 steps, sample_every=10, seed=42.
 
-    Produces 40 sample points — long enough for stable evolutionary signals
-    and lineage events. Shared across all adapter test modules.
+    Produces 200 sample points — sufficient for TE with 5 bins and
+    lagged cross-correlation. Shared across all adapter test modules.
     """
     cfg = json.loads(alife_defs.default_config_json())
     cfg.update(TUNED_BASELINE)
@@ -33,7 +33,7 @@ def mode_b_run() -> dict:
     cfg["num_organisms"] = 30
     cfg["agents_per_organism"] = 25
     cfg["families"] = [dict(fp) for fp in FAMILY_PROFILES]
-    result_json = alife_defs.run_experiment_json(json.dumps(cfg), 2000, 50)
+    result_json = alife_defs.run_experiment_json(json.dumps(cfg), 2000, 10)
     result = json.loads(result_json)
     result["regime_label"] = "E1"
     return result

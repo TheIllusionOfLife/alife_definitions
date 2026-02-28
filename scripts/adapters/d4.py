@@ -30,7 +30,7 @@ from .common import (
 # ---------------------------------------------------------------------------
 
 DEFAULT_THRESHOLD = 0.3
-TE_BINS = 3
+TE_BINS = 5  # 5 bins viable for n≈200 with xcorr complement
 TE_PERMS = 400
 TE_ALPHA = 0.05
 

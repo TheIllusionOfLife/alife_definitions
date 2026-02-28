@@ -169,3 +169,69 @@ class TestUtilities:
         arr2 = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         cv = coefficient_of_variation(arr2)
         assert cv > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Lagged cross-correlation score
+# ---------------------------------------------------------------------------
+
+
+class TestLaggedCrossCorrelationScore:
+    def test_correlated_series_high_score(self):
+        from adapters.common import lagged_cross_correlation_score
+
+        rng = np.random.default_rng(42)
+        x = np.cumsum(rng.standard_normal(200))
+        y = np.roll(x, 1) + rng.standard_normal(200) * 0.1
+        score = lagged_cross_correlation_score(x, y, max_lag=5)
+        assert score > 0.5, f"Correlated series should score > 0.5, got {score}"
+
+    def test_independent_series_low_score(self):
+        from adapters.common import lagged_cross_correlation_score
+
+        rng = np.random.default_rng(42)
+        x = rng.standard_normal(200)
+        y = rng.standard_normal(200)
+        score = lagged_cross_correlation_score(x, y, max_lag=5)
+        assert score < 0.3, f"Independent series should score < 0.3, got {score}"
+
+    def test_score_in_unit_interval(self):
+        from adapters.common import lagged_cross_correlation_score
+
+        rng = np.random.default_rng(7)
+        x = rng.standard_normal(100)
+        y = rng.standard_normal(100)
+        score = lagged_cross_correlation_score(x, y, max_lag=5)
+        assert 0.0 <= score <= 1.0
+
+    def test_short_series_returns_zero(self):
+        from adapters.common import lagged_cross_correlation_score
+
+        x = np.array([1.0, 2.0])
+        y = np.array([3.0, 4.0])
+        assert lagged_cross_correlation_score(x, y, max_lag=5) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Surrogate FPR
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSurrogateFpr:
+    def test_independent_series_low_fpr(self):
+        from adapters.common import compute_surrogate_fpr
+
+        rng = np.random.default_rng(42)
+        x = rng.standard_normal(200)
+        y = rng.standard_normal(200)
+        fpr = compute_surrogate_fpr(x, y, n_surrogates=50, rng_seed=42)
+        assert fpr < 0.15, f"Independent series FPR should be < 0.15, got {fpr}"
+
+    def test_fpr_in_unit_interval(self):
+        from adapters.common import compute_surrogate_fpr
+
+        rng = np.random.default_rng(7)
+        x = rng.standard_normal(100)
+        y = rng.standard_normal(100)
+        fpr = compute_surrogate_fpr(x, y, n_surrogates=20, rng_seed=7)
+        assert 0.0 <= fpr <= 1.0

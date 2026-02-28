@@ -112,6 +112,69 @@ def coefficient_of_variation(arr: np.ndarray) -> float:
     return float(np.std(arr, ddof=1) / abs(mean))
 
 
+def lagged_cross_correlation_score(
+    x: np.ndarray,
+    y: np.ndarray,
+    max_lag: int = 5,
+) -> float:
+    """Compute a coupling score from lagged Pearson correlations.
+
+    Returns the maximum absolute Pearson r across lags 0..max_lag,
+    mapped to [0, 1]. Short series (< max_lag + 3) return 0.0.
+    """
+    if len(x) < max_lag + 3 or len(y) < max_lag + 3:
+        return 0.0
+    best_r = 0.0
+    for lag in range(max_lag + 1):
+        if lag == 0:
+            x_s, y_s = x, y
+        else:
+            x_s, y_s = x[:-lag], y[lag:]
+        if len(x_s) < 3:
+            continue
+        if np.std(x_s) == 0 or np.std(y_s) == 0:
+            continue
+        r = float(np.abs(np.corrcoef(x_s, y_s)[0, 1]))
+        if not np.isnan(r) and r > best_r:
+            best_r = r
+    return float(np.clip(best_r, 0.0, 1.0))
+
+
+def compute_surrogate_fpr(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    n_surrogates: int = 100,
+    rng_seed: int = 42,
+    bins: int = 3,
+    permutations: int = 200,
+    alpha: float = 0.05,
+) -> float:
+    """Compute false positive rate using phase-randomized surrogates.
+
+    Generates n_surrogates surrogate pairs via phase randomization,
+    runs TE on each, and returns the fraction that pass significance.
+    """
+    from analyses.coupling.transfer_entropy import phase_randomize, transfer_entropy_lag1
+
+    rng = np.random.default_rng(rng_seed)
+    n_significant = 0
+    n_valid = 0
+    for _ in range(n_surrogates):
+        x_surr = phase_randomize(x, rng)
+        y_surr = phase_randomize(y, rng)
+        result = transfer_entropy_lag1(
+            x_surr, y_surr, bins=bins, permutations=permutations, rng=rng
+        )
+        if result is not None:
+            n_valid += 1
+            if result["p_value"] < alpha:
+                n_significant += 1
+    if n_valid == 0:
+        return 0.0
+    return n_significant / n_valid
+
+
 def benjamini_hochberg(p_values: list[float], q: float = 0.05) -> list[float]:
     """Apply Benjamini-Hochberg FDR correction.
 
