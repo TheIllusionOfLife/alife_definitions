@@ -187,7 +187,7 @@ def _price_selection(lineage: list[dict]) -> dict:
     for event in lineage:
         children_by_parent[event["parent_stable_id"]].append(event)
 
-    if len(children_by_parent) < 3:
+    if len(children_by_parent) < 2:
         return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
 
     # w_i = number of offspring (fitness)
@@ -195,7 +195,13 @@ def _price_selection(lineage: list[dict]) -> dict:
     parent_fitness = []
     parent_trait = []
     for children in children_by_parent.values():
-        distances = [c.get("parent_child_genome_distance", 0.0) for c in children]
+        distances = [
+            c.get("parent_child_genome_distance", 0.0)
+            for c in children
+            if np.isfinite(c.get("parent_child_genome_distance", 0.0))
+        ]
+        if not distances:
+            continue
         parent_fitness.append(len(children))
         parent_trait.append(float(np.mean(distances)))
 
@@ -203,11 +209,15 @@ def _price_selection(lineage: list[dict]) -> dict:
     z = np.array(parent_trait, dtype=float)
     w_bar = np.mean(w)
 
-    if w_bar == 0 or len(w) < 3:
+    if w_bar == 0 or len(w) < 2:
         return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
 
     # Price selection: Cov(w, z) / w_bar
-    selection = float(np.cov(w, z, ddof=1)[0, 1] / w_bar)
+    cov_matrix = np.cov(w, z, ddof=1)
+    cov_wz = cov_matrix[0, 1]
+    if not np.isfinite(cov_wz):
+        return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
+    selection = float(cov_wz / w_bar)
 
     # Transmission bias: E(w · Δz) / w_bar
     # Requires multi-generation parent-to-grandchild tracking; approximate as 0
