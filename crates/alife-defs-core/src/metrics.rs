@@ -68,6 +68,10 @@ pub struct LineageEvent {
     pub genome_hash: u64, // FNV-1a hash of child genome vector bytes
     #[serde(default)]
     pub family_id: u16, // child's family index (0 in Mode A)
+    #[serde(default)]
+    pub parent_genome_hash: u64, // FNV-1a hash of parent genome vector bytes
+    #[serde(default)]
+    pub parent_child_genome_distance: f32, // normalized L2 distance between parent and child genomes
 }
 
 #[cfg(test)]
@@ -89,6 +93,22 @@ mod lineage_event_tests {
     }
 
     #[test]
+    fn parent_fields_default_to_zero_when_missing_from_json() {
+        // Backward-compat: events persisted before Phase 1 lack the new fields.
+        let json = r#"{
+            "step": 1,
+            "parent_stable_id": 10,
+            "child_stable_id": 20,
+            "generation": 3,
+            "genome_hash": 999,
+            "family_id": 2
+        }"#;
+        let event: LineageEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.parent_genome_hash, 0);
+        assert!((event.parent_child_genome_distance - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn family_id_round_trips_through_json() {
         let original = LineageEvent {
             step: 5,
@@ -97,11 +117,35 @@ mod lineage_event_tests {
             generation: 7,
             genome_hash: 42,
             family_id: 3,
+            parent_genome_hash: 0,
+            parent_child_genome_distance: 0.0,
         };
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: LineageEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.family_id, 3);
         assert_eq!(deserialized.step, 5);
+    }
+
+    #[test]
+    fn parent_fields_round_trip_through_json() {
+        let original = LineageEvent {
+            step: 10,
+            parent_stable_id: 100,
+            child_stable_id: 200,
+            generation: 3,
+            genome_hash: 555,
+            family_id: 1,
+            parent_genome_hash: 12345,
+            parent_child_genome_distance: 0.042,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: LineageEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.parent_genome_hash, 12345);
+        assert!(
+            (deserialized.parent_child_genome_distance - 0.042).abs() < 1e-5,
+            "parent_child_genome_distance should round-trip: got {}",
+            deserialized.parent_child_genome_distance
+        );
     }
 }
 

@@ -2203,3 +2203,122 @@ fn set_config_rebuilds_resource_field_on_patch_param_change() {
         "rate_multiplier must have variance after set_config, got min={min} max={max}"
     );
 }
+
+// ── Phase 1: parent_genome_hash + parent_child_genome_distance ──
+
+#[test]
+fn lineage_event_has_parent_genome_hash() {
+    // When reproduction occurs, parent_genome_hash must be non-zero
+    // (FNV-1a of any genome data is never exactly 0 in practice).
+    let mut world = make_world(10, 100.0);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.organisms[0].metabolic_state.energy = 1.0;
+    world.organisms[0].boundary_integrity = 1.0;
+    world.organisms[0].maturity = 1.0;
+    let summary = world.run_experiment(20, 20);
+    assert!(
+        summary.total_reproduction_events >= 1,
+        "reproduction must occur for this test to be valid"
+    );
+    let event = &summary.lineage_events[0];
+    assert!(
+        event.parent_genome_hash != 0,
+        "parent_genome_hash should be non-zero for FNV-1a hashed genome"
+    );
+}
+
+#[test]
+fn lineage_event_parent_hash_differs_from_child_hash_when_mutated() {
+    // With evolution enabled, parent and child genome hashes should differ
+    // (unless the extremely rare case of zero mutations occurs).
+    let mut world = make_world(10, 100.0);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.enable_evolution = true;
+    world.config.mutation_point_rate = 0.5; // high rate to ensure mutation
+    world.organisms[0].metabolic_state.energy = 1.0;
+    world.organisms[0].boundary_integrity = 1.0;
+    world.organisms[0].maturity = 1.0;
+    let summary = world.run_experiment(20, 20);
+    assert!(
+        summary.total_reproduction_events >= 1,
+        "reproduction must occur for this test to be valid"
+    );
+    // With 50% mutation rate across many genes, at least one event should show divergence
+    let any_differ = summary
+        .lineage_events
+        .iter()
+        .any(|e| e.parent_genome_hash != e.genome_hash);
+    assert!(
+        any_differ,
+        "with high mutation rate, at least one lineage event should have parent_hash != child_hash"
+    );
+}
+
+#[test]
+fn lineage_event_genome_distance_positive_when_mutated() {
+    // With evolution enabled and high mutation rate, distance should be > 0.
+    let mut world = make_world(10, 100.0);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.enable_evolution = true;
+    world.config.mutation_point_rate = 0.5;
+    world.organisms[0].metabolic_state.energy = 1.0;
+    world.organisms[0].boundary_integrity = 1.0;
+    world.organisms[0].maturity = 1.0;
+    let summary = world.run_experiment(20, 20);
+    assert!(
+        summary.total_reproduction_events >= 1,
+        "reproduction must occur for this test to be valid"
+    );
+    let any_positive = summary
+        .lineage_events
+        .iter()
+        .any(|e| e.parent_child_genome_distance > 0.0);
+    assert!(
+        any_positive,
+        "with high mutation rate, at least one event should have positive genome distance"
+    );
+}
+
+#[test]
+fn lineage_event_genome_distance_zero_when_evolution_disabled() {
+    // With evolution disabled, child genome is an exact clone → distance = 0.
+    let mut world = make_world(10, 100.0);
+    world.config.enable_metabolism = false;
+    world.config.enable_boundary_maintenance = false;
+    world.config.death_boundary_threshold = 0.0;
+    world.config.boundary_collapse_threshold = 0.0;
+    world.config.death_energy_threshold = 0.0;
+    world.config.enable_evolution = false;
+    world.organisms[0].metabolic_state.energy = 1.0;
+    world.organisms[0].boundary_integrity = 1.0;
+    world.organisms[0].maturity = 1.0;
+    let summary = world.run_experiment(20, 20);
+    assert!(
+        summary.total_reproduction_events >= 1,
+        "reproduction must occur for this test to be valid"
+    );
+    for event in &summary.lineage_events {
+        assert!(
+            event.parent_child_genome_distance == 0.0,
+            "evolution disabled → genome distance must be 0.0, got {}",
+            event.parent_child_genome_distance
+        );
+        // Parent hash should equal child hash when no mutation
+        assert_eq!(
+            event.parent_genome_hash, event.genome_hash,
+            "evolution disabled → parent_genome_hash must equal child genome_hash"
+        );
+    }
+}

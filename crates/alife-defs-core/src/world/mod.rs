@@ -1068,15 +1068,29 @@ impl World {
             family_id: parent_family_id,
         };
         self.next_organism_stable_id = self.next_organism_stable_id.saturating_add(1);
-        let genome_hash = {
+        let fnv1a = |data: &[f32]| -> u64 {
             const OFFSET: u64 = 0xcbf29ce484222325;
             const PRIME: u64 = 0x100000001b3;
-            child
-                .genome
-                .data()
-                .iter()
+            data.iter()
                 .flat_map(|f| f.to_le_bytes())
                 .fold(OFFSET, |h, b| (h ^ b as u64).wrapping_mul(PRIME))
+        };
+        let parent_genome_hash = fnv1a(self.organisms[parent_idx].genome.data());
+        let genome_hash = fnv1a(child.genome.data());
+        let parent_child_genome_distance = {
+            let parent_data = self.organisms[parent_idx].genome.data();
+            let child_data = child.genome.data();
+            let n = parent_data.len();
+            if n == 0 {
+                0.0f32
+            } else {
+                let sum_sq: f32 = parent_data
+                    .iter()
+                    .zip(child_data.iter())
+                    .map(|(p, c)| (p - c).powi(2))
+                    .sum();
+                (sum_sq / n as f32).sqrt()
+            }
         };
         self.lineage_events.push(LineageEvent {
             step: self.step_index,
@@ -1085,6 +1099,8 @@ impl World {
             generation: child_generation,
             genome_hash,
             family_id: parent_family_id,
+            parent_genome_hash,
+            parent_child_genome_distance,
         });
         self.organisms.push(child);
         self.org_toroidal_sums.push([0.0, 0.0, 0.0, 0.0]);
