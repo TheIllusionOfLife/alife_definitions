@@ -189,7 +189,7 @@ def _score_degradation(
 
     ablation_fid = _CRITERION_ABLATION_FAMILY.get(criterion)
 
-    if ablation_fid is not None and ablation_fid != family_id:
+    if ablation_fid is not None and ablation_fid != family_id and ablation_fid in all_families:
         # Compare target family vs the family that lacks this criterion
         ablated_signal = all_families[ablation_fid][signal_name]
 
