@@ -147,6 +147,41 @@ mod lineage_event_tests {
             deserialized.parent_child_genome_distance
         );
     }
+
+    #[test]
+    fn fnv1a_deterministic_known_value() {
+        // Verify FNV-1a hash of a known 3-element f32 genome: [1.0, 0.0, -1.0]
+        const OFFSET: u64 = 0xcbf29ce484222325;
+        const PRIME: u64 = 0x100000001b3;
+        let data: [f32; 3] = [1.0, 0.0, -1.0];
+        let hash = data
+            .iter()
+            .flat_map(|f| f.to_le_bytes())
+            .fold(OFFSET, |h, b| (h ^ b as u64).wrapping_mul(PRIME));
+        // Pre-computed expected value (run once, captured here for regression)
+        assert_eq!(hash, 17266292903200289909, "FNV-1a hash mismatch for [1.0, 0.0, -1.0]");
+    }
+
+    #[test]
+    fn genome_distance_deterministic_known_value() {
+        // parent=[1.0, 0.0, -1.0], child=[0.0, 0.0, 0.0]
+        // sum_sq = (1.0-0.0)^2 + (0.0-0.0)^2 + (-1.0-0.0)^2 = 1.0 + 0.0 + 1.0 = 2.0
+        // distance = sqrt(2.0 / 3.0) ≈ 0.8165
+        let parent: [f32; 3] = [1.0, 0.0, -1.0];
+        let child: [f32; 3] = [0.0, 0.0, 0.0];
+        let n = parent.len();
+        let sum_sq: f32 = parent
+            .iter()
+            .zip(child.iter())
+            .map(|(p, c)| (p - c).powi(2))
+            .sum();
+        let distance = (sum_sq / n as f32).sqrt();
+        let expected = (2.0f32 / 3.0).sqrt();
+        assert!(
+            (distance - expected).abs() < 1e-6,
+            "expected {expected}, got {distance}"
+        );
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
