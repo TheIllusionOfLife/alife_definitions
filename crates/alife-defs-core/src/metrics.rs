@@ -159,7 +159,10 @@ mod lineage_event_tests {
             .flat_map(|f| f.to_le_bytes())
             .fold(OFFSET, |h, b| (h ^ b as u64).wrapping_mul(PRIME));
         // Pre-computed expected value (run once, captured here for regression)
-        assert_eq!(hash, 17266292903200289909, "FNV-1a hash mismatch for [1.0, 0.0, -1.0]");
+        assert_eq!(
+            hash, 17266292903200289909,
+            "FNV-1a hash mismatch for [1.0, 0.0, -1.0]"
+        );
     }
 
     #[test]

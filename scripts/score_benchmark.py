@@ -57,11 +57,6 @@ def build_score_row(
         for crit_name, crit_val in r.criteria.items():
             row[f"{defn}_{crit_name}"] = crit_val
 
-    # D3: always output both score variants for analysis
-    if "D3" in results:
-        d3_crit = results["D3"].criteria
-        row["D3_score_combined"] = d3_crit.get("score_closure_x_persistence", 0.0)
-
     return row
 
 

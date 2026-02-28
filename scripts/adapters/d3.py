@@ -93,7 +93,7 @@ def score_d3(
         criteria={
             "closure": float(closure),
             "persistence": float(persistence),
-            "score_closure_only": float(score_closure_only),
+            "score_closure_only": float(np.clip(score_closure_only, 0.0, 1.0)),
             "score_closure_x_persistence": float(np.clip(score_closure_x_persistence, 0.0, 1.0)),
         },
         metadata={
