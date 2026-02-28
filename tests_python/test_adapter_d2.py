@@ -90,3 +90,36 @@ class TestD2Metadata:
     def test_family_id_matches(self, d2_scores):
         for fid, result in d2_scores.items():
             assert result.family_id == fid
+
+    def test_price_metadata_present(self, d2_scores):
+        """Price equation components should appear in metadata for families with lineage."""
+        for fid in [0, 1]:
+            meta = d2_scores[fid].metadata
+            assert "price_selection" in meta, f"F{fid + 1} missing price_selection"
+            assert "price_transmission" in meta, f"F{fid + 1} missing price_transmission"
+
+
+# ---------------------------------------------------------------------------
+# Price equation
+# ---------------------------------------------------------------------------
+
+
+class TestD2PriceEquation:
+    def test_f1_price_selection_positive(self, d2_scores):
+        """F1 has reproduction + evolution → Price selection should be non-zero."""
+        # With evolving population, Cov(w, z) should be non-trivial
+        meta = d2_scores[0].metadata
+        # selection can be positive or negative depending on dynamics
+        # but it should not be exactly 0.0 when lineage events exist
+        if d2_scores[0].metadata.get("n_lineage_events", 0) >= 10:
+            assert meta["price_selection"] != 0.0
+
+    def test_f3_price_selection_zero(self, d2_scores):
+        """F3 has no lineage events → Price selection should be 0."""
+        meta = d2_scores[2].metadata
+        assert meta.get("price_selection", 0.0) == 0.0
+
+    def test_family_ordering_preserved(self, d2_scores):
+        """F1 and F2 should still score higher than F3 with Price equation."""
+        assert d2_scores[0].score > d2_scores[2].score
+        assert d2_scores[1].score > d2_scores[2].score

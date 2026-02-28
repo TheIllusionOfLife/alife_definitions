@@ -11,8 +11,9 @@ Aggregate: geometric mean (all three necessary).
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 import numpy as np
-from scipy import stats
 
 from .common import (
     AdapterResult,
@@ -55,7 +56,8 @@ def score_d2(
 
     s_reprod = _score_reproduction(series, lineage)
     s_hered = _score_heritability(lineage)
-    s_select = _score_selection(series)
+    price = _price_selection(lineage)
+    s_select = price["score"]
 
     criteria = {
         "S_reprod": s_reprod,
@@ -80,6 +82,8 @@ def score_d2(
         metadata={
             "n_lineage_events": len(lineage),
             "n_samples": len(run_summary["samples"]),
+            "price_selection": price["selection"],
+            "price_transmission": price["transmission"],
         },
     )
 
@@ -168,31 +172,49 @@ def _score_heritability(lineage: list[dict]) -> float:
     return float(np.clip(h2, 0.0, 1.0))
 
 
-def _score_selection(series: dict[str, np.ndarray]) -> float:
-    """S_select — Differential success via genome-fitness correlation."""
-    genome_div = series["genome_diversity"]
-    alive = series["alive_count"]
+def _price_selection(lineage: list[dict]) -> dict:
+    """Price equation decomposition from lineage events.
 
-    if len(genome_div) < 4 or np.std(genome_div) == 0 or np.std(alive) == 0:
-        return 0.0
+    Returns dict with keys: selection, transmission, score.
+    Uses parent_child_genome_distance as the continuous trait z,
+    and offspring count per parent as fitness w.
+    """
+    if len(lineage) < 10:
+        return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
 
-    # Spearman correlation between genome diversity and alive count
-    rho, _ = stats.spearmanr(genome_div, alive)
-    if np.isnan(rho):
-        return 0.0
+    # Group children by parent
+    children_by_parent: dict[int, list[dict]] = defaultdict(list)
+    for event in lineage:
+        children_by_parent[event["parent_stable_id"]].append(event)
 
-    # Also check for directional drift
-    drift = series["mean_genome_drift"]
-    half = len(drift) // 2
-    if half > 0:
-        early = drift[:half]
-        late = drift[half:]
-        if len(early) >= 2 and len(late) >= 2 and np.std(early) > 0:
-            _, p_drift = stats.mannwhitneyu(early, late, alternative="two-sided")
-            drift_bonus = 0.2 if p_drift < 0.05 else 0.0
-        else:
-            drift_bonus = 0.0
-    else:
-        drift_bonus = 0.0
+    if len(children_by_parent) < 3:
+        return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
 
-    return float(np.clip(abs(rho) + drift_bonus, 0.0, 1.0))
+    # w_i = number of offspring (fitness)
+    # z_i = mean parent-child genome distance (trait: fidelity of transmission)
+    parent_fitness = []
+    parent_trait = []
+    for children in children_by_parent.values():
+        distances = [c.get("parent_child_genome_distance", 0.0) for c in children]
+        parent_fitness.append(len(children))
+        parent_trait.append(float(np.mean(distances)))
+
+    w = np.array(parent_fitness, dtype=float)
+    z = np.array(parent_trait, dtype=float)
+    w_bar = np.mean(w)
+
+    if w_bar == 0 or len(w) < 3:
+        return {"selection": 0.0, "transmission": 0.0, "score": 0.0}
+
+    # Price selection: Cov(w, z) / w_bar
+    selection = float(np.cov(w, z, ddof=1)[0, 1] / w_bar)
+
+    # Transmission bias: E(w · Δz) / w_bar
+    # Requires multi-generation parent-to-grandchild tracking; approximate as 0
+    transmission = 0.0
+
+    # Score: map |selection| to [0, 1] — scale factor 5.0 chosen so that
+    # moderate covariance (~0.2) maps to ~1.0
+    score = float(np.clip(abs(selection) * 5.0, 0.0, 1.0))
+
+    return {"selection": selection, "transmission": transmission, "score": score}
