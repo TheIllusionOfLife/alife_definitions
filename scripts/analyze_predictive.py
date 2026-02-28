@@ -268,7 +268,9 @@ def extract_lineage_diversity(
     if not tail:
         return 0.0
 
-    hashes = [e.get("genome_hash", 0) for e in tail]
+    hashes = [e["genome_hash"] for e in tail if "genome_hash" in e]
+    if not hashes:
+        return 0.0
     unique = len(set(hashes))
     total = len(hashes)
 
@@ -357,6 +359,7 @@ def calibrate_definition(
     defn: str,
     cal_data: list[dict],
     tail_fraction: float = 0.3,
+    target: str = "alive_auc",
 ) -> float:
     """Calibrate threshold for a single definition on calibration data.
 
@@ -364,11 +367,12 @@ def calibrate_definition(
         defn: Definition name ("D1", "D2", etc.).
         cal_data: List of {"run": dict, "regime": str, "seed": int}.
         tail_fraction: Fraction of run tail for alive_count AUC.
+        target: Prediction target from TARGET_EXTRACTORS.
 
     Returns:
         Optimal threshold maximizing balanced accuracy.
     """
-    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction, target=target)
     scores = scores_by_defn[defn]
     if not scores:
         return 0.5
@@ -382,12 +386,13 @@ def evaluate_definition(
     test_data: list[dict],
     threshold: float,
     tail_fraction: float = 0.3,
+    target: str = "alive_auc",
 ) -> dict:
     """Evaluate a definition on test data with a frozen threshold.
 
     Returns dict with roc_auc, precision, recall, balanced_accuracy.
     """
-    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction, target=target)
     scores = scores_by_defn[defn]
     labels, _median = _make_labels(aucs)
 
@@ -472,13 +477,13 @@ def main() -> None:
 
     for defn in DEFINITIONS:
         log(f"Calibrating {defn}...")
-        thresh = calibrate_definition(defn, cal_data)
+        thresh = calibrate_definition(defn, cal_data, target=args.target)
         results["frozen_thresholds"][defn] = thresh
         log(f"  {defn} threshold: {thresh:.3f}")
 
         if test_data:
             log(f"Evaluating {defn} on test set...")
-            metrics = evaluate_definition(defn, test_data, thresh)
+            metrics = evaluate_definition(defn, test_data, thresh, target=args.target)
             results["definitions"][defn] = metrics
             log(f"  ROC-AUC: {metrics['roc_auc']:.3f}")
         else:
