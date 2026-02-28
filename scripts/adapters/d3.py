@@ -171,7 +171,7 @@ def _build_influence_graph(
     n_significant = 0
     for r, p_corr in zip(pair_results, corrected_ps, strict=True):
         r["p_corrected"] = p_corr
-        r["significant"] = p_corr < q
+        r["significant"] = p_corr <= q
         if r["significant"]:
             edges.append((r["src_idx"], r["tgt_idx"]))
             n_significant += 1
