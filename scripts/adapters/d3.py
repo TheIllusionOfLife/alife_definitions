@@ -46,6 +46,7 @@ def score_d3(
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
     mode: str = "closure_only",
+    fdr_q: float | None = None,
 ) -> AdapterResult:
     """Score a family against D3 (autonomy/organizational closure).
 
@@ -54,15 +55,19 @@ def score_d3(
               addressing reviewer concern about circularity with alive-count AUC.
               ``"closure_x_persistence"`` uses closure × persistence (legacy).
               Both values are always available in ``criteria``.
+        fdr_q: Optional FDR q-value override for sensitivity analysis.
+               Defaults to module-level ``FDR_Q`` (0.05).
     """
     if mode not in ("closure_only", "closure_x_persistence"):
         raise ValueError(f"Invalid D3 mode: {mode!r}")
+
+    q = fdr_q if fdr_q is not None else FDR_Q
 
     rng = np.random.default_rng(3026 + family_id)
     series = extract_family_series(run_summary, family_id)
 
     # Build directed influence matrix
-    edges, n_significant, edge_details = _build_influence_graph(series, rng)
+    edges, n_significant, edge_details = _build_influence_graph(series, rng, q=q)
 
     # Find largest SCC — singleton SCCs don't count as closure
     scc_size = _largest_scc_size(edges)
@@ -114,6 +119,8 @@ def score_d3(
 def _build_influence_graph(
     series: dict[str, np.ndarray],
     rng: np.random.Generator,
+    *,
+    q: float = FDR_Q,
 ) -> tuple[list[tuple[int, int]], int, list[dict]]:
     """Build directed influence graph from TE and Granger tests.
 
@@ -158,13 +165,13 @@ def _build_influence_graph(
 
     # BH-FDR correction across all pairs
     raw_ps = [r["min_p"] for r in pair_results]
-    corrected_ps = benjamini_hochberg(raw_ps, q=FDR_Q)
+    corrected_ps = benjamini_hochberg(raw_ps, q=q)
 
     edges: list[tuple[int, int]] = []
     n_significant = 0
     for r, p_corr in zip(pair_results, corrected_ps, strict=True):
         r["p_corrected"] = p_corr
-        r["significant"] = p_corr < FDR_Q
+        r["significant"] = p_corr < q
         if r["significant"]:
             edges.append((r["src_idx"], r["tgt_idx"]))
             n_significant += 1

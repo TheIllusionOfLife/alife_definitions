@@ -79,12 +79,19 @@ def score_d1(
     *,
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
+    weights: tuple[float, float, float] | None = None,
 ) -> AdapterResult:
     """Score a family against D1 (textbook 7-criteria).
+
+    Args:
+        weights: Optional (w_alpha, w_beta, w_gamma) tuple overriding
+                 module-level W_ALPHA/W_BETA/W_GAMMA for sensitivity analysis.
 
     Returns an AdapterResult with per-criterion scores in criteria dict
     and aggregate geometric mean as the overall score.
     """
+    w_a, w_b, w_g = weights if weights is not None else (W_ALPHA, W_BETA, W_GAMMA)
+
     rng = np.random.default_rng(2026 + family_id)
 
     # Extract time series for target family and all families
@@ -109,9 +116,9 @@ def score_d1(
 
         if is_ablated:
             # Hard cap: the criterion is disabled in this family
-            score = 0.15 * (W_ALPHA * alpha + W_GAMMA * gamma)
+            score = 0.15 * (w_a * alpha + w_g * gamma)
         else:
-            score = W_ALPHA * alpha + W_BETA * _sigmoid_d(beta) + W_GAMMA * gamma
+            score = w_a * alpha + w_b * _sigmoid_d(beta) + w_g * gamma
         criteria_scores[criterion] = float(np.clip(score, 0.0, 1.0))
 
     aggregate = _geometric_mean(list(criteria_scores.values()))
