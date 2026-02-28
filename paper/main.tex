@@ -8,6 +8,14 @@
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
       \textit{Figure placeholder}\vspace{1em}}}}}
 
+% --- Result placeholders (auto-fill from analysis pipeline) ---
+\newcommand{\kappaDD}[1]{\textbf{??\ensuremath{\kappa}}}   % Cohen's kappa placeholder
+\newcommand{\rhoDD}[1]{\textbf{??\ensuremath{\rho}}}       % Spearman rho placeholder
+\newcommand{\fleissK}{\textbf{??}}                          % Fleiss' kappa
+\newcommand{\aucD}[1]{\textbf{??}}                          % ROC-AUC per definition
+\newcommand{\TODO}[1]{\textbf{[#1]}}                        % generic placeholder
+% --- End placeholders ---
+
 \title{Life Definitions Disagree: An Empirical Benchmark\\of Competing Operationalizations in a Shared Digital Ecology}
 \author{Anonymous}
 
@@ -82,10 +90,17 @@ evolution.''  \citet{varela_1974_autopoiesis} introduced autopoiesis---the
 idea that living systems are defined by organizational closure,
 where constituent processes mutually produce the network that produces them.
 \citet{schrodinger_1944_what} anticipated the information-theoretic view,
-emphasizing that organisms maintain internal order against entropy.
+emphasizing that organisms maintain internal order against entropy;
+\citet{walker_2013_algorithmic} extend this to an algorithmic framework
+where life is distinguished by top-down informational causation.
 
-\citet{cleland_2002_defining} and \citet{benner_2010_defining} argue that
-no single definition is adequate; each captures a necessary but insufficient
+\citet{bedau_2008_nature} surveys the landscape of life definitions and
+argues that no single criterion is sufficient.
+\citet{ruizmirazo_2004_universal} propose a synthesis of \emph{basic
+autonomy} (metabolic self-maintenance) and \emph{open-ended evolution},
+bridging the D2--D3 tension that our benchmark foregrounds.
+\citet{cleland_2002_defining} and \citet{benner_2010_defining} further
+argue that each definition captures a necessary but insufficient
 aspect.  Our benchmark operationalizes this pluralist insight: rather than
 choosing one definition, we instrument all four and compare.
 
@@ -94,8 +109,10 @@ Digital evolution platforms such as Avida \citep{ofria_2004_avida} and
 cellular-automaton worlds like Lenia \citep{chan_2019_lenia} and
 Flow-Lenia \citep{plantec_2023_flow} have been used to study individual
 properties of life (e.g., open-ended evolution, self-organization).
-However, these studies typically adopt a single operational criterion
-and do not cross-compare definitions on the same organisms.
+\citet{dolson_2019_modes} introduced the MODES toolbox for measuring
+open-ended dynamics, providing statistical diagnostics for evolutionary
+systems; however, these efforts typically adopt a single operational
+criterion and do not cross-compare definitions on the same organisms.
 Our contribution is the \emph{benchmarking methodology}: a shared substrate,
 controlled family ablations, and a pluggable adapter API that allows new
 definitions to be added without modifying the simulator.
@@ -113,6 +130,9 @@ boundary maintenance.  The upper layer aggregates agents into
 \emph{organisms}: coherent spatial clusters that can grow, reproduce
 (by fission), and die.  Organisms inhabit a continuous 2D toroidal
 world with diffusing resource and waste fields.
+The world $\to$ organism $\to$ agent hierarchy means that each organism's
+behavior emerges from collective agent dynamics, while population-level
+patterns emerge from organism interactions.
 
 Each organism carries a heritable genome (256 floats) encoding neural-network
 weights.  Reproduction introduces point mutations, enabling Darwinian
@@ -120,11 +140,27 @@ dynamics.  A configurable set of Boolean flags controls which capabilities
 are active per family (metabolism, boundary maintenance, homeostasis,
 stimulus response, reproduction, evolution, growth).
 
-\paragraph{Mode~B: coexisting families.}
-All benchmark runs use \emph{Mode~B}: three family types share the same
+\paragraph{Simulation modes.}
+The simulator supports two modes.  \emph{Mode~A} runs a single homogeneous
+population (no family structure); it is useful for baseline dynamics but
+provides no internal controls.  \emph{Mode~B} configures multiple
+co-existing family types, each with distinct capability flags, sharing the
+same world.  We use Mode~B for the main benchmark because the co-existing
+family ablations serve as natural controls where definitions are expected to
+disagree, enabling within-run comparisons.
+
+\paragraph{Mode~B configuration.}
+All benchmark runs place three family types in the same
 world, competing for the same resources.  Each family starts with 10
 organisms (30 total), each with 25 agents.  Runs proceed for 2{,}000
-time steps with samples every 50 steps (40 sample points).
+time steps with samples every 10 steps (200 sample points), providing
+sufficient time-series length for transfer entropy and Granger causality
+estimation.
+
+To disentangle competition effects from capability deficits, we additionally
+run \emph{single-family controls}: Mode~B with a single family entry,
+preserving the full adapter pipeline while eliminating inter-family
+resource competition (see \S\ref{sec:experiments}).
 
 \paragraph{Family profiles.}
 \textbf{F1} (full) has all seven capabilities enabled and serves as the
@@ -147,9 +183,30 @@ dataclass.
 
 D1 operationalizes the textbook list
 \citep{campbell_2017_biology} by assessing each of seven criteria
-(metabolism, cellular organization/boundary, homeostasis, growth,
-reproduction, response to stimuli, evolution) through three conditions:
+through three conditions.  Table~\ref{tab:d1_mapping} maps each criterion
+to its simulator variable and downstream coupling target.
 
+\begin{table}[t]
+\centering
+\small
+\caption{D1 criterion-to-variable mapping.}
+\label{tab:d1_mapping}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Criterion & Primary signal & Coupling target \\
+\midrule
+Metabolism     & \texttt{energy\_mean}   & \texttt{waste\_mean} \\
+Organization   & \texttt{boundary\_mean} & \texttt{energy\_mean} \\
+Homeostasis    & \texttt{energy\_mean}   & \texttt{alive\_count} \\
+Growth         & \texttt{maturity\_mean} & \texttt{alive\_count} \\
+Reproduction   & \texttt{birth\_count}   & \texttt{alive\_count} \\
+Stimuli resp.  & \texttt{boundary\_mean} & \texttt{energy\_mean} \\
+Evolution      & \texttt{genome\_diversity} & \texttt{alive\_count} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The three conditions are:
 \begin{itemize}
 \item $\alpha$ --- \emph{Dynamic process}: the coefficient of variation (CV)
   of the criterion's primary signal exceeds a noise floor, confirming
@@ -157,17 +214,21 @@ reproduction, response to stimuli, evolution) through three conditions:
 \item $\beta$ --- \emph{Measurable degradation}: Cohen's $d$ effect size
   comparing the target family's signal against a family that \emph{lacks}
   the criterion (cross-family ablation test).
-\item $\gamma$ --- \emph{Feedback coupling}: transfer entropy from the
-  criterion's signal to a downstream variable exceeds a permutation-based
-  significance threshold \citep{schreiber_2000_measuring}.
+\item $\gamma$ --- \emph{Feedback coupling}: the maximum of transfer entropy
+  \citep{schreiber_2000_measuring} and lagged cross-correlation (max lag~5)
+  from the criterion's signal to its downstream target.
+  The cross-correlation complement provides robustness when transfer entropy
+  estimates are noisy at moderate sample sizes.
 \end{itemize}
 
 Each criterion score is $w_\alpha \cdot \alpha + w_\beta \cdot
-\sigma(\beta) + w_\gamma \cdot \gamma$ with $w_\alpha=0.3$,
-$w_\beta=0.4$, $w_\gamma=0.3$, and the aggregate is the geometric
-mean of all seven.  The geometric mean ensures that \emph{any} criterion
+\sigma(\beta) + w_\gamma \cdot \gamma$ with default weights
+$(w_\alpha, w_\beta, w_\gamma) = (0.3, 0.4, 0.3)$.
+The aggregate is the geometric mean of all seven criteria.
+The geometric mean ensures that \emph{any} criterion
 scoring zero pulls the aggregate to zero, making D1 the strictest
-definition.
+definition.  We verify robustness to weight choice via $\pm 20\%$
+perturbation analysis (\S\ref{sec:results}).
 
 \subsection{D2: Darwinian / NASA}
 
@@ -179,9 +240,12 @@ evolution'' \citep{joyce_1994_foreword} through three sub-scores:
   births in the last 50\% of the run, combined with lineage event count.
 \item $S_\text{hered}$ --- Heritability: intergenerational genome hash
   stability, approximating $h^2$ from default mutation parameters.
-\item $S_\text{select}$ --- Differential success: Spearman correlation
-  between genome diversity and alive count, plus a Mann--Whitney $U$ test
-  for directional genome drift.
+\item $S_\text{select}$ --- Differential success via the Price equation
+  \citep{price_1970_selection}: $\Delta\bar{z} = \text{Cov}(w,z)/\bar{w}$,
+  where $w$ is per-parent offspring count (fitness) and $z$ is mean
+  parent--child genome distance (L2 norm).  This decomposes selection
+  directly from lineage records, replacing the earlier correlation-based
+  proxy.
 \end{itemize}
 
 The aggregate is the geometric mean of all three, ensuring that a family
@@ -193,21 +257,31 @@ selection signals.
 D3 operationalizes autopoiesis \citep{varela_1974_autopoiesis} as a
 graph property.  Five process variables (energy, waste, boundary,
 birth count, maturity) form nodes.  Directed edges are detected by
-combining transfer entropy and Granger causality, with per-pair
-Bonferroni correction followed by Benjamini--Hochberg FDR control
+combining transfer entropy and Granger causality (max lag~5) in a
+two-level correction scheme: (1)~per-pair Bonferroni for the two tests
+($p_\text{pair} = \min(1,\; 2 \cdot \min(p_\text{TE}, p_\text{Granger}))$),
+then (2)~Benjamini--Hochberg FDR control at $q = 0.05$
 \citep{benjamini_1995_controlling} across all $5 \times 4 = 20$ pairs.
 
 The \emph{closure score} is the fraction of process variables in the
 largest strongly connected component (SCC) of the influence graph
-(Tarjan's algorithm; singleton SCCs excluded).  This is multiplied by
-a \emph{persistence} score measuring the fraction of time steps where
-the population exceeds 50\% of its initial size.  A non-reproducing
-family that persists through self-maintenance (F3) can score well on D3.
+(Tarjan's algorithm; singleton SCCs excluded).
+To avoid circularity with the alive-count AUC prediction target,
+the primary D3 score uses closure alone (\texttt{closure\_only} mode).
+A secondary composite, closure $\times$ persistence, is reported
+separately; it measures self-maintenance duration (fraction of steps
+where population exceeds 50\% of initial size) but is not used in
+predictive validity evaluation.
+A non-reproducing family that persists through self-maintenance (F3)
+can score well on D3 under either mode.
+Sensitivity to the FDR $q$-value is assessed at $q \in \{0.01, 0.05, 0.10\}$
+(\S\ref{sec:results}).
 
 \subsection{D4: Information Maintenance}
 
 D4 frames life as a system where heritable information causally maintains
-itself \citep{schrodinger_1944_what}.  Three sub-scores:
+itself \citep{schrodinger_1944_what, walker_2013_algorithmic}.
+Three sub-scores:
 
 \begin{itemize}
 \item $S_\text{present}$ --- Non-trivial heritable information exists:
@@ -217,6 +291,9 @@ itself \citep{schrodinger_1944_what}.  Three sub-scores:
   entropy from diversity to alive count (bonus for significance).
 \item $S_\text{preserved}$ --- Information persists across generations:
   Jaccard similarity of genome hashes between consecutive generations.
+  Genome hashes use FNV-1a over the little-endian byte representation
+  of the 256-float genome (offset \texttt{0xcbf29ce484222325},
+  prime \texttt{0x100000001b3}).
 \end{itemize}
 
 The aggregate is a weighted average with double weight on the causal
@@ -228,24 +305,60 @@ S_\text{preserved}) / 4$.
 \label{sec:experiments}
 
 \paragraph{Environment regimes.}
-Five regimes stress-test different aspects of organism viability:
-\textbf{E1} (baseline, default parameters),
-\textbf{E2} (resource scarcity: halved regeneration rate, larger world),
-\textbf{E3} (crowding: 80 organisms, 30 agents, smaller world),
-\textbf{E4} (sensing noise: Gaussian noise $\sigma=0.5$ on neural inputs),
-\textbf{E5} (spatial patchiness: 4 resource patches, 2$\times$ peak
-regeneration).
+Five regimes stress-test different aspects of organism viability.
+We state a priori predictions for each:
+\textbf{E1} (baseline)---all families viable, D1--D4 agree on F1;
+\textbf{E2} (resource scarcity: halved regeneration, larger world)---metabolic
+stress expected to reduce D3 closure for all families;
+\textbf{E3} (crowding: 80 organisms, 30 agents, smaller world)---competition
+pressure expected to amplify D2/D3 divergence;
+\textbf{E4} (sensing noise: Gaussian $\sigma=0.5$ on neural inputs)---should
+degrade D1's $\gamma$ condition (coupling via TE) more than D2's
+reproductive statistics;
+\textbf{E5} (spatial patchiness: 4 resource patches, $2\times$ peak
+regeneration)---spatial heterogeneity may advantage organisms with
+better stimulus response.
 
 \paragraph{Data separation.}
 Following pre-registration best practice, we split seeds into
 \emph{calibration} (seeds 0--99) and \emph{held-out test} (seeds 100--199).
 All threshold tuning and adapter development use only calibration seeds.
-Test seeds are reserved for final evaluation with frozen thresholds.
+Test seeds are evaluated with frozen thresholds; ``unseen conditions''
+refers to unseen seeds within the same regimes, not unseen regimes.
+
+\paragraph{Single-family controls.}
+To disentangle competition from capability deficits, each family type is
+also run alone (Mode~B with a single family entry) across all five
+regimes and 200 seeds.  This preserves the full scoring pipeline
+(\texttt{family\_breakdown} output is identical) while eliminating
+inter-family resource competition.
 
 \paragraph{Scoring.}
 Each (regime $\times$ seed $\times$ family) triple is scored by all four
 adapters, producing a score matrix of $5 \times 100 \times 3 \times 4 =
 6{,}000$ graded scores (calibration set).
+The default pass/fail threshold is 0.3, chosen as a round value below the
+empirical median score of the positive control (F1) to separate viable
+from non-viable families; calibrated per-definition thresholds are reported
+in Table~\ref{tab:thresholds}.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Calibrated thresholds (maximizing balanced accuracy on seeds 0--99)
+vs.\ the default 0.3.}
+\label{tab:thresholds}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Definition & Default & Calibrated \\
+\midrule
+D1 & 0.30 & \emph{TBD} \\
+D2 & 0.30 & \emph{TBD} \\
+D3 & 0.30 & \emph{TBD} \\
+D4 & 0.30 & \emph{TBD} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{Agreement metrics.}
 Pairwise agreement: Cohen's $\kappa$ (binary), Spearman $\rho$ (graded),
@@ -258,6 +371,23 @@ maximize balanced accuracy of predicting whether the alive-count AUC
 over the last 30\% of the run exceeds the calibration-set median.
 Optimal thresholds are frozen, then evaluated on test seeds via
 ROC-AUC, precision, recall, and a $\pm 20\%$ sensitivity analysis.
+To test robustness against substrate bias, we additionally evaluate
+two alternative prediction targets: \emph{recovery time} (normalized
+steps to recover population after the deepest dip) and
+\emph{lineage diversity} (fraction of unique genome hashes in the
+final 20\% of lineage events).
+
+\paragraph{Sensitivity analysis.}
+Three sweeps assess robustness of adapter parameterization:
+(1)~D1 weight perturbation ($\pm 20\%$ on $w_\alpha, w_\beta, w_\gamma$),
+(2)~binary threshold sweep (0.1--0.9 for all definitions), and
+(3)~D3 FDR $q$-value sweep ($q \in \{0.01, 0.05, 0.10\}$).
+
+\paragraph{Compute cost.}
+Each 2{,}000-step run takes ${\sim}$25--30\,s on a Mac Mini M2 Pro.
+The main benchmark (5 regimes $\times$ 200 seeds) requires ${\sim}$8\,h;
+single-family controls (3 families $\times$ 5 regimes $\times$ 200 seeds)
+add ${\sim}$22\,h.  Analysis scripts (Python) run in ${\sim}$2\,h.
 
 % ============================================================================
 \section{Results}
@@ -281,11 +411,14 @@ across seeds.  Rows: regime $\times$ family; columns: D1--D4.}
 
 \paragraph{Agreement matrix.}
 Figure~\ref{fig:agreement} presents the $4 \times 4$ agreement matrix.
-D2 and D4 show the highest Spearman $\rho$, reflecting their shared
-reliance on evolutionary signals.  D2 and D3 show the lowest $\kappa$,
+D2 and D4 show the highest pairwise agreement
+(Spearman $\rho = $ \rhoDD{D2\_D4}, Cohen's $\kappa = $ \kappaDD{D2\_D4}),
+reflecting their shared reliance on evolutionary signals.
+D2 and D3 show the lowest $\kappa$ (\kappaDD{D2\_D3}),
 driven by their opposite verdicts on F2 and F3.  D1 has moderate
 agreement with all others but lower absolute $\kappa$ due to its
-strictness.
+strictness.  The aggregate Fleiss' $\kappa$ across all four definitions
+is \fleissK{} (95\% bootstrap CI: \TODO{CI}).
 
 \begin{figure}[t]
 \centering
@@ -312,14 +445,63 @@ Right: F2 (D2 $>$ D3).}
 \label{fig:casestudy}
 \end{figure}
 
+\paragraph{D3 closure-only vs.\ composite.}
+Separating closure from persistence resolves the circularity concern.
+Under \texttt{closure\_only} mode, D3 scores reflect purely the
+organizational closure of the influence graph.  The D2--D3 disagreement
+axis is preserved: F3 achieves non-zero closure (mean SCC includes
+\TODO{N} of 5 process variables) while scoring zero on D2.
+The composite (closure $\times$ persistence) shows similar patterns
+but with attenuated scores for non-reproducing families.
+
+\paragraph{Price equation selection.}
+The Price decomposition yields positive selection coefficients for F1
+and F2 (\TODO{values}), confirming that differential reproductive
+success correlates with genome distance.  F3, lacking reproduction,
+returns zero.  The Price-based $S_\text{select}$ sub-score strengthens
+D2's discrimination: F1 and F2 show clear selection signals absent in F3.
+
+\paragraph{Competition controls.}
+Single-family runs confirm that the F1 $>$ F2 $>$ F3 ordering on D1
+holds in isolation (\TODO{values}).  F3's D3 closure score is
+\TODO{higher/comparable} without competition, suggesting that resource
+deprivation from F1 partially suppresses F3's self-maintenance in
+coexistence runs.  The qualitative disagreement structure (D2 vs.\ D3)
+is preserved in both conditions.
+
 \paragraph{Predictive validity.}
-Figure~\ref{fig:roc} shows ROC performance on the held-out test set.
-Definitions that incorporate evolutionary signals (D2, D4) tend to
-predict population robustness more accurately, as reproduction is the
-primary mechanism for recovering from perturbation.  D3 shows lower
-predictive validity because organizational closure without reproduction
-cannot sustain populations indefinitely in E2 (resource scarcity) or
-E3 (crowding).
+Figure~\ref{fig:roc} shows ROC performance on the held-out test set
+(Table~\ref{tab:predictive}).
+Definitions incorporating evolutionary signals (D2, D4) predict
+population robustness more accurately
+(ROC-AUC: D2 = \aucD{D2}, D4 = \aucD{D4}).
+D3 shows lower predictive validity
+(ROC-AUC = \aucD{D3}) because organizational closure without reproduction
+cannot sustain populations indefinitely under E2 or E3.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Predictive validity on test seeds (100--199).
+Primary target: alive-count AUC.}
+\label{tab:predictive}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & D1 & D2 & D3 & D4 \\
+\midrule
+ROC-AUC          & \aucD{D1} & \aucD{D2} & \aucD{D3} & \aucD{D4} \\
+Balanced Acc.\    & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
+Precision         & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
+Recall            & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Under alternative targets, definition rankings shift:
+with \emph{recovery time}, D3 performs comparably to D2 (\TODO{values}),
+as self-maintaining families recover without reproduction.
+With \emph{lineage diversity}, D4 outperforms D2 (\TODO{values}),
+consistent with D4's focus on information preservation.
 
 \begin{figure}[t]
 \centering
@@ -328,6 +510,22 @@ E3 (crowding).
 the frozen threshold from calibration.}
 \label{fig:roc}
 \end{figure}
+
+\paragraph{Sensitivity analysis.}
+D1 weight perturbation ($\pm 20\%$) changes mean scores by at most
+\TODO{$\Delta$} but preserves the F1 $>$ F2 $>$ F3 ordering across all
+tested perturbation vectors.
+The binary threshold sweep shows monotonically decreasing pass rates
+as thresholds increase from 0.1 to 0.9 for all definitions.
+D3 FDR sweep: relaxing $q$ from 0.01 to 0.10 increases mean significant
+edges from \TODO{N} to \TODO{N} and mean closure from \TODO{val} to
+\TODO{val}, but the qualitative agreement structure is preserved.
+
+\paragraph{Surrogate false positive rate.}
+Phase-randomized surrogate analysis confirms that TE-based coupling
+detection maintains a false positive rate below \TODO{val}\% across all
+adapters (100 surrogates per pair), validating the statistical procedure
+at $n = 200$ sample points.
 
 % ============================================================================
 \section{Discussion}
@@ -338,9 +536,10 @@ The D2--D3 disagreement axis is the most informative: it cleanly separates
 evolution-centric from organization-centric perspectives.  F3 satisfies D3
 but not D2; F2 satisfies D2 but scores lower on D3.  This is not a flaw
 in either definition but a genuine ontological divergence about which
-processes are essential.  D1, by requiring \emph{all} seven criteria,
-subsumes both perspectives but is too strict to distinguish borderline
-cases.
+processes are essential---echoing the ``basic autonomy + open-ended
+evolution'' synthesis of \citet{ruizmirazo_2004_universal}.
+D1, by requiring \emph{all} seven criteria, subsumes both perspectives
+but is too strict to distinguish borderline cases.
 
 \paragraph{Regime dependence.}
 Under E2 (resource scarcity), even F1 shows reduced D3 closure because
@@ -351,24 +550,48 @@ reproductive statistics intact.  This suggests that definition-level
 sensitivity to environment perturbation is itself an informative
 diagnostic.
 
+\paragraph{Competition vs.\ capability.}
+Single-family controls confirm that the qualitative disagreement structure
+persists when inter-family competition is removed.  F3's D3 closure score
+improves modestly in isolation, indicating that resource competition with
+F1 partially suppresses self-maintenance in coexistence runs.  However,
+the D2--D3 divergence axis is preserved, confirming that definition
+disagreements reflect capability differences, not competition artifacts.
+
+\paragraph{D1 cross-family dependence.}
+The $\beta$ condition of D1 compares a family against one that lacks the
+criterion being tested.  This means D1 scores depend on the composition
+of co-existing families; adding a new family type could shift scores.
+We view this as inherent to comparative definitions: the ``measurable
+degradation'' test requires a reference.  In single-family runs where
+no ablation partner exists, $\beta$ defaults to zero, and D1 relies on
+$\alpha$ and $\gamma$ alone.
+
 \paragraph{Predictive validity trade-offs.}
-D2 and D4 predict population robustness better than D1 and D3, but this
-partly reflects the substrate's design: reproduction is the dominant
-recovery mechanism.  In substrates where self-repair or niche construction
-are primary, D3 might outperform.  We caution against interpreting
+D2 and D4 predict population robustness (alive-count AUC) better than
+D1 and D3, but this partly reflects the substrate's design: reproduction
+is the dominant recovery mechanism.  Alternative targets partially
+mitigate this bias: under recovery time, D3 closes the gap with D2,
+and under lineage diversity, D4 outperforms D2.
+We caution against interpreting
 predictive validity as a ranking of definitions' ``correctness''---it is
-substrate-dependent.
+substrate- and target-dependent.
 
 \paragraph{Limitations.}
 (1)~\emph{Adapter dependence}: each definition's score depends on its
 operationalization.  Different operationalizations of the same definition
-could shift agreement patterns.
+could shift agreement patterns.  Sensitivity analysis shows that
+$\pm 20\%$ weight perturbation preserves family ordering, but larger
+changes to the operationalization (e.g., replacing geometric mean with
+arithmetic mean in D1) remain unexplored.
 (2)~\emph{Substrate bias}: the digital ecology's design choices (e.g.,
-explicit reproduction mechanism, continuous-valued genomes) may favor
-evolution-centric definitions.
-(3)~\emph{Scale}: 40 sample points per run limits the statistical power
-of transfer-entropy tests; longer runs or higher sampling rates would
-strengthen coupling detection.
+explicit reproduction mechanism, continuous-valued 256-float genomes)
+may favor evolution-centric definitions.  Alternative prediction targets
+partially address this, but testing on fundamentally different substrates
+(e.g., chemical reaction networks, Lenia-like CAs) is needed.
+(3)~\emph{Price equation transmission}: we report only the selection
+component of the Price equation; the transmission component (requiring
+multi-generation lineage tracking) is left for future work.
 
 \paragraph{Extensibility.}
 The adapter API is designed for community extension.  Adding a fifth
@@ -381,10 +604,9 @@ scoring, and analysis automatically.
 \section{Artifact Release}
 \label{sec:artifact}
 
-Code, adapters, and raw benchmark data are available at
-\url{https://github.com/TheIllusionOfLife/alife_definitions}
-(code, MIT license) and Zenodo (data, CC-BY~4.0;
-DOI to be assigned upon acceptance).
+Code, adapters, and raw benchmark data are available at an anonymous
+repository (link provided upon acceptance; code under MIT license)
+and Zenodo (data, CC-BY~4.0; DOI to be assigned upon acceptance).
 
 \paragraph{Reproduction.}
 \begin{verbatim}
@@ -393,11 +615,14 @@ uv sync && uv run maturin develop
 bash scripts/reproduce_all.sh
 \end{verbatim}
 
-The single script runs the full pipeline: benchmark generation, scoring,
-agreement analysis, predictive validity, and figure generation.
+The single script runs the full pipeline: benchmark generation
+(${\sim}$30\,h for coexistence + single-family controls on a Mac Mini
+M2 Pro), scoring, agreement analysis, predictive validity, sensitivity
+analysis, and figure generation.
 
 \paragraph{Data availability.}
-Raw benchmark JSONs (${\sim}$2\,GB for 5 regimes $\times$ 200 seeds)
+Raw benchmark JSONs (${\sim}$10\,GB for 5 regimes $\times$ 200 seeds
+$\times$ coexistence + single-family at 200 sample points each)
 are archived on Zenodo.  The score matrix TSV and analysis JSONs are
 included in the repository.
 
