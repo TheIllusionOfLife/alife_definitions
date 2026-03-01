@@ -497,9 +497,11 @@ Figure~\ref{fig:roc} shows ROC performance on the held-out test set
 (Table~\ref{tab:predictive}).
 D1 achieves the highest predictive validity (ROC-AUC = \aucD{D1}),
 followed by D4 (\aucD{D4}) and D3 (\aucD{D3}).
-D2 shows the lowest AUC (\aucD{D2}), likely because its geometric-mean
-aggregation produces a narrow score range that limits threshold discrimination.
-D1's composite multi-criteria approach captures the broadest signal.
+D2 shows the lowest AUC (\aucD{D2}), likely because its three
+sub-scores (reproduction, heredity, selection) produce a narrower
+score range than D1's seven criteria, limiting threshold discrimination.
+Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
+component signals captures more variance in population outcomes.
 
 \begin{table}[t]
 \centering
@@ -599,9 +601,10 @@ $\alpha$ and $\gamma$ alone.
 \paragraph{Predictive validity trade-offs.}
 D1 achieves the highest predictive validity for population robustness
 (ROC-AUC = \aucD{D1}), followed by D4 (\aucD{D4}), D3 (\aucD{D3}),
-and D2 (\aucD{D2}).  D1's composite multi-criteria approach captures
-the broadest signal, while D2's geometric-mean aggregation narrows its
-score range.  Alternative targets partially mitigate substrate bias:
+and D2 (\aucD{D2}).  D1's seven criteria capture the broadest signal, while D2's three
+components (reproduction, heredity, selection) produce a narrower score
+range that limits threshold discrimination.  Alternative targets
+partially mitigate substrate bias:
 under lineage diversity all four definitions converge to a narrow
 AUC band (0.77--0.83), confirming complementary information capture.
 We caution against interpreting
