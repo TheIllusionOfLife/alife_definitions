@@ -84,6 +84,11 @@ def bootstrap_agreement(rows: list[dict], n_boot: int = N_BOOT) -> dict:
         seed_groups.setdefault(seed, []).append(row)
     seeds = sorted(seed_groups.keys())
     n_seeds = len(seeds)
+    if n_seeds == 0:
+        raise ValueError(
+            "No seeds found in score matrix for agreement bootstrap. "
+            "Check that the input TSV contains rows with a 'seed' column."
+        )
 
     pairs = list(combinations(DEFINITIONS, 2))
 
@@ -276,11 +281,14 @@ def bootstrap_roc_auc(
 
     result = {}
     for d in DEFINITIONS:
+        filled = boot_auc[d][:b]
         result[d] = {
             "auc_ci": [
-                round(float(np.percentile(boot_auc[d], lo_pct)), 2),
-                round(float(np.percentile(boot_auc[d], hi_pct)), 2),
-            ],
+                round(float(np.percentile(filled, lo_pct)), 2),
+                round(float(np.percentile(filled, hi_pct)), 2),
+            ]
+            if len(filled) > 0
+            else [float("nan"), float("nan")],
         }
     return result
 
