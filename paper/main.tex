@@ -3,6 +3,8 @@
 \usepackage{graphicx,amsmath,amssymb,booktabs,xcolor,multirow}
 \usepackage{url,hyperref}
 \usepackage{ifthen}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit}
 \newcommand{\includefigure}[2][width=\columnwidth]{%
   \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
@@ -29,6 +31,27 @@
   \ifthenelse{\equal{#1}{D2}}{0.65}{%
   \ifthenelse{\equal{#1}{D3}}{0.76}{%
   \ifthenelse{\equal{#1}{D4}}{0.78}{??}}}}}
+% --- 95% bootstrap CIs (2000 block-bootstrap resamples over seeds) ---
+\newcommand{\kappaDDci}[1]{%
+  \ifthenelse{\equal{#1}{D1D2}}{[0.86,\,0.91]}{%
+  \ifthenelse{\equal{#1}{D1D3}}{[0.42,\,0.54]}{%
+  \ifthenelse{\equal{#1}{D1D4}}{[0.24,\,0.36]}{%
+  \ifthenelse{\equal{#1}{D2D3}}{[0.36,\,0.47]}{%
+  \ifthenelse{\equal{#1}{D2D4}}{[0.20,\,0.30]}{%
+  \ifthenelse{\equal{#1}{D3D4}}{[0.09,\,0.22]}{??}}}}}}}
+\newcommand{\rhoDDci}[1]{%
+  \ifthenelse{\equal{#1}{D1D2}}{[0.66,\,0.71]}{%
+  \ifthenelse{\equal{#1}{D1D3}}{[0.76,\,0.79]}{%
+  \ifthenelse{\equal{#1}{D1D4}}{[0.71,\,0.77]}{%
+  \ifthenelse{\equal{#1}{D2D3}}{[0.56,\,0.62]}{%
+  \ifthenelse{\equal{#1}{D2D4}}{[0.37,\,0.46]}{%
+  \ifthenelse{\equal{#1}{D3D4}}{[0.59,\,0.65]}{??}}}}}}}
+\newcommand{\fleissKci}{[0.40,\,0.46]}
+\newcommand{\aucDci}[1]{%
+  \ifthenelse{\equal{#1}{D1}}{[0.82,\,0.87]}{%
+  \ifthenelse{\equal{#1}{D2}}{[0.61,\,0.69]}{%
+  \ifthenelse{\equal{#1}{D3}}{[0.74,\,0.79]}{%
+  \ifthenelse{\equal{#1}{D4}}{[0.76,\,0.80]}{??}}}}}
 \newcommand{\TODO}[1]{\textbf{[#1]}}
 % --- End result values ---
 
@@ -148,7 +171,58 @@ boundary maintenance.  The upper layer aggregates agents into
 world with diffusing resource and waste fields.
 The world $\to$ organism $\to$ agent hierarchy means that each organism's
 behavior emerges from collective agent dynamics, while population-level
-patterns emerge from organism interactions.
+patterns emerge from organism interactions (Figure~\ref{fig:architecture}).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    >=Stealth,
+    box/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.7cm,
+                align=center, font=\small},
+    lvl/.style={draw, dashed, rounded corners, inner sep=6pt, gray},
+    arr/.style={->, thick},
+]
+% World level
+\node[box, fill=blue!12] (world) {World\\[-1pt]{\footnotesize 2D toroidal, resources}};
+
+% Organism level
+\node[box, fill=green!12, below left=1.0cm and 0.3cm of world] (org1)
+    {Organism\\[-1pt]{\footnotesize genome, metabolism}};
+\node[box, fill=green!12, below right=1.0cm and 0.3cm of world] (org2)
+    {Organism\\[-1pt]{\footnotesize genome, metabolism}};
+
+% Agent level
+\node[box, fill=orange!12, below=0.8cm of org1, minimum width=1.4cm, font=\scriptsize] (a1)
+    {Agents\\10--50};
+\node[box, fill=orange!12, below=0.8cm of org2, minimum width=1.4cm, font=\scriptsize] (a2)
+    {Agents\\10--50};
+
+% Arrows
+\draw[arr] (world) -- node[left, font=\scriptsize, pos=0.4] {fields} (org1);
+\draw[arr] (world) -- node[right, font=\scriptsize, pos=0.4] {fields} (org2);
+\draw[arr] (org1) -- node[left, font=\scriptsize] {NN} (a1);
+\draw[arr] (org2) -- node[right, font=\scriptsize] {NN} (a2);
+
+% Feedback arrows
+\draw[arr, gray, dashed] (a1.west) -- +(-0.4,0) |- node[left, font=\scriptsize, pos=0.25]
+    {emerge} (org1.west);
+\draw[arr, gray, dashed] (a2.east) -- +(0.4,0) |- node[right, font=\scriptsize, pos=0.25]
+    {emerge} (org2.east);
+
+% Level labels
+\node[right=0.1cm of world, font=\scriptsize\itshape, gray] {population};
+\node[left=0.1cm of org1, font=\scriptsize\itshape, gray] {individual};
+\node[left=0.1cm of a1, font=\scriptsize\itshape, gray] {swarm};
+
+% Reproduction arrow between organisms
+\draw[arr, densely dotted] (org1) -- node[above, font=\scriptsize] {fission} (org2);
+\end{tikzpicture}
+\caption{Two-layer substrate architecture.  The world provides
+resource and waste fields to organisms; each organism's behavior
+emerges from 10--50 swarm agents executing a genome-encoded neural
+network.  Reproduction occurs by fission with heritable mutation.}
+\label{fig:architecture}
+\end{figure}
 
 Each organism carries a heritable genome (256 floats) encoding neural-network
 weights.  Reproduction introduces point mutations, enabling Darwinian
@@ -368,10 +442,10 @@ vs.\ the default 0.3.}
 \toprule
 Definition & Default & Calibrated \\
 \midrule
-D1 & 0.30 & \emph{TBD} \\
-D2 & 0.30 & \emph{TBD} \\
-D3 & 0.30 & \emph{TBD} \\
-D4 & 0.30 & \emph{TBD} \\
+D1 & 0.30 & 0.39 \\
+D2 & 0.30 & 0.29 \\
+D3 & 0.30 & 0.61 \\
+D4 & 0.30 & 0.58 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -428,15 +502,19 @@ across seeds.  Rows: regime $\times$ family; columns: D1--D4.}
 \paragraph{Agreement matrix.}
 Figure~\ref{fig:agreement} presents the $4 \times 4$ agreement matrix.
 D1 and D2 show the highest pairwise \emph{binary} agreement
-($\kappa = $ \kappaDD{D1D2}), reflecting their shared reliance on
-reproduction and evolutionary signals, while \emph{graded} agreement
-is highest for D1--D3 ($\rho = $ \rhoDD{D1D3}).
-D3 and D4 show the lowest $\kappa$ (\kappaDD{D3D4}),
-as organizational closure and information maintenance capture
-fundamentally different aspects.  The D1--D3 pair shows moderate
-agreement ($\kappa = $ \kappaDD{D1D3}), while D2--D4 is weaker
-($\kappa = $ \kappaDD{D2D4}).  The aggregate Fleiss' $\kappa$ across
-all four definitions is \fleissK{} (95\% bootstrap CI: [0.40, 0.46]).
+($\kappa = $ \kappaDD{D1D2}, 95\% CI: \kappaDDci{D1D2}),
+reflecting their shared reliance on reproduction and evolutionary
+signals, while \emph{graded} agreement is highest for D1--D3
+($\rho = $ \rhoDD{D1D3}, CI: \rhoDDci{D1D3}).
+D3 and D4 show the lowest $\kappa$ (\kappaDD{D3D4},
+CI: \kappaDDci{D3D4}), as organizational closure and information
+maintenance capture fundamentally different aspects.
+The D1--D3 pair shows moderate agreement
+($\kappa = $ \kappaDD{D1D3}, CI: \kappaDDci{D1D3}),
+while D2--D4 is weaker ($\kappa = $ \kappaDD{D2D4},
+CI: \kappaDDci{D2D4}).
+The aggregate Fleiss' $\kappa$ across all four definitions is
+\fleissK{} (95\% CI: \fleissKci{}).
 
 \begin{figure}[t]
 \centering
@@ -495,9 +573,11 @@ preserved: F3 still receives D2 = 0 but D3 $>$ 0 in both conditions.
 \paragraph{Predictive validity.}
 Figure~\ref{fig:roc} shows ROC performance on the held-out test set
 (Table~\ref{tab:predictive}).
-D1 achieves the highest predictive validity (ROC-AUC = \aucD{D1}),
-followed by D4 (\aucD{D4}) and D3 (\aucD{D3}).
-D2 shows the lowest AUC (\aucD{D2}), likely because its three
+D1 achieves the highest predictive validity
+(ROC-AUC = \aucD{D1}, 95\% CI: \aucDci{D1}),
+followed by D4 (\aucD{D4}, CI: \aucDci{D4}) and D3
+(\aucD{D3}, CI: \aucDci{D3}).
+D2 shows the lowest AUC (\aucD{D2}, CI: \aucDci{D2}), likely because its three
 sub-scores (reproduction, heredity, selection) produce a narrower
 score range than D1's seven criteria, limiting threshold discrimination.
 Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
