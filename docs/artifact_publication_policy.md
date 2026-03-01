@@ -26,6 +26,17 @@ alife-definitions-benchmark-v1.0/
 │   ├── E3/seed_000.json ... seed_199.json
 │   ├── E4/seed_000.json ... seed_199.json
 │   └── E5/seed_000.json ... seed_199.json
+├── benchmark_single/
+│   ├── F1/E1/seed_000.json ... seed_199.json
+│   ├── F1/E2/ ... F1/E5/
+│   ├── F2/E1/ ... F2/E5/
+│   ├── F3/E1/ ... F3/E5/
+│   └── benchmark_single_manifest.json
+├── logs/
+│   ├── benchmark_log.txt
+│   ├── benchmark_single_log.txt
+│   ├── predictive_lineage_diversity.log
+│   └── surrogate_fpr_E1.log
 ├── score_matrix.tsv
 ├── agreement_analysis.json
 ├── predictive_analysis.json
@@ -33,7 +44,7 @@ alife-definitions-benchmark-v1.0/
 └── benchmark_manifest.json
 ```
 
-Estimated size: ~2 GB (5 regimes × 200 seeds × ~2 MB per JSON).
+Estimated size: ~2.7 GB (benchmark: ~2 GB + single-family controls: ~0.6 GB + logs: ~1 MB).
 
 ## Paper-Binding References
 
