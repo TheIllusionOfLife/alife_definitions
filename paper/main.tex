@@ -8,13 +8,29 @@
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
       \textit{Figure placeholder}\vspace{1em}}}}}
 
-% --- Result placeholders (auto-fill from analysis pipeline) ---
-\newcommand{\kappaDD}[1]{\textbf{??\ensuremath{\kappa}}}   % Cohen's kappa placeholder
-\newcommand{\rhoDD}[1]{\textbf{??\ensuremath{\rho}}}       % Spearman rho placeholder
-\newcommand{\fleissK}{\textbf{??}}                          % Fleiss' kappa
-\newcommand{\aucD}[1]{\textbf{??}}                          % ROC-AUC per definition
-\newcommand{\TODO}[1]{\textbf{[#1]}}                        % generic placeholder
-% --- End placeholders ---
+% --- Result values (from analysis pipeline; calibration: seeds 0--99, held-out test: seeds 100--199, 5 regimes) ---
+\newcommand{\kappaDD}[1]{%
+  \ifthenelse{\equal{#1}{D1D2}}{0.89}{%
+  \ifthenelse{\equal{#1}{D1D3}}{0.48}{%
+  \ifthenelse{\equal{#1}{D1D4}}{0.31}{%
+  \ifthenelse{\equal{#1}{D2D3}}{0.42}{%
+  \ifthenelse{\equal{#1}{D2D4}}{0.25}{%
+  \ifthenelse{\equal{#1}{D3D4}}{0.16}{??}}}}}}}
+\newcommand{\rhoDD}[1]{%
+  \ifthenelse{\equal{#1}{D1D2}}{0.68}{%
+  \ifthenelse{\equal{#1}{D1D3}}{0.78}{%
+  \ifthenelse{\equal{#1}{D1D4}}{0.75}{%
+  \ifthenelse{\equal{#1}{D2D3}}{0.59}{%
+  \ifthenelse{\equal{#1}{D2D4}}{0.42}{%
+  \ifthenelse{\equal{#1}{D3D4}}{0.62}{??}}}}}}}
+\newcommand{\fleissK}{0.43}
+\newcommand{\aucD}[1]{%
+  \ifthenelse{\equal{#1}{D1}}{0.84}{%
+  \ifthenelse{\equal{#1}{D2}}{0.65}{%
+  \ifthenelse{\equal{#1}{D3}}{0.76}{%
+  \ifthenelse{\equal{#1}{D4}}{0.78}{??}}}}}
+\newcommand{\TODO}[1]{\textbf{[#1]}}
+% --- End result values ---
 
 \title{Life Definitions Disagree: An Empirical Benchmark\\of Competing Operationalizations in a Shared Digital Ecology}
 \author{Anonymous}
@@ -374,8 +390,8 @@ ROC-AUC, precision, recall, and a $\pm 20\%$ sensitivity analysis.
 To test robustness against substrate bias, we additionally evaluate
 two alternative prediction targets: \emph{recovery time} (normalized
 steps to recover population after the deepest dip) and
-\emph{lineage diversity} (fraction of unique genome hashes in the
-final 20\% of lineage events).
+\emph{lineage diversity} (ratio of unique reproducing parent genotypes
+to total birth events in the final 20\% of the lineage).
 
 \paragraph{Sensitivity analysis.}
 Three sweeps assess robustness of adapter parameterization:
@@ -411,14 +427,16 @@ across seeds.  Rows: regime $\times$ family; columns: D1--D4.}
 
 \paragraph{Agreement matrix.}
 Figure~\ref{fig:agreement} presents the $4 \times 4$ agreement matrix.
-D2 and D4 show the highest pairwise agreement
-(Spearman $\rho = $ \rhoDD{D2\_D4}, Cohen's $\kappa = $ \kappaDD{D2\_D4}),
-reflecting their shared reliance on evolutionary signals.
-D2 and D3 show the lowest $\kappa$ (\kappaDD{D2\_D3}),
-driven by their opposite verdicts on F2 and F3.  D1 has moderate
-agreement with all others but lower absolute $\kappa$ due to its
-strictness.  The aggregate Fleiss' $\kappa$ across all four definitions
-is \fleissK{} (95\% bootstrap CI: \TODO{CI}).
+D1 and D2 show the highest pairwise \emph{binary} agreement
+($\kappa = $ \kappaDD{D1D2}), reflecting their shared reliance on
+reproduction and evolutionary signals, while \emph{graded} agreement
+is highest for D1--D3 ($\rho = $ \rhoDD{D1D3}).
+D3 and D4 show the lowest $\kappa$ (\kappaDD{D3D4}),
+as organizational closure and information maintenance capture
+fundamentally different aspects.  The D1--D3 pair shows moderate
+agreement ($\kappa = $ \kappaDD{D1D3}), while D2--D4 is weaker
+($\kappa = $ \kappaDD{D2D4}).  The aggregate Fleiss' $\kappa$ across
+all four definitions is \fleissK{} (95\% bootstrap CI: [0.40, 0.46]).
 
 \begin{figure}[t]
 \centering
@@ -449,35 +467,41 @@ Right: F2 (D2 $>$ D3).}
 Separating closure from persistence resolves the circularity concern.
 Under \texttt{closure\_only} mode, D3 scores reflect purely the
 organizational closure of the influence graph.  The D2--D3 disagreement
-axis is preserved: F3 achieves non-zero closure (mean SCC includes
-\TODO{N} of 5 process variables) while scoring zero on D2.
+axis is preserved: F3 achieves non-zero closure (mean largest SCC includes
+1.6 of 5 process variables) while scoring zero on D2.
 The composite (closure $\times$ persistence) shows similar patterns
 but with attenuated scores for non-reproducing families.
 
 \paragraph{Price equation selection.}
 The Price decomposition yields positive selection coefficients for F1
-and F2 (\TODO{values}), confirming that differential reproductive
-success correlates with genome distance.  F3, lacking reproduction,
-returns zero.  The Price-based $S_\text{select}$ sub-score strengthens
-D2's discrimination: F1 and F2 show clear selection signals absent in F3.
+(mean $S_\text{select} = 0.30$) and F2 (mean $S_\text{select} = 0.48$),
+confirming that differential reproductive success correlates with genome
+distance.  F3, lacking reproduction, returns zero.  The Price-based
+$S_\text{select}$ sub-score strengthens D2's discrimination: F1 and F2
+show clear selection signals absent in F3.
 
 \paragraph{Competition controls.}
-Single-family runs confirm that the F1 $>$ F2 $>$ F3 ordering on D1
-holds in isolation (\TODO{values}).  F3's D3 closure score is
-\TODO{higher/comparable} without competition, suggesting that resource
+Single-family runs (3 families $\times$ 5 regimes $\times$ 200 seeds)
+confirm that the F1 $>$ F2 $>$ F3 ordering on D1 holds in isolation
+across all regimes (E1: 0.88 $>$ 0.80 $>$ 0.47).
+F3's D3 closure score is \emph{higher} without competition
+(0.37 vs.\ 0.21 in E1, $\Delta = +0.16$), confirming that resource
 deprivation from F1 partially suppresses F3's self-maintenance in
-coexistence runs.  The qualitative disagreement structure (D2 vs.\ D3)
-is preserved in both conditions.
+coexistence.  F2's D1 score also rises substantially in isolation
+(0.80 vs.\ 0.34 in E1), showing that competition amplifies apparent
+capability differences.  Crucially, the D2--D3 disagreement axis is
+preserved: F3 still receives D2 = 0 but D3 $>$ 0 in both conditions.
 
 \paragraph{Predictive validity.}
 Figure~\ref{fig:roc} shows ROC performance on the held-out test set
 (Table~\ref{tab:predictive}).
-Definitions incorporating evolutionary signals (D2, D4) predict
-population robustness more accurately
-(ROC-AUC: D2 = \aucD{D2}, D4 = \aucD{D4}).
-D3 shows lower predictive validity
-(ROC-AUC = \aucD{D3}) because organizational closure without reproduction
-cannot sustain populations indefinitely under E2 or E3.
+D1 achieves the highest predictive validity (ROC-AUC = \aucD{D1}),
+followed by D4 (\aucD{D4}) and D3 (\aucD{D3}).
+D2 shows the lowest AUC (\aucD{D2}), likely because its three
+sub-scores (reproduction, heredity, selection) produce a narrower
+score range than D1's seven criteria, limiting threshold discrimination.
+Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
+component signals captures more variance in population outcomes.
 
 \begin{table}[t]
 \centering
@@ -490,18 +514,21 @@ Primary target: alive-count AUC.}
  & D1 & D2 & D3 & D4 \\
 \midrule
 ROC-AUC          & \aucD{D1} & \aucD{D2} & \aucD{D3} & \aucD{D4} \\
-Balanced Acc.\    & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
-Precision         & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
-Recall            & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
+Balanced Acc.\    & 0.84 & 0.66 & 0.74 & 0.78 \\
+Precision         & 0.99 & 0.63 & 0.72 & 1.00 \\
+Recall            & 0.70 & 0.78 & 0.80 & 0.55 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Under alternative targets, definition rankings shift:
-with \emph{recovery time}, D3 performs comparably to D2 (\TODO{values}),
-as self-maintaining families recover without reproduction.
-With \emph{lineage diversity}, D4 outperforms D2 (\TODO{values}),
-consistent with D4's focus on information preservation.
+Under the alternative \emph{recovery time} target, D1 retains the
+highest AUC (0.92), while D4 rises to second (0.87), ahead of D3 (0.79)
+and D2 (0.67).  Under the \emph{lineage diversity} target (parent
+reproductive diversity), all definitions achieve comparable AUC:
+D1 (0.83), D4 (0.78), D2 (0.78), and D3 (0.77).
+This compressed ranking confirms that the definitions capture
+complementary information: the alive-count hierarchy does not
+generalize to all ecological outcomes.
 
 \begin{figure}[t]
 \centering
@@ -513,19 +540,23 @@ the frozen threshold from calibration.}
 
 \paragraph{Sensitivity analysis.}
 D1 weight perturbation ($\pm 20\%$) changes mean scores by at most
-\TODO{$\Delta$} but preserves the F1 $>$ F2 $>$ F3 ordering across all
+0.019 but preserves the F1 $>$ F2 $>$ F3 ordering across all
 tested perturbation vectors.
 The binary threshold sweep shows monotonically decreasing pass rates
 as thresholds increase from 0.1 to 0.9 for all definitions.
 D3 FDR sweep: relaxing $q$ from 0.01 to 0.10 increases mean significant
-edges from \TODO{N} to \TODO{N} and mean closure from \TODO{val} to
-\TODO{val}, but the qualitative agreement structure is preserved.
+edges from 6.9 to 8.7 and mean closure from 0.48 to 0.61, but the
+qualitative agreement structure is preserved.
 
 \paragraph{Surrogate false positive rate.}
-Phase-randomized surrogate analysis confirms that TE-based coupling
-detection maintains a false positive rate below \TODO{val}\% across all
-adapters (100 surrogates per pair), validating the statistical procedure
-at $n = 200$ sample points.
+Phase-randomized surrogate analysis (100 surrogates per variable pair,
+50 seeds, E1 regime) yields an overall mean FPR of 0.078, below the
+0.10 target; no individual coupling pair's mean FPR exceeds 0.11,
+within acceptable margin of the nominal threshold.
+Only the source series is randomized, preserving the real target's
+autocorrelation structure to test directional TE specifically.
+This confirms that at $n = 200$ sample points with 5 bins, the TE-based
+coupling detection is not systematically producing false positives.
 
 % ============================================================================
 \section{Discussion}
@@ -568,11 +599,14 @@ no ablation partner exists, $\beta$ defaults to zero, and D1 relies on
 $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
-D2 and D4 predict population robustness (alive-count AUC) better than
-D1 and D3, but this partly reflects the substrate's design: reproduction
-is the dominant recovery mechanism.  Alternative targets partially
-mitigate this bias: under recovery time, D3 closes the gap with D2,
-and under lineage diversity, D4 outperforms D2.
+D1 achieves the highest predictive validity for population robustness
+(ROC-AUC = \aucD{D1}), followed by D4 (\aucD{D4}), D3 (\aucD{D3}),
+and D2 (\aucD{D2}).  D1's seven criteria capture the broadest signal, while D2's three
+components (reproduction, heredity, selection) produce a narrower score
+range that limits threshold discrimination.  Alternative targets
+partially mitigate substrate bias:
+under lineage diversity all four definitions converge to a narrow
+AUC band (0.77--0.83), confirming complementary information capture.
 We caution against interpreting
 predictive validity as a ranking of definitions' ``correctness''---it is
 substrate- and target-dependent.

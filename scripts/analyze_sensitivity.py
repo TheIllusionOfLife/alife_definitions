@@ -23,6 +23,7 @@ from adapters.d3 import score_d3
 
 DEFINITIONS = ["D1", "D2", "D3", "D4"]
 
+
 # D1 weight perturbation vectors: ±20% emphasis on each component, renormalized to sum=1.
 def _norm(a: float, b: float, c: float) -> tuple[float, float, float]:
     s = a + b + c
