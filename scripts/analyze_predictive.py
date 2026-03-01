@@ -273,11 +273,13 @@ def extract_lineage_diversity(
     if not tail:
         return 0.0
 
-    parent_hashes = set(e.get("parent_genome_hash", 0) for e in tail if "parent_genome_hash" in e)
-    n_events = len(tail)
+    events_with_parent = [e for e in tail if "parent_genome_hash" in e]
+    n_events = len(events_with_parent)
 
     if n_events == 0:
         return 0.0
+
+    parent_hashes = set(e["parent_genome_hash"] for e in events_with_parent)
 
     # Ratio: unique parents / total births.
     # 1.0 = every birth from a different parent genotype (high diversity).

@@ -8,7 +8,7 @@
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
       \textit{Figure placeholder}\vspace{1em}}}}}
 
-% --- Result values (from analysis pipeline, seeds 0-99, 5 regimes) ---
+% --- Result values (from analysis pipeline; calibration: seeds 0--99, held-out test: seeds 100--199, 5 regimes) ---
 \newcommand{\kappaDD}[1]{%
   \ifthenelse{\equal{#1}{D1D2}}{0.89}{%
   \ifthenelse{\equal{#1}{D1D3}}{0.48}{%
@@ -427,9 +427,10 @@ across seeds.  Rows: regime $\times$ family; columns: D1--D4.}
 
 \paragraph{Agreement matrix.}
 Figure~\ref{fig:agreement} presents the $4 \times 4$ agreement matrix.
-D1 and D2 show the highest pairwise agreement
-($\kappa = $ \kappaDD{D1D2}, $\rho = $ \rhoDD{D1D2}),
-reflecting their shared reliance on reproduction and evolutionary signals.
+D1 and D2 show the highest pairwise \emph{binary} agreement
+($\kappa = $ \kappaDD{D1D2}), reflecting their shared reliance on
+reproduction and evolutionary signals, while \emph{graded} agreement
+is highest for D1--D3 ($\rho = $ \rhoDD{D1D3}).
 D3 and D4 show the lowest $\kappa$ (\kappaDD{D3D4}),
 as organizational closure and information maintenance capture
 fundamentally different aspects.  The D1--D3 pair shows moderate
@@ -548,7 +549,8 @@ qualitative agreement structure is preserved.
 \paragraph{Surrogate false positive rate.}
 Phase-randomized surrogate analysis (100 surrogates per variable pair,
 50 seeds, E1 regime) yields an overall mean FPR of 0.078, below the
-0.10 target.  No individual coupling pair exceeds mean FPR of 0.11.
+0.10 target; no individual coupling pair's mean FPR exceeds 0.11,
+within acceptable margin of the nominal threshold.
 Only the source series is randomized, preserving the real target's
 autocorrelation structure to test directional TE specifically.
 This confirms that at $n = 200$ sample points with 5 bins, the TE-based
@@ -595,11 +597,12 @@ no ablation partner exists, $\beta$ defaults to zero, and D1 relies on
 $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
-D2 and D4 predict population robustness (alive-count AUC) better than
-D1 and D3, but this partly reflects the substrate's design: reproduction
-is the dominant recovery mechanism.  Alternative targets partially
-mitigate this bias: under recovery time, D3 closes the gap with D2,
-and under lineage diversity all four definitions converge to a narrow
+D1 achieves the highest predictive validity for population robustness
+(ROC-AUC = \aucD{D1}), followed by D4 (\aucD{D4}), D3 (\aucD{D3}),
+and D2 (\aucD{D2}).  D1's composite multi-criteria approach captures
+the broadest signal, while D2's geometric-mean aggregation narrows its
+score range.  Alternative targets partially mitigate substrate bias:
+under lineage diversity all four definitions converge to a narrow
 AUC band (0.77--0.83), confirming complementary information capture.
 We caution against interpreting
 predictive validity as a ranking of definitions' ``correctness''---it is
