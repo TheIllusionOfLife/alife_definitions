@@ -119,6 +119,8 @@ def _build_mode_b_config(seed: int, regime_overrides: dict) -> dict:
     """Build a Mode B config with 3 family profiles and regime overrides."""
     config = make_config_dict(seed, regime_overrides)
     config["families"] = [dict(fp) for fp in FAMILY_PROFILES]
+    # num_organisms must equal sum of family initial_counts
+    config["num_organisms"] = sum(fp["initial_count"] for fp in FAMILY_PROFILES)
     return config
 
 
