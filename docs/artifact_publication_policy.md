@@ -44,7 +44,7 @@ alife-definitions-benchmark-v1.0/
 └── benchmark_manifest.json
 ```
 
-Estimated size: ~2.7 GB (benchmark: ~2 GB + single-family controls: ~0.6 GB + logs: ~1 MB).
+Estimated size: ~2.7 GB (benchmark: ~1.1 GB + single-family controls: ~1.6 GB + logs: ~1 MB).
 
 ## Paper-Binding References
 

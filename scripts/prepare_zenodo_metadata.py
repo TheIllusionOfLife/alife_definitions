@@ -9,6 +9,7 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -46,13 +47,15 @@ def prepare() -> None:
 
     # Copy benchmark_single data (single-family controls)
     if BENCHMARK_SINGLE_DIR.exists():
+        single_dest = STAGING_DIR / "benchmark_single"
+        single_dest.mkdir(parents=True, exist_ok=True)
         for family_dir in sorted(BENCHMARK_SINGLE_DIR.iterdir()):
-            if not family_dir.is_dir() or not family_dir.name.startswith("F"):
+            if not family_dir.is_dir() or not re.match(r"^F\d+$", family_dir.name):
                 continue
             for regime_dir in sorted(family_dir.iterdir()):
-                if not regime_dir.is_dir() or not regime_dir.name.startswith("E"):
+                if not regime_dir.is_dir() or not re.match(r"^E\d+$", regime_dir.name):
                     continue
-                dest = STAGING_DIR / "benchmark_single" / family_dir.name / regime_dir.name
+                dest = single_dest / family_dir.name / regime_dir.name
                 dest.mkdir(parents=True, exist_ok=True)
                 for json_file in sorted(regime_dir.glob("seed_*.json")):
                     shutil.copy2(json_file, dest / json_file.name)
@@ -61,15 +64,15 @@ def prepare() -> None:
         # Copy single-family manifest if present
         manifest = BENCHMARK_SINGLE_DIR / "benchmark_single_manifest.json"
         if manifest.exists():
-            shutil.copy2(manifest, STAGING_DIR / "benchmark_single" / manifest.name)
+            shutil.copy2(manifest, single_dest / manifest.name)
             print(f"  Copied {manifest.name}")
 
     # Copy experiment logs
     logs_dest = STAGING_DIR / "logs"
-    logs_dest.mkdir(parents=True, exist_ok=True)
     for log_name in LOG_FILES:
         src = EXPERIMENTS_DIR / log_name
         if src.exists():
+            logs_dest.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, logs_dest / log_name)
             print(f"  Copied logs/{log_name}")
 
