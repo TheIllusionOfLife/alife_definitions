@@ -68,7 +68,7 @@ def fleiss_kappa(pass_matrix: np.ndarray) -> float:
 
 def load_score_matrix(path: Path) -> list[dict]:
     """Load TSV score matrix into list of row dicts."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f, delimiter="\t")
         return list(reader)
 
@@ -150,7 +150,6 @@ def bootstrap_agreement(rows: list[dict], n_boot: int = N_BOOT) -> dict:
 
 def bootstrap_roc_auc(
     data_dir: Path,
-    cal_seeds: list[int],
     test_seeds: list[int],
     regimes: list[str],
     n_boot: int = N_BOOT,
@@ -215,24 +214,37 @@ def bootstrap_roc_auc(
     n_avail = len(available_seeds)
     print(f"Scored {n_avail} seeds, bootstrapping {n_boot} iterations...", file=sys.stderr)
 
+    # Compute labels ONCE from full dataset so the estimand is fixed
+    # (matches the point-estimate procedure in analyze_predictive.py).
+    full_targets: list[float] = []
+    for s in available_seeds:
+        full_targets.extend(seed_data[s]["_targets"])
+    full_labels, _ = _make_labels(full_targets)
+
+    # Build per-seed label slices for fast reassembly during resampling
+    seed_labels: dict[int, list[bool]] = {}
+    offset = 0
+    for s in available_seeds:
+        n_items = len(seed_data[s]["_targets"])
+        seed_labels[s] = full_labels[offset : offset + n_items]
+        offset += n_items
+
     boot_auc = {d: np.empty(n_boot) for d in DEFINITIONS}
 
     for b in range(n_boot):
         sampled = rng.choice(available_seeds, size=n_avail, replace=True)
 
-        # Gather scores and targets from sampled seeds
+        # Gather scores and FIXED labels from sampled seeds
         all_scores = {d: [] for d in DEFINITIONS}
-        all_targets: list[float] = []
+        all_labels: list[bool] = []
         for s in sampled:
             sd = seed_data[s]
             for d in DEFINITIONS:
                 all_scores[d].extend(sd[d])
-            all_targets.extend(sd["_targets"])
-
-        labels, _ = _make_labels(all_targets)
+            all_labels.extend(seed_labels[s])
 
         for d in DEFINITIONS:
-            auc = roc_auc_score(labels, all_scores[d])
+            auc = roc_auc_score(all_labels, all_scores[d])
             boot_auc[d][b] = auc if not np.isnan(auc) else 0.5
 
         if (b + 1) % 500 == 0:
@@ -259,7 +271,6 @@ def main() -> None:
     parser.add_argument(
         "data_dir", type=Path, nargs="?", help="Benchmark data dir (for ROC-AUC CIs)"
     )
-    parser.add_argument("--cal-seeds", default="0-99", help="Calibration seed range")
     parser.add_argument("--test-seeds", default="100-199", help="Test seed range")
     parser.add_argument("--regimes", default="E1,E2,E3,E4,E5")
     parser.add_argument("-o", "--output", type=Path)
@@ -279,15 +290,14 @@ def main() -> None:
             lo, hi = s.split("-")
             return list(range(int(lo), int(hi) + 1))
 
-        cal = parse_range(args.cal_seeds)
         test = parse_range(args.test_seeds)
         regimes = args.regimes.split(",")
-        roc = bootstrap_roc_auc(args.data_dir.resolve(), cal, test, regimes)
+        roc = bootstrap_roc_auc(args.data_dir.resolve(), test, regimes)
         result["roc_auc"] = roc
 
     output = json.dumps(result, indent=2)
     if args.output:
-        with open(args.output, "w") as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(output)
         print(f"\nWritten to {args.output}", file=sys.stderr)
     else:

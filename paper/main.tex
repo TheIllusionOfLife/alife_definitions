@@ -4,7 +4,7 @@
 \usepackage{url,hyperref}
 \usepackage{ifthen}
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,fit}
+\usetikzlibrary{positioning,arrows.meta}
 \newcommand{\includefigure}[2][width=\columnwidth]{%
   \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
@@ -49,9 +49,9 @@
 \newcommand{\fleissKci}{[0.40,\,0.46]}
 \newcommand{\aucDci}[1]{%
   \ifthenelse{\equal{#1}{D1}}{[0.82,\,0.87]}{%
-  \ifthenelse{\equal{#1}{D2}}{[0.61,\,0.69]}{%
-  \ifthenelse{\equal{#1}{D3}}{[0.74,\,0.79]}{%
-  \ifthenelse{\equal{#1}{D4}}{[0.76,\,0.80]}{??}}}}}
+  \ifthenelse{\equal{#1}{D2}}{[0.62,\,0.67]}{%
+  \ifthenelse{\equal{#1}{D3}}{[0.73,\,0.78]}{%
+  \ifthenelse{\equal{#1}{D4}}{[0.75,\,0.81]}{??}}}}}
 \newcommand{\TODO}[1]{\textbf{[#1]}}
 % --- End result values ---
 
@@ -179,7 +179,6 @@ patterns emerge from organism interactions (Figure~\ref{fig:architecture}).
     >=Stealth,
     box/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.7cm,
                 align=center, font=\small},
-    lvl/.style={draw, dashed, rounded corners, inner sep=6pt, gray},
     arr/.style={->, thick},
 ]
 % World level
@@ -217,7 +216,7 @@ patterns emerge from organism interactions (Figure~\ref{fig:architecture}).
 % Reproduction arrow between organisms
 \draw[arr, densely dotted] (org1) -- node[above, font=\scriptsize] {fission} (org2);
 \end{tikzpicture}
-\caption{Two-layer substrate architecture.  The world provides
+\caption{Three-level substrate architecture.  The world provides
 resource and waste fields to organisms; each organism's behavior
 emerges from 10--50 swarm agents executing a genome-encoded neural
 network.  Reproduction occurs by fission with heritable mutation.}
@@ -505,14 +504,15 @@ D1 and D2 show the highest pairwise \emph{binary} agreement
 ($\kappa = $ \kappaDD{D1D2}, 95\% CI: \kappaDDci{D1D2}),
 reflecting their shared reliance on reproduction and evolutionary
 signals, while \emph{graded} agreement is highest for D1--D3
-($\rho = $ \rhoDD{D1D3}, CI: \rhoDDci{D1D3}).
-D3 and D4 show the lowest $\kappa$ (\kappaDD{D3D4},
-CI: \kappaDDci{D3D4}), as organizational closure and information
+($\rho = $ \rhoDD{D1D3}, 95\% CI: \rhoDDci{D1D3}).
+D3 and D4 show the lowest binary agreement
+($\kappa = $ \kappaDD{D3D4}, 95\% CI: \kappaDDci{D3D4}),
+as organizational closure and information
 maintenance capture fundamentally different aspects.
 The D1--D3 pair shows moderate agreement
-($\kappa = $ \kappaDD{D1D3}, CI: \kappaDDci{D1D3}),
-while D2--D4 is weaker ($\kappa = $ \kappaDD{D2D4},
-CI: \kappaDDci{D2D4}).
+($\kappa = $ \kappaDD{D1D3}, 95\% CI: \kappaDDci{D1D3}),
+while D2--D4 is weaker
+($\kappa = $ \kappaDD{D2D4}, 95\% CI: \kappaDDci{D2D4}).
 The aggregate Fleiss' $\kappa$ across all four definitions is
 \fleissK{} (95\% CI: \fleissKci{}).
 
@@ -574,10 +574,10 @@ preserved: F3 still receives D2 = 0 but D3 $>$ 0 in both conditions.
 Figure~\ref{fig:roc} shows ROC performance on the held-out test set
 (Table~\ref{tab:predictive}).
 D1 achieves the highest predictive validity
-(ROC-AUC = \aucD{D1}, 95\% CI: \aucDci{D1}),
-followed by D4 (\aucD{D4}, CI: \aucDci{D4}) and D3
-(\aucD{D3}, CI: \aucDci{D3}).
-D2 shows the lowest AUC (\aucD{D2}, CI: \aucDci{D2}), likely because its three
+(AUC = \aucD{D1}, 95\% CI: \aucDci{D1}),
+followed by D4 (AUC = \aucD{D4}, 95\% CI: \aucDci{D4}) and D3
+(AUC = \aucD{D3}, 95\% CI: \aucDci{D3}).
+D2 shows the lowest AUC (\aucD{D2}, 95\% CI: \aucDci{D2}), likely because its three
 sub-scores (reproduction, heredity, selection) produce a narrower
 score range than D1's seven criteria, limiting threshold discrimination.
 Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
