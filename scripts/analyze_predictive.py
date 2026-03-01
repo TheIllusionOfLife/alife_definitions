@@ -248,10 +248,15 @@ def extract_lineage_diversity(
     family_id: int,
     tail_fraction: float = 0.2,
 ) -> float:
-    """Number of distinct genome_hashes in final tail_fraction of lineage events.
+    """Parent reproductive diversity in the tail of the lineage.
 
-    Returns normalized [0, 1] by dividing by total lineage events in tail.
-    Measures maintained genetic diversity (information perspective).
+    Computes the ratio of unique reproducing parents to total birth events
+    in the final ``tail_fraction`` of lineage events.  A high ratio means
+    many distinct genotypes are successfully reproducing (maintained
+    genetic diversity); a low ratio means one or few genotypes dominate
+    reproduction.
+
+    Returns a value in [0, 1].  0.0 when no lineage events exist.
     """
     from adapters.common import extract_family_lineage
 
@@ -268,14 +273,16 @@ def extract_lineage_diversity(
     if not tail:
         return 0.0
 
-    hashes = [e["genome_hash"] for e in tail if "genome_hash" in e]
-    if not hashes:
-        return 0.0
-    unique = len(set(hashes))
-    total = len(hashes)
+    parent_hashes = set(e.get("parent_genome_hash", 0) for e in tail if "parent_genome_hash" in e)
+    n_events = len(tail)
 
-    # Diversity ratio: unique/total; 1.0 = all different, near 0 = monoclonal
-    return float(np.clip(unique / total, 0.0, 1.0))
+    if n_events == 0:
+        return 0.0
+
+    # Ratio: unique parents / total births.
+    # 1.0 = every birth from a different parent genotype (high diversity).
+    # Near 0 = one genotype dominates reproduction (low diversity / clonal).
+    return float(np.clip(len(parent_hashes) / n_events, 0.0, 1.0))
 
 
 # ---------------------------------------------------------------------------

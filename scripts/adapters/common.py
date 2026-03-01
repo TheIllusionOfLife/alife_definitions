@@ -163,9 +163,7 @@ def compute_surrogate_fpr(
     for _ in range(n_surrogates):
         x_surr = phase_randomize(x, rng)
         # Only randomize source; preserve real target for directional TE test
-        result = transfer_entropy_lag1(
-            x_surr, y, bins=bins, permutations=permutations, rng=rng
-        )
+        result = transfer_entropy_lag1(x_surr, y, bins=bins, permutations=permutations, rng=rng)
         if result is not None:
             n_valid += 1
             if result["p_value"] < alpha:
