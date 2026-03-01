@@ -23,13 +23,18 @@ from adapters.d3 import score_d3
 
 DEFINITIONS = ["D1", "D2", "D3", "D4"]
 
-# D1 weight perturbation vectors: ±20% on each component
+# D1 weight perturbation vectors: ±20% emphasis on each component, renormalized to sum=1.
+def _norm(a: float, b: float, c: float) -> tuple[float, float, float]:
+    s = a + b + c
+    return (a / s, b / s, c / s)
+
+
 D1_WEIGHT_PERTURBATIONS = [
     ("default", (W_ALPHA, W_BETA, W_GAMMA)),
-    ("+20%α -20%β +20%γ", (W_ALPHA * 1.2, W_BETA * 0.8, W_GAMMA * 1.2)),
-    ("-20%α +20%β -20%γ", (W_ALPHA * 0.8, W_BETA * 1.2, W_GAMMA * 0.8)),
-    ("+20%α +20%β -20%γ", (W_ALPHA * 1.2, W_BETA * 1.2, W_GAMMA * 0.8)),
-    ("-20%α -20%β +20%γ", (W_ALPHA * 0.8, W_BETA * 0.8, W_GAMMA * 1.2)),
+    ("+20%α -20%β +20%γ", _norm(W_ALPHA * 1.2, W_BETA * 0.8, W_GAMMA * 1.2)),
+    ("-20%α +20%β -20%γ", _norm(W_ALPHA * 0.8, W_BETA * 1.2, W_GAMMA * 0.8)),
+    ("+20%α +20%β -20%γ", _norm(W_ALPHA * 1.2, W_BETA * 1.2, W_GAMMA * 0.8)),
+    ("-20%α -20%β +20%γ", _norm(W_ALPHA * 0.8, W_BETA * 0.8, W_GAMMA * 1.2)),
 ]
 
 D3_FDR_VALUES = [0.01, 0.05, 0.10]
@@ -46,8 +51,9 @@ def sweep_d1_weights(data_dir: Path, seeds: list[int], regimes: list[str]) -> di
     for label, weights in D1_WEIGHT_PERTURBATIONS:
         scores_by_family: dict[int, list[float]] = {}
         for regime in regimes:
+            regime_dir = data_dir / regime
             for seed in seeds:
-                path = data_dir / f"{regime}_seed{seed:04d}.json"
+                path = regime_dir / f"seed_{seed:03d}.json"
                 if not path.exists():
                     continue
                 run = json.loads(path.read_text())
@@ -71,8 +77,9 @@ def sweep_thresholds(data_dir: Path, seeds: list[int], regimes: list[str]) -> di
     raw_scores: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
 
     for regime in regimes:
+        regime_dir = data_dir / regime
         for seed in seeds:
-            path = data_dir / f"{regime}_seed{seed:04d}.json"
+            path = regime_dir / f"seed_{seed:03d}.json"
             if not path.exists():
                 continue
             run = json.loads(path.read_text())
@@ -102,8 +109,9 @@ def sweep_d3_fdr(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
         closure_scores: list[float] = []
         edge_counts: list[int] = []
         for regime in regimes:
+            regime_dir = data_dir / regime
             for seed in seeds:
-                path = data_dir / f"{regime}_seed{seed:04d}.json"
+                path = regime_dir / f"seed_{seed:03d}.json"
                 if not path.exists():
                     continue
                 run = json.loads(path.read_text())

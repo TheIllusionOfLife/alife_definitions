@@ -146,8 +146,8 @@ def compute_surrogate_fpr(
     *,
     n_surrogates: int = 100,
     rng_seed: int = 42,
-    bins: int = 3,
-    permutations: int = 200,
+    bins: int = 5,
+    permutations: int = 400,
     alpha: float = 0.05,
 ) -> float:
     """Compute false positive rate using phase-randomized surrogates.
@@ -162,9 +162,9 @@ def compute_surrogate_fpr(
     n_valid = 0
     for _ in range(n_surrogates):
         x_surr = phase_randomize(x, rng)
-        y_surr = phase_randomize(y, rng)
+        # Only randomize source; preserve real target for directional TE test
         result = transfer_entropy_lag1(
-            x_surr, y_surr, bins=bins, permutations=permutations, rng=rng
+            x_surr, y, bins=bins, permutations=permutations, rng=rng
         )
         if result is not None:
             n_valid += 1

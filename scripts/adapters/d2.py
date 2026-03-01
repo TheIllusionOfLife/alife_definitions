@@ -224,7 +224,8 @@ def _price_selection(lineage: list[dict]) -> dict:
     transmission = 0.0
 
     # Score: map |selection| to [0, 1] — scale factor 5.0 chosen so that
-    # moderate covariance (~0.2) maps to ~1.0
+    # moderate covariance (~0.2) maps to ~1.0.
+    # TODO: calibrate on benchmark data (map 90th pct of |selection| to 1.0)
     score = float(np.clip(abs(selection) * 5.0, 0.0, 1.0))
 
     return {"selection": selection, "transmission": transmission, "score": score}

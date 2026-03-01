@@ -1080,7 +1080,7 @@ impl World {
         let parent_child_genome_distance = {
             let parent_data = self.organisms[parent_idx].genome.data();
             let child_data = child.genome.data();
-            debug_assert_eq!(
+            assert_eq!(
                 parent_data.len(),
                 child_data.len(),
                 "parent and child genome lengths must match"
