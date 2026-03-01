@@ -189,6 +189,107 @@ def extract_family_alive_auc(
 
 
 # ---------------------------------------------------------------------------
+# Recovery time
+# ---------------------------------------------------------------------------
+
+
+def extract_recovery_time(
+    run_summary: dict,
+    family_id: int,
+    dip_threshold: float = 0.5,
+) -> float:
+    """Steps to recover to 80% of initial alive_count after deepest dip.
+
+    Returns normalized [0, 1]: 1 = instant recovery, 0 = never recovered.
+    """
+    series = extract_family_series(run_summary, family_id)
+    alive = series["alive_count"]
+
+    if len(alive) < 4:
+        return 0.0
+
+    initial = float(np.mean(alive[: max(1, len(alive) // 10)]))
+    if initial <= 0:
+        return 0.0
+
+    # Find deepest dip below threshold fraction of initial
+    threshold_val = initial * dip_threshold
+    dip_idx = -1
+    min_val = initial
+    for i, v in enumerate(alive):
+        if v < min_val:
+            min_val = v
+            if v < threshold_val:
+                dip_idx = i
+
+    if dip_idx < 0:
+        # No significant dip — population was stable
+        return 1.0
+
+    # Find recovery point: first step after dip where alive >= 80% of initial
+    recovery_target = initial * 0.8
+    for j in range(dip_idx, len(alive)):
+        if alive[j] >= recovery_target:
+            # Normalize: faster recovery → higher score
+            recovery_steps = j - dip_idx
+            max_possible = len(alive) - dip_idx
+            return float(np.clip(1.0 - recovery_steps / max_possible, 0.0, 1.0))
+
+    return 0.0  # Never recovered
+
+
+# ---------------------------------------------------------------------------
+# Lineage diversity
+# ---------------------------------------------------------------------------
+
+
+def extract_lineage_diversity(
+    run_summary: dict,
+    family_id: int,
+    tail_fraction: float = 0.2,
+) -> float:
+    """Number of distinct genome_hashes in final tail_fraction of lineage events.
+
+    Returns normalized [0, 1] by dividing by total lineage events in tail.
+    Measures maintained genetic diversity (information perspective).
+    """
+    from adapters.common import extract_family_lineage
+
+    lineage = extract_family_lineage(run_summary, family_id)
+
+    if not lineage:
+        return 0.0
+
+    # Take the tail fraction of lineage events
+    n = len(lineage)
+    start = max(0, n - int(n * tail_fraction))
+    tail = lineage[start:]
+
+    if not tail:
+        return 0.0
+
+    hashes = [e["genome_hash"] for e in tail if "genome_hash" in e]
+    if not hashes:
+        return 0.0
+    unique = len(set(hashes))
+    total = len(hashes)
+
+    # Diversity ratio: unique/total; 1.0 = all different, near 0 = monoclonal
+    return float(np.clip(unique / total, 0.0, 1.0))
+
+
+# ---------------------------------------------------------------------------
+# Target extractor registry
+# ---------------------------------------------------------------------------
+
+TARGET_EXTRACTORS = {
+    "alive_auc": extract_family_alive_auc,
+    "recovery_time": extract_recovery_time,
+    "lineage_diversity": extract_lineage_diversity,
+}
+
+
+# ---------------------------------------------------------------------------
 # Calibration and evaluation
 # ---------------------------------------------------------------------------
 
@@ -196,18 +297,23 @@ def extract_family_alive_auc(
 def _precompute_all_scores(
     data: list[dict],
     tail_fraction: float,
+    target: str = "alive_auc",
 ) -> tuple[dict[str, list[float]], list[float]]:
-    """Score all runs once and return per-definition scores and alive AUCs.
+    """Score all runs once and return per-definition scores and target values.
 
     Calls ``score_all()`` once per (run, family) instead of once per
     (definition, run, family), avoiding 4x redundant computation.
 
+    Args:
+        target: Target extractor name from TARGET_EXTRACTORS.
+
     Returns:
-        Tuple of (scores_by_defn, aucs) where scores_by_defn maps each
-        definition name to a list of scores aligned with aucs.
+        Tuple of (scores_by_defn, target_values) where scores_by_defn maps
+        each definition name to a list of scores aligned with target_values.
     """
+    extractor = TARGET_EXTRACTORS[target]
     scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
-    aucs: list[float] = []
+    target_values: list[float] = []
 
     for entry in data:
         run = entry["run"]
@@ -216,10 +322,14 @@ def _precompute_all_scores(
             result = score_all(run, family_id=fid)
             for d in DEFINITIONS:
                 scores_by_defn[d].append(result[d].score)
-            auc = extract_family_alive_auc(run, fid, tail_fraction)
-            aucs.append(auc)
+            # alive_auc uses tail_fraction; others use their own defaults
+            if target == "alive_auc":
+                val = extractor(run, fid, tail_fraction)
+            else:
+                val = extractor(run, fid)
+            target_values.append(val)
 
-    return scores_by_defn, aucs
+    return scores_by_defn, target_values
 
 
 def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
@@ -249,6 +359,7 @@ def calibrate_definition(
     defn: str,
     cal_data: list[dict],
     tail_fraction: float = 0.3,
+    target: str = "alive_auc",
 ) -> float:
     """Calibrate threshold for a single definition on calibration data.
 
@@ -256,11 +367,12 @@ def calibrate_definition(
         defn: Definition name ("D1", "D2", etc.).
         cal_data: List of {"run": dict, "regime": str, "seed": int}.
         tail_fraction: Fraction of run tail for alive_count AUC.
+        target: Prediction target from TARGET_EXTRACTORS.
 
     Returns:
         Optimal threshold maximizing balanced accuracy.
     """
-    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction, target=target)
     scores = scores_by_defn[defn]
     if not scores:
         return 0.5
@@ -274,12 +386,13 @@ def evaluate_definition(
     test_data: list[dict],
     threshold: float,
     tail_fraction: float = 0.3,
+    target: str = "alive_auc",
 ) -> dict:
     """Evaluate a definition on test data with a frozen threshold.
 
     Returns dict with roc_auc, precision, recall, balanced_accuracy.
     """
-    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction)
+    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction, target=target)
     scores = scores_by_defn[defn]
     labels, _median = _make_labels(aucs)
 
@@ -326,6 +439,12 @@ def main() -> None:
     parser.add_argument("--cal-seeds", default="0-99", help="Calibration seed range")
     parser.add_argument("--test-seeds", default="100-199", help="Test seed range")
     parser.add_argument("--regimes", default="E1,E2,E3,E4,E5", help="Comma-separated regimes")
+    parser.add_argument(
+        "--target",
+        default="alive_auc",
+        choices=list(TARGET_EXTRACTORS.keys()),
+        help="Prediction target (default: alive_auc)",
+    )
     parser.add_argument("-o", "--output", type=Path, help="Output JSON (default: stdout)")
     args = parser.parse_args()
 
@@ -358,13 +477,13 @@ def main() -> None:
 
     for defn in DEFINITIONS:
         log(f"Calibrating {defn}...")
-        thresh = calibrate_definition(defn, cal_data)
+        thresh = calibrate_definition(defn, cal_data, target=args.target)
         results["frozen_thresholds"][defn] = thresh
         log(f"  {defn} threshold: {thresh:.3f}")
 
         if test_data:
             log(f"Evaluating {defn} on test set...")
-            metrics = evaluate_definition(defn, test_data, thresh)
+            metrics = evaluate_definition(defn, test_data, thresh, target=args.target)
             results["definitions"][defn] = metrics
             log(f"  ROC-AUC: {metrics['roc_auc']:.3f}")
         else:

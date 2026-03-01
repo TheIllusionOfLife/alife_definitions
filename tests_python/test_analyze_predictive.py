@@ -149,6 +149,56 @@ class TestFamilyAliveAuc:
 
 
 # ---------------------------------------------------------------------------
+# Recovery time
+# ---------------------------------------------------------------------------
+
+
+class TestRecoveryTime:
+    def test_extract_recovery_time_returns_valid_range(self, mode_b_run):
+        from analyze_predictive import extract_recovery_time
+
+        score = extract_recovery_time(mode_b_run, family_id=0)
+        assert 0.0 <= score <= 1.0
+
+    def test_f3_recovery_lower_or_equal_f1(self, mode_b_run):
+        """F3 (no reproduction) should have worse or equal recovery than F1."""
+        from analyze_predictive import extract_recovery_time
+
+        r0 = extract_recovery_time(mode_b_run, family_id=0)
+        r2 = extract_recovery_time(mode_b_run, family_id=2)
+        # F3 can't recover via reproduction, so expect r2 <= r0
+        # (or both 0 if population never dips)
+        assert r2 <= r0 or r0 == pytest.approx(0.0, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# Lineage diversity
+# ---------------------------------------------------------------------------
+
+
+class TestLineageDiversity:
+    def test_extract_lineage_diversity_returns_valid_range(self, mode_b_run):
+        from analyze_predictive import extract_lineage_diversity
+
+        score = extract_lineage_diversity(mode_b_run, family_id=0)
+        assert 0.0 <= score <= 1.0
+
+    def test_f3_lineage_diversity_zero(self, mode_b_run):
+        """F3 has no lineage events → diversity should be 0."""
+        from analyze_predictive import extract_lineage_diversity
+
+        score = extract_lineage_diversity(mode_b_run, family_id=2)
+        assert score == pytest.approx(0.0, abs=0.01)
+
+    def test_f1_lineage_diversity_positive(self, mode_b_run):
+        """F1 (full) should have positive lineage diversity."""
+        from analyze_predictive import extract_lineage_diversity
+
+        score = extract_lineage_diversity(mode_b_run, family_id=0)
+        assert score > 0.0
+
+
+# ---------------------------------------------------------------------------
 # Integration: calibrate + evaluate pipeline
 # ---------------------------------------------------------------------------
 

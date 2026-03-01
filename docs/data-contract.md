@@ -99,6 +99,8 @@ Recorded for each reproduction event.
 | `generation` | `u32` | Child's generation number |
 | `genome_hash` | `u64` | FNV-1a hash of child genome vector bytes |
 | `family_id` | `u16` | Child's family index (0 in Mode A) |
+| `parent_genome_hash` | `u64` | FNV-1a hash of parent genome vector bytes |
+| `parent_child_genome_distance` | `f32` | Normalized L2 distance between parent and child genomes: `sqrt(mean((p_i - c_i)²))` |
 
 ### SnapshotFrame
 

@@ -13,6 +13,9 @@ def score_all(
     family_id: int,
     *,
     thresholds: dict[str, float] | None = None,
+    d3_mode: str = "closure_only",
+    d1_weights: tuple[float, float, float] | None = None,
+    d3_fdr_q: float | None = None,
 ) -> dict[str, AdapterResult]:
     """Score a single family against all four definitions.
 
@@ -20,6 +23,9 @@ def score_all(
         run_summary: Parsed JSON from run_experiment_json (Mode B).
         family_id: Family index (0=F1, 1=F2, 2=F3).
         thresholds: Optional per-definition thresholds {"D1": 0.5, ...}.
+        d3_mode: D3 scoring mode ("closure_only" or "closure_x_persistence").
+        d1_weights: Optional (w_alpha, w_beta, w_gamma) for D1 sensitivity.
+        d3_fdr_q: Optional FDR q-value for D3 sensitivity.
 
     Returns:
         Dict mapping definition name to AdapterResult.
@@ -36,6 +42,12 @@ def score_all(
         kwargs = {}
         if name in thresholds:
             kwargs["threshold"] = thresholds[name]
+        if name == "D1" and d1_weights is not None:
+            kwargs["weights"] = d1_weights
+        if name == "D3":
+            kwargs["mode"] = d3_mode
+            if d3_fdr_q is not None:
+                kwargs["fdr_q"] = d3_fdr_q
         results[name] = fn(run_summary, family_id=family_id, **kwargs)
 
     return results

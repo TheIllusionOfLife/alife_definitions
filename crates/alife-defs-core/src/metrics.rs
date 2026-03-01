@@ -68,6 +68,10 @@ pub struct LineageEvent {
     pub genome_hash: u64, // FNV-1a hash of child genome vector bytes
     #[serde(default)]
     pub family_id: u16, // child's family index (0 in Mode A)
+    #[serde(default)]
+    pub parent_genome_hash: u64, // FNV-1a hash of parent genome vector bytes
+    #[serde(default)]
+    pub parent_child_genome_distance: f32, // normalized L2 distance between parent and child genomes
 }
 
 #[cfg(test)]
@@ -89,6 +93,22 @@ mod lineage_event_tests {
     }
 
     #[test]
+    fn parent_fields_default_to_zero_when_missing_from_json() {
+        // Backward-compat: events persisted before Phase 1 lack the new fields.
+        let json = r#"{
+            "step": 1,
+            "parent_stable_id": 10,
+            "child_stable_id": 20,
+            "generation": 3,
+            "genome_hash": 999,
+            "family_id": 2
+        }"#;
+        let event: LineageEvent = serde_json::from_str(json).unwrap();
+        assert_eq!(event.parent_genome_hash, 0);
+        assert!((event.parent_child_genome_distance - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn family_id_round_trips_through_json() {
         let original = LineageEvent {
             step: 5,
@@ -97,11 +117,73 @@ mod lineage_event_tests {
             generation: 7,
             genome_hash: 42,
             family_id: 3,
+            parent_genome_hash: 0,
+            parent_child_genome_distance: 0.0,
         };
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: LineageEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.family_id, 3);
         assert_eq!(deserialized.step, 5);
+    }
+
+    #[test]
+    fn parent_fields_round_trip_through_json() {
+        let original = LineageEvent {
+            step: 10,
+            parent_stable_id: 100,
+            child_stable_id: 200,
+            generation: 3,
+            genome_hash: 555,
+            family_id: 1,
+            parent_genome_hash: 12345,
+            parent_child_genome_distance: 0.042,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: LineageEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.parent_genome_hash, 12345);
+        assert!(
+            (deserialized.parent_child_genome_distance - 0.042).abs() < 1e-5,
+            "parent_child_genome_distance should round-trip: got {}",
+            deserialized.parent_child_genome_distance
+        );
+    }
+
+    #[test]
+    fn fnv1a_deterministic_known_value() {
+        // Verify FNV-1a hash of a known 3-element f32 genome: [1.0, 0.0, -1.0]
+        const OFFSET: u64 = 0xcbf29ce484222325;
+        const PRIME: u64 = 0x100000001b3;
+        let data: [f32; 3] = [1.0, 0.0, -1.0];
+        let hash = data
+            .iter()
+            .flat_map(|f| f.to_le_bytes())
+            .fold(OFFSET, |h, b| (h ^ b as u64).wrapping_mul(PRIME));
+        // Pre-computed expected value (run once, captured here for regression)
+        assert_eq!(
+            hash, 17266292903200289909,
+            "FNV-1a hash mismatch for [1.0, 0.0, -1.0]"
+        );
+    }
+
+    #[test]
+    fn genome_distance_deterministic_known_value() {
+        // parent=[1.0, 0.0, -1.0], child=[0.0, 0.0, 0.0]
+        // sum_sq = (1.0-0.0)^2 + (0.0-0.0)^2 + (-1.0-0.0)^2 = 1.0 + 0.0 + 1.0 = 2.0
+        // distance = sqrt(2.0 / 3.0) ≈ 0.8165
+        let parent: [f32; 3] = [1.0, 0.0, -1.0];
+        let child: [f32; 3] = [0.0, 0.0, 0.0];
+        let n = parent.len();
+        let sum_sq: f32 = parent
+            .iter()
+            .zip(child.iter())
+            .map(|(p, c)| (p - c).powi(2))
+            .sum();
+        let distance = (sum_sq / n as f32).sqrt();
+        let expected = (2.0f32 / 3.0).sqrt();
+        assert!(
+            (distance - expected).abs() < 1e-6,
+            "expected {expected}, got {distance}"
+        );
     }
 }
 

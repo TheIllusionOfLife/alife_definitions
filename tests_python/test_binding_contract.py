@@ -244,6 +244,38 @@ def test_lineage_event_has_genome_hash():
     assert isinstance(events[0]["genome_hash"], int)
 
 
+def test_lineage_event_has_parent_genome_hash():
+    """lineage_events items must carry parent_genome_hash int field."""
+    overrides = {
+        **_MINIMAL_OVERRIDE,
+        "reproduction_min_energy": 0.31,
+        "reproduction_min_boundary": 0.0,
+    }
+    result = run_single(seed=0, overrides=overrides, steps=500, sample_every=50)
+    events = result["lineage_events"]
+    assert events, "Expected at least one lineage event"
+    assert "parent_genome_hash" in events[0], (
+        f"Missing parent_genome_hash in lineage event: {events[0]}"
+    )
+    assert isinstance(events[0]["parent_genome_hash"], int)
+
+
+def test_lineage_event_has_parent_child_genome_distance():
+    """lineage_events items must carry parent_child_genome_distance float field."""
+    overrides = {
+        **_MINIMAL_OVERRIDE,
+        "reproduction_min_energy": 0.31,
+        "reproduction_min_boundary": 0.0,
+    }
+    result = run_single(seed=0, overrides=overrides, steps=500, sample_every=50)
+    events = result["lineage_events"]
+    assert events, "Expected at least one lineage event"
+    assert "parent_child_genome_distance" in events[0], (
+        f"Missing parent_child_genome_distance in lineage event: {events[0]}"
+    )
+    assert isinstance(events[0]["parent_child_genome_distance"], (int, float))
+
+
 # ---------------------------------------------------------------------------
 # PR 2b: family_id on LineageEvent + Mode B smoke test
 # ---------------------------------------------------------------------------

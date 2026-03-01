@@ -19,6 +19,7 @@ from .common import (
     coefficient_of_variation,
     discover_family_ids,
     extract_family_series,
+    lagged_cross_correlation_score,
     sigmoid,
 )
 
@@ -31,7 +32,7 @@ CV_NOISE_FLOOR = 0.01  # minimum CV to count as "dynamic"
 W_ALPHA = 0.3  # dynamic process weight
 W_BETA = 0.4  # degradation weight
 W_GAMMA = 0.3  # coupling weight
-TE_BINS = 3  # bins for TE (conservative for n≈40)
+TE_BINS = 5  # bins for TE (5 bins viable for n≈200 with xcorr complement)
 TE_PERMS = 400  # permutations for TE significance
 TE_ALPHA = 0.05  # significance threshold for TE
 
@@ -78,12 +79,19 @@ def score_d1(
     *,
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
+    weights: tuple[float, float, float] | None = None,
 ) -> AdapterResult:
     """Score a family against D1 (textbook 7-criteria).
+
+    Args:
+        weights: Optional (w_alpha, w_beta, w_gamma) tuple overriding
+                 module-level W_ALPHA/W_BETA/W_GAMMA for sensitivity analysis.
 
     Returns an AdapterResult with per-criterion scores in criteria dict
     and aggregate geometric mean as the overall score.
     """
+    w_a, w_b, w_g = weights if weights is not None else (W_ALPHA, W_BETA, W_GAMMA)
+
     rng = np.random.default_rng(2026 + family_id)
 
     # Extract time series for target family and all families
@@ -108,9 +116,9 @@ def score_d1(
 
         if is_ablated:
             # Hard cap: the criterion is disabled in this family
-            score = 0.15 * (W_ALPHA * alpha + W_GAMMA * gamma)
+            score = 0.15 * (w_a * alpha + w_g * gamma)
         else:
-            score = W_ALPHA * alpha + W_BETA * _sigmoid_d(beta) + W_GAMMA * gamma
+            score = w_a * alpha + w_b * _sigmoid_d(beta) + w_g * gamma
         criteria_scores[criterion] = float(np.clip(score, 0.0, 1.0))
 
     aggregate = _geometric_mean(list(criteria_scores.values()))
@@ -188,7 +196,7 @@ def _score_degradation(
 
     ablation_fid = _CRITERION_ABLATION_FAMILY.get(criterion)
 
-    if ablation_fid is not None and ablation_fid != family_id:
+    if ablation_fid is not None and ablation_fid != family_id and ablation_fid in all_families:
         # Compare target family vs the family that lacks this criterion
         ablated_signal = all_families[ablation_fid][signal_name]
 
@@ -217,28 +225,33 @@ def _score_coupling(
     series: dict[str, np.ndarray],
     rng: np.random.Generator,
 ) -> float:
-    """γ — Feedback coupling: TE from criterion signal to another."""
+    """γ — Feedback coupling: max(TE score, lagged xcorr score).
+
+    Combines transfer entropy with lagged cross-correlation as a
+    complementary metric — xcorr captures linear coupling that TE
+    with limited bins might miss.
+    """
     src_name, tgt_name = _CRITERION_COUPLING[criterion]
     src = series[src_name]
     tgt = series[tgt_name]
 
+    # TE-based score
+    te_score = 0.0
     result = transfer_entropy_lag1(src, tgt, bins=TE_BINS, permutations=TE_PERMS, rng=rng)
-    if result is None:
-        return 0.0
+    if result is not None:
+        if result["p_value"] < TE_ALPHA:
+            te_score = 1.0
+        else:
+            te = result["te"]
+            null_mean = result["null_mean"]
+            if null_mean > 0 and te > null_mean:
+                ratio = min((te - null_mean) / null_mean, 2.0)
+                te_score = float(np.clip(ratio * 0.5, 0.0, 0.8))
 
-    # Graded coupling score: with short series (n≈40), binary significance is
-    # too strict. Use a graded score: 1.0 if significant, else scale by how
-    # far observed TE exceeds the null mean (evidence of coupling even if not
-    # reaching α=0.05).
-    if result["p_value"] < TE_ALPHA:
-        return 1.0
-    # Partial credit: TE exceeds null mean → some coupling evidence
-    te = result["te"]
-    null_mean = result["null_mean"]
-    if null_mean > 0 and te > null_mean:
-        ratio = min((te - null_mean) / null_mean, 2.0)  # cap at 2× null
-        return float(np.clip(ratio * 0.5, 0.0, 0.8))  # max 0.8 without significance
-    return 0.0
+    # Lagged cross-correlation score (complementary linear coupling metric)
+    xcorr_score = lagged_cross_correlation_score(src, tgt, max_lag=5)
+
+    return max(te_score, xcorr_score)
 
 
 # ---------------------------------------------------------------------------

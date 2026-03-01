@@ -162,7 +162,7 @@ def main() -> None:
     parser.add_argument("--regimes", default=",".join(ALL_REGIMES), help="Comma-separated regimes")
     parser.add_argument("--resume", action="store_true", help="Skip existing seed files")
     parser.add_argument("--steps", type=int, default=2000, help="Steps per run")
-    parser.add_argument("--sample-every", type=int, default=50, help="Sample interval")
+    parser.add_argument("--sample-every", type=int, default=10, help="Sample interval")
     args = parser.parse_args()
 
     seeds = _parse_seed_range(args.seeds)

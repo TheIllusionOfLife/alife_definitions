@@ -25,9 +25,9 @@ from .common import (
 # ---------------------------------------------------------------------------
 
 DEFAULT_THRESHOLD = 0.3
-TE_BINS = 3  # conservative for n≈40
+TE_BINS = 5  # 5 bins viable for n≈200 with xcorr complement
 TE_PERMS = 400
-GRANGER_MAX_LAG = 3
+GRANGER_MAX_LAG = 5
 FDR_Q = 0.05
 
 # Process variables for closure analysis
@@ -45,35 +45,49 @@ def score_d3(
     *,
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
+    mode: str = "closure_only",
+    fdr_q: float | None = None,
 ) -> AdapterResult:
-    """Score a family against D3 (autonomy/organizational closure)."""
+    """Score a family against D3 (autonomy/organizational closure).
+
+    Args:
+        mode: ``"closure_only"`` (default) uses pure closure as the score,
+              addressing reviewer concern about circularity with alive-count AUC.
+              ``"closure_x_persistence"`` uses closure × persistence (legacy).
+              Both values are always available in ``criteria``.
+        fdr_q: Optional FDR q-value override for sensitivity analysis.
+               Defaults to module-level ``FDR_Q`` (0.05).
+    """
+    if mode not in ("closure_only", "closure_x_persistence"):
+        raise ValueError(f"Invalid D3 mode: {mode!r}")
+
+    q = fdr_q if fdr_q is not None else FDR_Q
+
     rng = np.random.default_rng(3026 + family_id)
     series = extract_family_series(run_summary, family_id)
 
     # Build directed influence matrix
-    edges, n_significant, edge_details = _build_influence_graph(series, rng)
+    edges, n_significant, edge_details = _build_influence_graph(series, rng, q=q)
 
     # Find largest SCC — singleton SCCs don't count as closure
     scc_size = _largest_scc_size(edges)
     closure = 0.0 if scc_size <= 1 else scc_size / N_PROCESSES
 
     # Persistence requirement — measures self-maintenance duration.
-    # For D3 (autonomy), we care about whether the system maintained itself
-    # for a substantial portion of the run, not just endpoint survival.
-    # A non-reproducing family that persists for 80% of the run shows
-    # strong organizational closure even if it eventually declines.
     alive = series["alive_count"]
     if len(alive) >= 2 and alive[0] > 0:
-        # Fraction of timesteps where population is > 50% of initial
         survival_frac = float(np.mean(alive > alive[0] * 0.5))
-        # Also consider endpoint ratio (gentler)
         endpoint_ratio = float(np.clip(alive[-1] / alive[0], 0.0, 1.0))
         persistence = max(survival_frac, endpoint_ratio)
     else:
         persistence = 0.0
 
-    # Combined score
-    score = closure * persistence
+    # Both score variants always computed
+    score_closure_only = closure
+    score_closure_x_persistence = closure * persistence
+
+    # Primary score follows mode
+    score = score_closure_only if mode == "closure_only" else score_closure_x_persistence
 
     return AdapterResult(
         definition="D3",
@@ -84,12 +98,15 @@ def score_d3(
         criteria={
             "closure": float(closure),
             "persistence": float(persistence),
+            "score_closure_only": float(np.clip(score_closure_only, 0.0, 1.0)),
+            "score_closure_x_persistence": float(np.clip(score_closure_x_persistence, 0.0, 1.0)),
         },
         metadata={
             "largest_scc_size": scc_size,
             "n_significant_edges": n_significant,
             "n_possible_edges": N_PROCESSES * (N_PROCESSES - 1),
             "n_samples": len(run_summary["samples"]),
+            "mode": mode,
         },
     )
 
@@ -102,6 +119,8 @@ def score_d3(
 def _build_influence_graph(
     series: dict[str, np.ndarray],
     rng: np.random.Generator,
+    *,
+    q: float = FDR_Q,
 ) -> tuple[list[tuple[int, int]], int, list[dict]]:
     """Build directed influence graph from TE and Granger tests.
 
@@ -146,13 +165,13 @@ def _build_influence_graph(
 
     # BH-FDR correction across all pairs
     raw_ps = [r["min_p"] for r in pair_results]
-    corrected_ps = benjamini_hochberg(raw_ps, q=FDR_Q)
+    corrected_ps = benjamini_hochberg(raw_ps, q=q)
 
     edges: list[tuple[int, int]] = []
     n_significant = 0
     for r, p_corr in zip(pair_results, corrected_ps, strict=True):
         r["p_corrected"] = p_corr
-        r["significant"] = p_corr < FDR_Q
+        r["significant"] = p_corr <= q
         if r["significant"]:
             edges.append((r["src_idx"], r["tgt_idx"]))
             n_significant += 1
