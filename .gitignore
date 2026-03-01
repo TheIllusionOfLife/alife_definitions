@@ -36,7 +36,7 @@ build/
 
 # Generated paper artifacts
 paper/main.pdf
-paper/figures/*.pdf
+# NOTE: paper/figures/*.pdf are committable (publication figures from pipeline)
 
 # LaTeX build artifacts
 paper/*.aux
