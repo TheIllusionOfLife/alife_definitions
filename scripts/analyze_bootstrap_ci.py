@@ -212,6 +212,11 @@ def bootstrap_roc_auc(
 
     available_seeds = sorted(seed_data.keys())
     n_avail = len(available_seeds)
+    if n_avail == 0:
+        raise ValueError(
+            f"No test seed data found in {data_dir} for regimes {regimes}. "
+            "Check that the data directory and seed range are correct."
+        )
     print(f"Scored {n_avail} seeds, bootstrapping {n_boot} iterations...", file=sys.stderr)
 
     # Compute labels ONCE from full dataset so the estimand is fixed
@@ -231,7 +236,11 @@ def bootstrap_roc_auc(
 
     boot_auc = {d: np.empty(n_boot) for d in DEFINITIONS}
 
-    for b in range(n_boot):
+    b = 0
+    max_attempts = n_boot * 10  # safety cap to avoid infinite loop
+    attempts = 0
+    while b < n_boot and attempts < max_attempts:
+        attempts += 1
         sampled = rng.choice(available_seeds, size=n_avail, replace=True)
 
         # Gather scores and FIXED labels from sampled seeds
@@ -243,12 +252,24 @@ def bootstrap_roc_auc(
                 all_scores[d].extend(sd[d])
             all_labels.extend(seed_labels[s])
 
-        for d in DEFINITIONS:
-            auc = roc_auc_score(all_labels, all_scores[d])
-            boot_auc[d][b] = auc if not np.isnan(auc) else 0.5
+        # Reject degenerate draws (single-class labels) to avoid
+        # injecting chance-level AUC = 0.5 into the distribution.
+        if len(set(all_labels)) < 2:
+            continue
 
-        if (b + 1) % 500 == 0:
-            print(f"  {b + 1}/{n_boot}", file=sys.stderr)
+        for d in DEFINITIONS:
+            boot_auc[d][b] = roc_auc_score(all_labels, all_scores[d])
+
+        b += 1
+        if b % 500 == 0:
+            print(f"  {b}/{n_boot}", file=sys.stderr)
+
+    if b < n_boot:
+        print(
+            f"WARNING: only {b}/{n_boot} valid bootstrap iterations "
+            f"(too many single-class resamples)",
+            file=sys.stderr,
+        )
 
     lo_pct = 100 * ALPHA / 2
     hi_pct = 100 * (1 - ALPHA / 2)

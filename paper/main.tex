@@ -452,7 +452,10 @@ D4 & 0.30 & 0.58 \\
 \paragraph{Agreement metrics.}
 Pairwise agreement: Cohen's $\kappa$ (binary), Spearman $\rho$ (graded),
 percent agreement.  Aggregate: Fleiss' $\kappa$ for 4-rater agreement.
-Block bootstrap CIs at the seed level preserve within-seed correlation.
+Block bootstrap CIs (2,000 resamples at the seed level) preserve
+within-seed correlation.  For ROC-AUC CIs, binary labels are fixed
+from the full test-set median split so that the bootstrap estimand
+matches the reported point estimate.
 
 \paragraph{Predictive validity.}
 For each definition, we sweep thresholds on the calibration set to
