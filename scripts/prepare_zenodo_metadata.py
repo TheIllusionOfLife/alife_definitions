@@ -9,13 +9,23 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 STAGING_DIR = REPO_ROOT / "zenodo_staging"
-BENCHMARK_DIR = REPO_ROOT / "experiments" / "benchmark"
+EXPERIMENTS_DIR = REPO_ROOT / "experiments"
+BENCHMARK_DIR = EXPERIMENTS_DIR / "benchmark"
+BENCHMARK_SINGLE_DIR = EXPERIMENTS_DIR / "benchmark_single"
 ZENODO_JSON = REPO_ROOT / ".zenodo.json"
+
+LOG_FILES = [
+    "benchmark_log.txt",
+    "benchmark_single_log.txt",
+    "predictive_lineage_diversity.log",
+    "surrogate_fpr_E1.log",
+]
 
 
 def prepare() -> None:
@@ -34,6 +44,37 @@ def prepare() -> None:
                     shutil.copy2(json_file, dest / json_file.name)
                 n = len(list(dest.glob("*.json")))
                 print(f"  {regime_dir.name}: {n} seed files")
+
+    # Copy benchmark_single data (single-family controls)
+    if BENCHMARK_SINGLE_DIR.exists():
+        single_dest = STAGING_DIR / "benchmark_single"
+        single_dest.mkdir(parents=True, exist_ok=True)
+        for family_dir in sorted(BENCHMARK_SINGLE_DIR.iterdir()):
+            if not family_dir.is_dir() or not re.match(r"^F\d+$", family_dir.name):
+                continue
+            for regime_dir in sorted(family_dir.iterdir()):
+                if not regime_dir.is_dir() or not re.match(r"^E\d+$", regime_dir.name):
+                    continue
+                dest = single_dest / family_dir.name / regime_dir.name
+                dest.mkdir(parents=True, exist_ok=True)
+                for json_file in sorted(regime_dir.glob("seed_*.json")):
+                    shutil.copy2(json_file, dest / json_file.name)
+                n = len(list(dest.glob("*.json")))
+                print(f"  {family_dir.name}/{regime_dir.name}: {n} seed files")
+        # Copy single-family manifest if present
+        manifest = BENCHMARK_SINGLE_DIR / "benchmark_single_manifest.json"
+        if manifest.exists():
+            shutil.copy2(manifest, single_dest / manifest.name)
+            print(f"  Copied {manifest.name}")
+
+    # Copy experiment logs
+    logs_dest = STAGING_DIR / "logs"
+    for log_name in LOG_FILES:
+        src = EXPERIMENTS_DIR / log_name
+        if src.exists():
+            logs_dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, logs_dest / log_name)
+            print(f"  Copied logs/{log_name}")
 
     # Copy analysis artifacts
     for name in [

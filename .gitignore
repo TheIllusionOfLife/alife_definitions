@@ -27,8 +27,11 @@ build/
 /experiments/*.json
 /experiments/*.tsv
 /experiments/*.gz
+/experiments/*.log
+/experiments/*.txt
 /experiments/logs/
 /experiments/*_part_*.json
+/experiments/benchmark_single/
 # Keep manifest-bound source artifacts trackable.
 !/experiments/coupling_analysis.json
 !/experiments/final_graph_statistics.json
