@@ -40,6 +40,14 @@ D1_WEIGHT_PERTURBATIONS = [
 
 D3_FDR_VALUES = [0.01, 0.05, 0.10]
 
+# D1 β reference family subsets for rank stability analysis
+D1_BETA_VARIANTS = [
+    ("default", None),  # Use all ablation families (normal behavior)
+    ("F2_only", {1}),  # Only compare against F2 (lacks boundary, homeostasis)
+    ("F3_only", {2}),  # Only compare against F3 (lacks reproduction, evolution)
+    ("no_beta", set()),  # Disable β entirely (α + γ only)
+]
+
 
 # ---------------------------------------------------------------------------
 # Sweep functions
@@ -103,6 +111,56 @@ def sweep_thresholds(data_dir: Path, seeds: list[int], regimes: list[str]) -> di
     return sweep_results
 
 
+def sweep_d1_beta_reference(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
+    """Sweep D1 β reference family subsets and report rank stability.
+
+    Scores D1 with different β reference families: default (all), F2-only,
+    F3-only, and no-β. Reports Spearman rank correlation vs default.
+    """
+    from scipy import stats as sp_stats
+
+    variant_scores: dict[str, list[float]] = {}
+
+    for label, allowed_fids in D1_BETA_VARIANTS:
+        scores: list[float] = []
+        for regime in regimes:
+            regime_dir = data_dir / regime
+            for seed in seeds:
+                path = regime_dir / f"seed_{seed:03d}.json"
+                if not path.exists():
+                    continue
+                run = json.loads(path.read_text())
+                for fid in discover_family_ids(run):
+                    r = score_d1(
+                        run,
+                        family_id=fid,
+                        beta_reference_families=allowed_fids,
+                    )
+                    scores.append(r.score)
+        variant_scores[label] = scores
+
+    # Compute Spearman rank correlation vs default
+    default_scores = variant_scores.get("default", [])
+    rank_correlations = {}
+    for label, scores in variant_scores.items():
+        if label == "default":
+            continue
+        if len(scores) == len(default_scores) and len(scores) >= 3:
+            rho, _ = sp_stats.spearmanr(default_scores, scores)
+            rho_val = float(rho) if not np.isnan(rho) else 0.0
+        else:
+            rho_val = 0.0
+        rank_correlations[f"{label}_vs_default"] = round(rho_val, 4)
+
+    return {
+        "variant_means": {
+            label: round(float(np.mean(scores)), 4) if scores else 0.0
+            for label, scores in variant_scores.items()
+        },
+        "rank_correlations": rank_correlations,
+    }
+
+
 def sweep_d3_fdr(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
     """Sweep D3 FDR q-value and report closure scores."""
     results = {}
@@ -164,6 +222,7 @@ def main() -> None:
 
     output = {
         "d1_weights": sweep_d1_weights(args.data_dir, seeds, regimes),
+        "d1_beta_reference": sweep_d1_beta_reference(args.data_dir, seeds, regimes),
         "thresholds": sweep_thresholds(args.data_dir, seeds, regimes),
         "d3_fdr": sweep_d3_fdr(args.data_dir, seeds, regimes),
     }

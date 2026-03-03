@@ -104,11 +104,42 @@ def analyze_fpr(
     return summary
 
 
+def analyze_fpr_all_regimes(
+    data_dir: Path,
+    seeds: list[int],
+    regimes: list[str],
+    n_surrogates: int = 100,
+) -> dict:
+    """Compute surrogate FPR across all regimes. Returns per-regime + cross-regime summary."""
+    per_regime: dict[str, dict] = {}
+    all_fprs: list[float] = []
+
+    for regime in regimes:
+        log(f"--- Regime: {regime} ---")
+        regime_summary = analyze_fpr(data_dir, seeds, regime, n_surrogates)
+        per_regime[regime] = regime_summary
+        for v in regime_summary.values():
+            all_fprs.append(v["mean_fpr"])
+
+    cross_regime = {}
+    if all_fprs:
+        cross_regime = {
+            "mean_fpr": round(float(np.mean(all_fprs)), 4),
+            "max_fpr": round(float(np.max(all_fprs)), 4),
+            "n_regimes": len(regimes),
+        }
+
+    return {"per_regime": per_regime, "cross_regime": cross_regime}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Surrogate FPR analysis")
     parser.add_argument("--data-dir", type=Path, default=Path("experiments/benchmark"))
     parser.add_argument("--seeds", default="0-4")
-    parser.add_argument("--regime", default="E1")
+    parser.add_argument("--regime", default=None, help="Single regime (legacy)")
+    parser.add_argument(
+        "--regimes", default=None, help="Comma-separated regimes (e.g. E1,E2,E3,E4,E5)"
+    )
     parser.add_argument("--n-surrogates", type=int, default=100)
     parser.add_argument("--output", type=Path, default=None, help="Output JSON path")
     args = parser.parse_args()
@@ -116,9 +147,20 @@ def main() -> None:
     seeds = parse_seed_range(args.seeds)
     data_dir = args.data_dir.resolve()
 
-    log(f"Surrogate FPR: {args.regime}, seeds={args.seeds}, n_surrogates={args.n_surrogates}")
+    # Determine regimes: --regimes takes precedence, --regime for backwards compat
+    if args.regimes:
+        regimes = [r.strip() for r in args.regimes.split(",") if r.strip()]
+    elif args.regime:
+        regimes = [args.regime]
+    else:
+        regimes = ["E1"]
 
-    summary = analyze_fpr(data_dir, seeds, args.regime, args.n_surrogates)
+    if len(regimes) == 1:
+        log(f"Surrogate FPR: {regimes[0]}, seeds={args.seeds}, n_surrogates={args.n_surrogates}")
+        summary = analyze_fpr(data_dir, seeds, regimes[0], args.n_surrogates)
+    else:
+        log(f"Surrogate FPR: {regimes}, seeds={args.seeds}, n_surrogates={args.n_surrogates}")
+        summary = analyze_fpr_all_regimes(data_dir, seeds, regimes, args.n_surrogates)
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -130,7 +172,11 @@ def main() -> None:
         sys.stdout.write("\n")
 
     # Report overall FPR
-    all_means = [v["mean_fpr"] for v in summary.values()]
+    if len(regimes) == 1:
+        all_means = [v["mean_fpr"] for v in summary.values()]
+    else:
+        cross = summary.get("cross_regime", {})
+        all_means = [cross["mean_fpr"]] if cross else []
     if all_means:
         overall = np.mean(all_means)
         log(f"Overall mean FPR: {overall:.4f}")
