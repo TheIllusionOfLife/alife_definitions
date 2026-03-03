@@ -45,8 +45,14 @@ def score_d4(
     *,
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
+    similarity_mode: str = "hash",
 ) -> AdapterResult:
-    """Score a family against D4 (information maintenance)."""
+    """Score a family against D4 (information maintenance).
+
+    Args:
+        similarity_mode: ``"hash"`` (default) uses genome hash Jaccard similarity.
+            ``"l2"`` uses L2 distance from parent_child_genome_distance.
+    """
     rng = np.random.default_rng(4026 + family_id)
     series = extract_family_series(run_summary, family_id)
     lineage = extract_family_lineage(run_summary, family_id)
@@ -55,9 +61,15 @@ def score_d4(
     family_ids = discover_family_ids(run_summary)
     all_families = {fid: extract_family_series(run_summary, fid) for fid in family_ids}
 
+    if similarity_mode not in ("hash", "l2"):
+        raise ValueError(f"Unknown similarity_mode: {similarity_mode!r}")
+
     s_present = _score_info_present(series, all_families)
     s_causal = _score_info_causal(series, rng)
-    s_preserved = _score_info_preserved(lineage)
+    if similarity_mode == "l2":
+        s_preserved = _score_info_preserved_l2(lineage)
+    else:
+        s_preserved = _score_info_preserved(lineage)
 
     criteria = {
         "S_info_present": s_present,
@@ -140,6 +152,31 @@ def _score_info_causal(
     te_bonus = 0.3 if (te_result and te_result["p_value"] < TE_ALPHA) else 0.0
 
     return float(np.clip(abs(rho) + te_bonus, 0.0, 1.0))
+
+
+def _score_info_preserved_l2(lineage: list[dict]) -> float:
+    """S_info_preserved (L2 variant) — uses parent_child_genome_distance.
+
+    Lower distance means higher preservation. Maps mean distance to [0, 1]
+    via 1 - clip(distance / max_expected, 0, 1).
+    """
+    if not lineage:
+        return 0.0
+
+    distances = [
+        e["parent_child_genome_distance"]
+        for e in lineage
+        if "parent_child_genome_distance" in e and np.isfinite(e["parent_child_genome_distance"])
+    ]
+
+    if not distances:
+        return 0.1
+
+    mean_dist = float(np.mean(distances))
+    # Max expected distance calibrated from mutation parameters:
+    # point_rate=0.02 * genome_length=256 * point_scale=0.15 ≈ 0.77
+    max_expected = 1.0
+    return float(np.clip(1.0 - mean_dist / max_expected, 0.0, 1.0))
 
 
 def _score_info_preserved(lineage: list[dict]) -> float:

@@ -83,17 +83,37 @@ def transfer_entropy_lag1(
     permutations: int,
     rng: np.random.Generator,
 ) -> dict | None:
-    """Estimate TE(X->Y) with permutation p-value."""
-    if len(x) < 4 or len(x) != len(y):
+    """Estimate TE(X->Y) at lag=1 with permutation p-value.
+
+    Convenience wrapper around :func:`transfer_entropy` for backwards
+    compatibility.
+    """
+    return transfer_entropy(x, y, bins=bins, lag=1, permutations=permutations, rng=rng)
+
+
+def transfer_entropy(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    bins: int,
+    lag: int = 1,
+    permutations: int,
+    rng: np.random.Generator,
+) -> dict | None:
+    """Estimate TE(X->Y) at arbitrary lag with permutation p-value.
+
+    TE is computed as I(Y_t ; X_{t-lag} | Y_{t-lag}).
+    """
+    if lag < 1:
+        raise ValueError(f"lag must be >= 1, got {lag}")
+    if len(x) < lag + 3 or len(x) != len(y):
         return None
 
-    # Use a shared discretization per full series to keep y(t-1), y(t) on
-    # the same state space.
     x_disc = discretize_series(x, bins)
     y_disc = discretize_series(y, bins)
-    x_prev = x_disc[:-1]
-    y_prev = y_disc[:-1]
-    y_curr = y_disc[1:]
+    x_prev = x_disc[:-lag]
+    y_prev = y_disc[:-lag]
+    y_curr = y_disc[lag:]
 
     observed = transfer_entropy_from_discrete(x_prev, y_prev, y_curr)
 

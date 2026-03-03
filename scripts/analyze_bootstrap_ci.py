@@ -153,6 +153,134 @@ def bootstrap_agreement(rows: list[dict], n_boot: int = N_BOOT) -> dict:
     return result
 
 
+def bootstrap_pairwise_differences(
+    data_dir: Path,
+    test_seeds: list[int],
+    regimes: list[str],
+    n_boot: int = N_BOOT,
+) -> dict:
+    """Block-bootstrap paired AUC differences: AUC(Di) - AUC(Dj) for all 6 pairs.
+
+    Reports 95% CI for each difference. If CI excludes 0, the difference
+    is significant at the 5% level.  Also reports the mean difference
+    (effect size) for practical significance assessment.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from adapters import score_all
+    from adapters.common import discover_family_ids, extract_family_series
+    from analyze_predictive import _make_labels, roc_auc_score
+
+    rng = np.random.default_rng(RNG_SEED + 1)
+
+    try:
+        _trapezoid = np.trapezoid  # type: ignore[attr-defined]
+    except AttributeError:
+        _trapezoid = np.trapz  # type: ignore[attr-defined]
+
+    # Pre-compute all test scores and targets, grouped by seed
+    print("Loading and scoring test runs for pairwise differences...", file=sys.stderr)
+    seed_data: dict[int, dict] = {}
+
+    for regime in regimes:
+        regime_dir = data_dir / regime
+        for seed in test_seeds:
+            path = regime_dir / f"seed_{seed:03d}.json"
+            if not path.exists():
+                continue
+            with open(path) as f:
+                run = json.load(f)
+
+            family_ids = discover_family_ids(run)
+            for fid in family_ids:
+                result = score_all(run, family_id=fid)
+
+                if seed not in seed_data:
+                    seed_data[seed] = {d: [] for d in DEFINITIONS}
+                    seed_data[seed]["_targets"] = []
+
+                for d in DEFINITIONS:
+                    seed_data[seed][d].append(result[d].score)
+
+                series = extract_family_series(run, fid)
+                alive = series["alive_count"]
+                if len(alive) >= 2:
+                    n = len(alive)
+                    start = max(0, n - int(n * 0.3))
+                    tail = alive[start:]
+                    auc = float(_trapezoid(tail, np.arange(len(tail)))) if len(tail) >= 2 else 0.0
+                else:
+                    auc = 0.0
+                seed_data[seed]["_targets"].append(auc)
+
+    available_seeds = sorted(seed_data.keys())
+    n_avail = len(available_seeds)
+    if n_avail == 0:
+        raise ValueError(f"No test seed data found in {data_dir} for regimes {regimes}.")
+
+    # Compute labels once from full dataset
+    full_targets: list[float] = []
+    for s in available_seeds:
+        full_targets.extend(seed_data[s]["_targets"])
+    full_labels, _ = _make_labels(full_targets)
+
+    seed_labels: dict[int, list[bool]] = {}
+    offset = 0
+    for s in available_seeds:
+        n_items = len(seed_data[s]["_targets"])
+        seed_labels[s] = full_labels[offset : offset + n_items]
+        offset += n_items
+
+    pairs = list(combinations(DEFINITIONS, 2))
+    boot_diff = {f"{a}_{b}": np.empty(n_boot) for a, b in pairs}
+
+    b = 0
+    max_attempts = n_boot * 10
+    attempts = 0
+    while b < n_boot and attempts < max_attempts:
+        attempts += 1
+        sampled = rng.choice(available_seeds, size=n_avail, replace=True)
+
+        all_scores = {d: [] for d in DEFINITIONS}
+        all_labels: list[bool] = []
+        for s in sampled:
+            sd = seed_data[s]
+            for d in DEFINITIONS:
+                all_scores[d].extend(sd[d])
+            all_labels.extend(seed_labels[s])
+
+        if len(set(all_labels)) < 2:
+            continue
+
+        aucs = {d: roc_auc_score(all_labels, all_scores[d]) for d in DEFINITIONS}
+        for di, dj in pairs:
+            key = f"{di}_{dj}"
+            boot_diff[key][b] = aucs[di] - aucs[dj]
+
+        b += 1
+
+    lo_pct = 100 * ALPHA / 2
+    hi_pct = 100 * (1 - ALPHA / 2)
+
+    result: dict = {}
+    for di, dj in pairs:
+        key = f"{di}_{dj}"
+        filled = boot_diff[key][:b]
+        if len(filled) == 0:
+            result[key] = {"mean_diff": 0.0, "ci": [0.0, 0.0], "significant": False}
+            continue
+        mean_diff = float(np.mean(filled))
+        ci_lo = float(np.percentile(filled, lo_pct))
+        ci_hi = float(np.percentile(filled, hi_pct))
+        significant = (ci_lo > 0) or (ci_hi < 0)  # CI excludes 0
+        result[key] = {
+            "mean_diff": round(mean_diff, 4),
+            "ci": [round(ci_lo, 4), round(ci_hi, 4)],
+            "significant": significant,
+        }
+
+    return result
+
+
 def bootstrap_roc_auc(
     data_dir: Path,
     test_seeds: list[int],
@@ -323,6 +451,10 @@ def main() -> None:
         regimes = args.regimes.split(",")
         roc = bootstrap_roc_auc(args.data_dir.resolve(), test, regimes)
         result["roc_auc"] = roc
+
+        print("\n=== Pairwise AUC differences ===", file=sys.stderr)
+        diffs = bootstrap_pairwise_differences(args.data_dir.resolve(), test, regimes)
+        result["pairwise_differences"] = diffs
 
     output = json.dumps(result, indent=2)
     if args.output:

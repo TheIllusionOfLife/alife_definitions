@@ -341,8 +341,14 @@ def _precompute_all_scores(
     return scores_by_defn, target_values
 
 
-def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
-    """Convert alive AUCs to binary labels using median as threshold.
+def _make_labels(
+    aucs: list[float],
+    binarization: str = "median",
+) -> tuple[list[bool], float]:
+    """Convert alive AUCs to binary labels using a quantile threshold.
+
+    Args:
+        binarization: Quantile for threshold: "median" (default), "q25", "q75".
 
     When all AUCs are identical (e.g. all organisms die), the median
     split produces a single-class target. In this case we log a warning
@@ -351,17 +357,19 @@ def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
     """
     if not aucs:
         return [], 0.0
-    median_auc = float(np.median(aucs))
-    labels = [a > median_auc for a in aucs]
+    quantile_map = {"median": 0.5, "q25": 0.25, "q75": 0.75}
+    q = quantile_map.get(binarization, 0.5)
+    threshold_auc = float(np.quantile(aucs, q))
+    labels = [a > threshold_auc for a in aucs]
     if len(set(labels)) <= 1:
         import sys
 
         print(
-            f"WARNING: degenerate labels — all AUCs equal ({median_auc:.4f}), "
+            f"WARNING: degenerate labels — all AUCs equal ({threshold_auc:.4f}), "
             "single-class target produced",
             file=sys.stderr,
         )
-    return labels, median_auc
+    return labels, threshold_auc
 
 
 def calibrate_definition(
@@ -437,6 +445,49 @@ def evaluate_definition(
 
 
 # ---------------------------------------------------------------------------
+# Target inter-correlation
+# ---------------------------------------------------------------------------
+
+
+def compute_target_correlations(
+    data: list[dict],
+) -> dict:
+    """Compute pairwise Spearman correlations between prediction targets.
+
+    Returns a 3×3 correlation matrix (alive_auc, recovery_time, lineage_diversity).
+    """
+    from scipy import stats
+
+    targets = list(TARGET_EXTRACTORS.keys())
+    values: dict[str, list[float]] = {t: [] for t in targets}
+
+    for entry in data:
+        run = entry["run"]
+        family_ids = discover_family_ids(run)
+        for fid in family_ids:
+            for target_name, extractor in TARGET_EXTRACTORS.items():
+                if target_name == "alive_auc":
+                    val = extractor(run, fid, 0.3)
+                else:
+                    val = extractor(run, fid)
+                values[target_name].append(val)
+
+    correlations: dict[str, float] = {}
+    for i, t1 in enumerate(targets):
+        for j, t2 in enumerate(targets):
+            if j <= i:
+                continue
+            if len(values[t1]) >= 3 and len(values[t1]) == len(values[t2]):
+                rho, _ = stats.spearmanr(values[t1], values[t2])
+                rho_val = float(rho) if not np.isnan(rho) else 0.0
+            else:
+                rho_val = 0.0
+            correlations[f"{t1}_vs_{t2}"] = round(rho_val, 4)
+
+    return correlations
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -482,7 +533,14 @@ def main() -> None:
     test_data = load_runs(test_seeds)
     log(f"Loaded {len(cal_data)} calibration runs, {len(test_data)} test runs")
 
-    results = {"definitions": {}, "frozen_thresholds": {}}
+    # Compute target inter-correlations
+    if cal_data:
+        log("Computing target inter-correlations...")
+        target_corrs = compute_target_correlations(cal_data)
+    else:
+        target_corrs = {}
+
+    results = {"definitions": {}, "frozen_thresholds": {}, "target_correlations": target_corrs}
 
     for defn in DEFINITIONS:
         log(f"Calibrating {defn}...")

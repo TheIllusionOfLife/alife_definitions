@@ -80,15 +80,22 @@ def score_d1(
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
     weights: tuple[float, float, float] | None = None,
+    beta_reference_families: set[int] | None = None,
+    aggregation: str = "geometric",
 ) -> AdapterResult:
     """Score a family against D1 (textbook 7-criteria).
 
     Args:
         weights: Optional (w_alpha, w_beta, w_gamma) tuple overriding
                  module-level W_ALPHA/W_BETA/W_GAMMA for sensitivity analysis.
+        beta_reference_families: Set of family IDs to use for β (cross-family
+                 degradation test). None = use all available ablation families
+                 (default). Empty set = disable β entirely.
+        aggregation: How to aggregate criterion scores: "geometric" (default),
+                 "arithmetic", "harmonic", or "min".
 
     Returns an AdapterResult with per-criterion scores in criteria dict
-    and aggregate geometric mean as the overall score.
+    and aggregate score as the overall score.
     """
     w_a, w_b, w_g = weights if weights is not None else (W_ALPHA, W_BETA, W_GAMMA)
 
@@ -110,18 +117,27 @@ def score_d1(
         is_ablated = ablation_fid is not None and ablation_fid == family_id
 
         alpha = _score_dynamic(criterion, target)
-        beta = _score_degradation(criterion, family_id, target, all_families)
+        beta = _score_degradation(
+            criterion,
+            family_id,
+            target,
+            all_families,
+            allowed_families=beta_reference_families,
+        )
         gamma = _score_coupling(criterion, target, rng)
         coupling_scores[criterion] = gamma
 
         if is_ablated:
             # Hard cap: the criterion is disabled in this family
             score = 0.15 * (w_a * alpha + w_g * gamma)
+        elif beta_reference_families is not None and len(beta_reference_families) == 0:
+            # β disabled: only α + γ (renormalized)
+            score = (w_a * alpha + w_g * gamma) / (w_a + w_g) if (w_a + w_g) > 0 else 0.0
         else:
             score = w_a * alpha + w_b * _sigmoid_d(beta) + w_g * gamma
         criteria_scores[criterion] = float(np.clip(score, 0.0, 1.0))
 
-    aggregate = _geometric_mean(list(criteria_scores.values()))
+    aggregate = _aggregate(list(criteria_scores.values()), aggregation)
 
     return AdapterResult(
         definition="D1",
@@ -189,12 +205,24 @@ def _score_degradation(
     family_id: int,
     target: dict[str, np.ndarray],
     all_families: dict[int, dict[str, np.ndarray]],
+    *,
+    allowed_families: set[int] | None = None,
 ) -> float:
-    """β — Measurable degradation: Cohen's d vs ablated family."""
+    """β — Measurable degradation: Cohen's d vs ablated family.
+
+    Args:
+        allowed_families: If provided, only use ablation families in this set.
+            Empty set disables β. None = use all available (default).
+    """
     signal_name = _CRITERION_SIGNAL[criterion]
     target_signal = target[signal_name]
 
     ablation_fid = _CRITERION_ABLATION_FAMILY.get(criterion)
+
+    # Check if this ablation family is allowed by the reference subset
+    if allowed_families is not None and ablation_fid is not None:
+        if ablation_fid not in allowed_families:
+            return _cohens_d_vs_null(target_signal)
 
     if ablation_fid is not None and ablation_fid != family_id and ablation_fid in all_families:
         # Compare target family vs the family that lacks this criterion
@@ -267,6 +295,26 @@ def _geometric_mean(values: list[float]) -> float:
     if np.any(arr <= 0):
         return 0.0
     return float(np.exp(np.mean(np.log(arr))))
+
+
+def _aggregate(values: list[float], mode: str = "geometric") -> float:
+    """Aggregate criterion scores using the specified method."""
+    if not values:
+        return 0.0
+    arr = np.array(values, dtype=float)
+    if mode == "geometric":
+        return _geometric_mean(values)
+    elif mode == "arithmetic":
+        return float(np.mean(arr))
+    elif mode == "harmonic":
+        positive = arr[arr > 0]
+        if len(positive) < len(arr):
+            return 0.0
+        return float(len(positive) / np.sum(1.0 / positive))
+    elif mode == "min":
+        return float(np.min(arr))
+    else:
+        raise ValueError(f"Unknown aggregation mode: {mode!r}")
 
 
 def _sigmoid_d(d: float) -> float:
