@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import alife_defs
@@ -49,6 +50,34 @@ def _build_single_family_config(
     return config
 
 
+def _run_single_seed(
+    seed: int,
+    fam_idx: int,
+    fam_label: str,
+    fam_profile: dict,
+    regime: str,
+    overrides: dict,
+    out_dir: Path,
+    steps: int,
+    sample_every: int,
+) -> tuple[str, str, int, dict, float]:
+    """Run one (family, regime, seed) — picklable top-level for ProcessPoolExecutor."""
+    config = _build_single_family_config(seed, fam_profile, overrides)
+    t0 = time.perf_counter()
+    result_json = alife_defs.run_experiment_json(json.dumps(config), steps, sample_every)
+    elapsed = time.perf_counter() - t0
+    result = json.loads(result_json)
+    result["regime_label"] = regime
+    result["family_label"] = fam_label
+    result["family_index"] = fam_idx
+
+    seed_file = safe_path(out_dir, fam_label, regime) / f"seed_{seed:03d}.json"
+    with open(seed_file, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return fam_label, regime, seed, result, elapsed
+
+
 def run_single_family_benchmark(
     *,
     seeds: list[int],
@@ -57,51 +86,85 @@ def run_single_family_benchmark(
     steps: int = 2000,
     sample_every: int = 10,
     resume: bool = False,
+    parallel: int = 1,
 ) -> dict[tuple[str, str, int], dict]:
     """Run single-family isolation experiments.
 
     Returns results keyed by (family_label, regime, seed).
+
+    Args:
+        parallel: Number of worker processes (1 = sequential, >1 = parallel).
     """
     if out_dir is None:
         out_dir = experiment_output_dir() / "benchmark_single"
 
     results: dict[tuple[str, str, int], dict] = {}
 
+    # Ensure directories exist before spawning workers
+    for fam_label in FAMILY_LABELS:
+        for regime in regimes:
+            safe_path(out_dir, fam_label, regime).mkdir(parents=True, exist_ok=True)
+
+    # Collect work items, loading cached results for resumed seeds
+    work: list[tuple[int, int, str, dict, str, dict]] = []
     for fam_idx, (fam_label, fam_profile) in enumerate(
         zip(FAMILY_LABELS, FAMILY_PROFILES, strict=True)
     ):
         for regime in regimes:
             overrides = get_regime_overrides(regime)
             regime_dir = safe_path(out_dir, fam_label, regime)
-            regime_dir.mkdir(parents=True, exist_ok=True)
-
             for seed in seeds:
                 seed_file = regime_dir / f"seed_{seed:03d}.json"
                 key = (fam_label, regime, seed)
-
                 if resume and seed_file.exists():
                     log(f"  [resume] {fam_label}/{regime}/seed_{seed:03d}")
                     with open(seed_file) as f:
                         results[key] = json.load(f)
-                    continue
+                else:
+                    work.append((seed, fam_idx, fam_label, dict(fam_profile), regime, overrides))
 
-                t0 = time.perf_counter()
-                config = _build_single_family_config(seed, fam_profile, overrides)
-                result_json = alife_defs.run_experiment_json(
-                    json.dumps(config), steps, sample_every
-                )
-                result = json.loads(result_json)
-                result["regime_label"] = regime
-                result["family_label"] = fam_label
-                result["family_index"] = fam_idx
-                elapsed = time.perf_counter() - t0
+    if not work:
+        return results
 
-                with open(seed_file, "w") as f:
-                    json.dump(result, f, indent=2)
-
-                results[key] = result
+    if parallel <= 1:
+        for seed, fam_idx, fam_label, fam_profile, regime, overrides in work:
+            fl, r, s, result, elapsed = _run_single_seed(
+                seed,
+                fam_idx,
+                fam_label,
+                fam_profile,
+                regime,
+                overrides,
+                out_dir,
+                steps,
+                sample_every,
+            )
+            results[(fl, r, s)] = result
+            alive = result.get("final_alive_count", "?")
+            log(f"  {fl}/{r}/seed_{s:03d}  alive={alive}  {elapsed:.2f}s")
+    else:
+        log(f"Running {len(work)} seeds with {parallel} workers")
+        with ProcessPoolExecutor(max_workers=parallel) as executor:
+            futures = {
+                executor.submit(
+                    _run_single_seed,
+                    seed,
+                    fam_idx,
+                    fam_label,
+                    fam_profile,
+                    regime,
+                    overrides,
+                    out_dir,
+                    steps,
+                    sample_every,
+                ): (fam_label, regime, seed)
+                for seed, fam_idx, fam_label, fam_profile, regime, overrides in work
+            }
+            for future in as_completed(futures):
+                fl, r, s, result, elapsed = future.result()
+                results[(fl, r, s)] = result
                 alive = result.get("final_alive_count", "?")
-                log(f"  {fam_label}/{regime}/seed_{seed:03d}  alive={alive}  {elapsed:.2f}s")
+                log(f"  {fl}/{r}/seed_{s:03d}  alive={alive}  {elapsed:.2f}s")
 
     return results
 
@@ -113,6 +176,12 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true", help="Skip existing seed files")
     parser.add_argument("--steps", type=int, default=2000, help="Steps per run")
     parser.add_argument("--sample-every", type=int, default=10, help="Sample interval")
+    parser.add_argument(
+        "--parallel", type=int, default=8, help="Number of parallel workers (1=sequential)"
+    )
+    parser.add_argument(
+        "--sequential", action="store_const", const=1, dest="parallel", help="Run sequentially"
+    )
     args = parser.parse_args()
 
     from experiment_common import parse_seed_range
@@ -136,6 +205,7 @@ def main() -> None:
         steps=args.steps,
         sample_every=args.sample_every,
         resume=args.resume,
+        parallel=args.parallel,
     )
 
     # Write manifest
