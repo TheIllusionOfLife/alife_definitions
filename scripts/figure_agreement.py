@@ -274,12 +274,116 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def figure_robustness_bar(sensitivity_json: dict | None, out_path: Path) -> None:
+    """Grouped bar chart: rank correlation between default and each variant.
+
+    Shows Spearman rho for each (definition, variant) pair, grouped by definition.
+    """
+    if sensitivity_json is None:
+        print("SKIP: no sensitivity data for robustness figure")
+        return
+
+    plt = _setup_matplotlib()
+
+    # Collect (definition, variant, rho) triples
+    bars: list[tuple[str, str, float]] = []
+
+    for key, label in [
+        ("d1_aggregation", "D1"),
+        ("d1_beta_reference", "D1-β"),
+        ("d3_edge_mode", "D3"),
+        ("d4_similarity", "D4"),
+    ]:
+        data = sensitivity_json.get(key, {})
+        rank_corrs = data.get("rank_correlations", {})
+        if not rank_corrs:
+            # Try alternative key name for single-value results
+            for k, v in data.items():
+                if k.startswith("rank_correlation") and isinstance(v, (int, float)):
+                    bars.append((label, k, float(v)))
+        else:
+            for variant, rho in rank_corrs.items():
+                bars.append((label, variant, float(rho)))
+
+    if not bars:
+        print("SKIP: no rank correlations found in sensitivity data")
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 3))
+    x_labels = [f"{defn}\n{var[:20]}" for defn, var, _ in bars]
+    rhos = [rho for _, _, rho in bars]
+    colors = ["#4daf4a" if r >= 0.9 else "#ff7f00" if r >= 0.7 else "#e41a1c" for r in rhos]
+
+    x = np.arange(len(bars))
+    ax.bar(x, rhos, color=colors, width=0.6)
+    ax.set_xticks(x)
+    ax.set_xticklabels(x_labels, fontsize=6, rotation=45, ha="right")
+    ax.set_ylabel("Spearman ρ vs default")
+    ax.set_ylim(0, 1.05)
+    ax.axhline(0.9, color="gray", linestyle="--", linewidth=0.5, alpha=0.6)
+    ax.set_title("Operationalization Robustness")
+
+    fig.tight_layout()
+    fig.savefig(out_path, format="pdf")
+    plt.close(fig)
+    print(f"Saved: {out_path}")
+
+
+def figure_pareto_predictive(predictive_results: dict | None, out_path: Path) -> None:
+    """2D scatter: x=alive-AUC, y=recovery-AUC, size=lineage-diversity-AUC.
+
+    Each definition is a labeled point, showing multi-target trade-offs.
+    """
+    if predictive_results is None:
+        print("SKIP: no multi-target predictive data for Pareto figure")
+        return
+
+    plt = _setup_matplotlib()
+
+    # Expect predictive_results to have per-target keys
+    targets = ["alive_auc", "recovery_time", "lineage_diversity"]
+    defn_aucs: dict[str, dict[str, float]] = {d: {} for d in DEFINITIONS}
+
+    for target in targets:
+        target_data = predictive_results.get(target, {}).get("definitions", {})
+        for defn in DEFINITIONS:
+            auc = target_data.get(defn, {}).get("roc_auc", float("nan"))
+            defn_aucs[defn][target] = auc
+
+    fig, ax = plt.subplots(figsize=(4, 3.5))
+    colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
+
+    for defn, color in zip(DEFINITIONS, colors, strict=True):
+        x = defn_aucs[defn].get("alive_auc", 0.5)
+        y = defn_aucs[defn].get("recovery_time", 0.5)
+        s = defn_aucs[defn].get("lineage_diversity", 0.5) * 200 + 20
+        if np.isnan(x) or np.isnan(y):
+            continue
+        ax.scatter([x], [y], s=s, color=color, alpha=0.8, zorder=5)
+        ax.annotate(defn, (x, y), fontsize=8, ha="center", va="bottom", color=color)
+
+    ax.set_xlabel("Alive-AUC")
+    ax.set_ylabel("Recovery-AUC")
+    ax.set_title("Predictive Trade-offs")
+    ax.set_xlim(0.4, 1.0)
+    ax.set_ylim(0.4, 1.0)
+
+    fig.tight_layout()
+    fig.savefig(out_path, format="pdf")
+    plt.close(fig)
+    print(f"Saved: {out_path}")
+
+
 def main() -> None:
     """CLI entry point: generate publication figures from score matrix."""
     parser = argparse.ArgumentParser(description="Generate agreement figures")
     parser.add_argument("tsv_file", type=Path, help="Score matrix TSV")
     parser.add_argument("--case-study-json", type=Path, help="Single run JSON for case study")
     parser.add_argument("--predictive-json", type=Path, help="Predictive analysis JSON")
+    parser.add_argument("--sensitivity-json", type=Path, help="Sensitivity analysis JSON")
+    parser.add_argument(
+        "--pareto-json", type=Path, help="Multi-target predictive JSON for Pareto figure"
+    )
     args = parser.parse_args()
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
@@ -312,6 +416,20 @@ def main() -> None:
         with open(args.predictive_json) as f:
             pred_data = json.load(f)
     figure_predictive_roc(pred_data, FIGURE_DIR / "predictive_roc.pdf")
+
+    # Robustness bar chart
+    sens_data = None
+    if args.sensitivity_json and args.sensitivity_json.exists():
+        with open(args.sensitivity_json) as f:
+            sens_data = json.load(f)
+    figure_robustness_bar(sens_data, FIGURE_DIR / "robustness_bar.pdf")
+
+    # Pareto predictive diagram
+    pareto_data = None
+    if args.pareto_json and args.pareto_json.exists():
+        with open(args.pareto_json) as f:
+            pareto_data = json.load(f)
+    figure_pareto_predictive(pareto_data, FIGURE_DIR / "pareto_predictive.pdf")
 
 
 if __name__ == "__main__":
