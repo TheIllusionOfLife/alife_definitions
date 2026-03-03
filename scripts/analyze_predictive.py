@@ -341,8 +341,14 @@ def _precompute_all_scores(
     return scores_by_defn, target_values
 
 
-def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
-    """Convert alive AUCs to binary labels using median as threshold.
+def _make_labels(
+    aucs: list[float],
+    binarization: str = "median",
+) -> tuple[list[bool], float]:
+    """Convert alive AUCs to binary labels using a quantile threshold.
+
+    Args:
+        binarization: Quantile for threshold: "median" (default), "q25", "q75".
 
     When all AUCs are identical (e.g. all organisms die), the median
     split produces a single-class target. In this case we log a warning
@@ -351,17 +357,19 @@ def _make_labels(aucs: list[float]) -> tuple[list[bool], float]:
     """
     if not aucs:
         return [], 0.0
-    median_auc = float(np.median(aucs))
-    labels = [a > median_auc for a in aucs]
+    quantile_map = {"median": 0.5, "q25": 0.25, "q75": 0.75}
+    q = quantile_map.get(binarization, 0.5)
+    threshold_auc = float(np.quantile(aucs, q))
+    labels = [a > threshold_auc for a in aucs]
     if len(set(labels)) <= 1:
         import sys
 
         print(
-            f"WARNING: degenerate labels — all AUCs equal ({median_auc:.4f}), "
+            f"WARNING: degenerate labels — all AUCs equal ({threshold_auc:.4f}), "
             "single-class target produced",
             file=sys.stderr,
         )
-    return labels, median_auc
+    return labels, threshold_auc
 
 
 def calibrate_definition(

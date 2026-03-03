@@ -47,6 +47,7 @@ def score_d3(
     threshold: float = DEFAULT_THRESHOLD,
     mode: str = "closure_only",
     fdr_q: float | None = None,
+    edge_mode: str = "bonferroni",
 ) -> AdapterResult:
     """Score a family against D3 (autonomy/organizational closure).
 
@@ -57,9 +58,15 @@ def score_d3(
               Both values are always available in ``criteria``.
         fdr_q: Optional FDR q-value override for sensitivity analysis.
                Defaults to module-level ``FDR_Q`` (0.05).
+        edge_mode: How to combine TE and Granger p-values per pair:
+              ``"bonferroni"`` (default) — min(1, 2*min(p_TE, p_Granger)),
+              ``"and"`` — max(p_TE, p_Granger) (both must be significant,
+              conservative intersection-union test).
     """
     if mode not in ("closure_only", "closure_x_persistence"):
         raise ValueError(f"Invalid D3 mode: {mode!r}")
+    if edge_mode not in ("bonferroni", "and"):
+        raise ValueError(f"Invalid D3 edge_mode: {edge_mode!r}")
 
     q = fdr_q if fdr_q is not None else FDR_Q
 
@@ -67,7 +74,9 @@ def score_d3(
     series = extract_family_series(run_summary, family_id)
 
     # Build directed influence matrix
-    edges, n_significant, edge_details = _build_influence_graph(series, rng, q=q)
+    edges, n_significant, edge_details = _build_influence_graph(
+        series, rng, q=q, edge_mode=edge_mode
+    )
 
     # Find largest SCC — singleton SCCs don't count as closure
     scc_size = _largest_scc_size(edges)
@@ -121,8 +130,14 @@ def _build_influence_graph(
     rng: np.random.Generator,
     *,
     q: float = FDR_Q,
+    edge_mode: str = "bonferroni",
 ) -> tuple[list[tuple[int, int]], int, list[dict]]:
     """Build directed influence graph from TE and Granger tests.
+
+    Args:
+        edge_mode: ``"bonferroni"`` — min(1, 2*min(p_TE, p_Granger)).
+                   ``"and"`` — max(p_TE, p_Granger), intersection-union test
+                   requiring both tests to be significant.
 
     Returns:
         edges: List of (i, j) directed edges where i→j is significant.
@@ -147,9 +162,13 @@ def _build_influence_graph(
             granger_result = best_granger_with_lag_correction(src, tgt, GRANGER_MAX_LAG)
             granger_p = granger_result["best_p_corrected"] if granger_result else 1.0
 
-            # Combine two tests conservatively per pair before global FDR.
-            # Bonferroni for m=2: p_pair = min(1, 2 * min(p1, p2))
-            min_p = min(1.0, 2.0 * min(te_p, granger_p))
+            # Combine two tests per pair before global FDR
+            if edge_mode == "and":
+                # Intersection-union: both must be significant → use max(p)
+                combined_p = max(te_p, granger_p)
+            else:
+                # Bonferroni for m=2: p_pair = min(1, 2 * min(p1, p2))
+                combined_p = min(1.0, 2.0 * min(te_p, granger_p))
 
             pair_results.append(
                 {
@@ -159,12 +178,12 @@ def _build_influence_graph(
                     "tgt_idx": j,
                     "te_p": te_p,
                     "granger_p": granger_p,
-                    "min_p": min_p,
+                    "combined_p": combined_p,
                 }
             )
 
     # BH-FDR correction across all pairs
-    raw_ps = [r["min_p"] for r in pair_results]
+    raw_ps = [r["combined_p"] for r in pair_results]
     corrected_ps = benjamini_hochberg(raw_ps, q=q)
 
     edges: list[tuple[int, int]] = []

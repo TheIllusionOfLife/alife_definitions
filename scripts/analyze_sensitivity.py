@@ -111,6 +111,50 @@ def sweep_thresholds(data_dir: Path, seeds: list[int], regimes: list[str]) -> di
     return sweep_results
 
 
+D1_AGGREGATION_MODES = ["geometric", "arithmetic", "harmonic", "min"]
+
+
+def sweep_d1_aggregation(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
+    """Sweep D1 aggregation modes and report rank stability vs default (geometric)."""
+    from scipy import stats as sp_stats
+
+    variant_scores: dict[str, list[float]] = {}
+
+    for mode in D1_AGGREGATION_MODES:
+        scores: list[float] = []
+        for regime in regimes:
+            regime_dir = data_dir / regime
+            for seed in seeds:
+                path = regime_dir / f"seed_{seed:03d}.json"
+                if not path.exists():
+                    continue
+                run = json.loads(path.read_text())
+                for fid in discover_family_ids(run):
+                    r = score_d1(run, family_id=fid, aggregation=mode)
+                    scores.append(r.score)
+        variant_scores[mode] = scores
+
+    default_scores = variant_scores.get("geometric", [])
+    rank_correlations = {}
+    for mode, scores in variant_scores.items():
+        if mode == "geometric":
+            continue
+        if len(scores) == len(default_scores) and len(scores) >= 3:
+            rho, _ = sp_stats.spearmanr(default_scores, scores)
+            rho_val = float(rho) if not np.isnan(rho) else 0.0
+        else:
+            rho_val = 0.0
+        rank_correlations[f"{mode}_vs_geometric"] = round(rho_val, 4)
+
+    return {
+        "variant_means": {
+            mode: round(float(np.mean(scores)), 4) if scores else 0.0
+            for mode, scores in variant_scores.items()
+        },
+        "rank_correlations": rank_correlations,
+    }
+
+
 def sweep_d1_beta_reference(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
     """Sweep D1 β reference family subsets and report rank stability.
 
@@ -188,6 +232,81 @@ def sweep_d3_fdr(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
     return results
 
 
+def sweep_d3_edge_mode(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
+    """Sweep D3 edge combination modes and report rank stability."""
+    from scipy import stats as sp_stats
+
+    modes = ["bonferroni", "and"]
+    variant_scores: dict[str, list[float]] = {}
+
+    for mode in modes:
+        scores: list[float] = []
+        for regime in regimes:
+            regime_dir = data_dir / regime
+            for seed in seeds:
+                path = regime_dir / f"seed_{seed:03d}.json"
+                if not path.exists():
+                    continue
+                run = json.loads(path.read_text())
+                for fid in discover_family_ids(run):
+                    r = score_d3(run, family_id=fid, edge_mode=mode)
+                    scores.append(r.score)
+        variant_scores[mode] = scores
+
+    default_scores = variant_scores.get("bonferroni", [])
+    and_scores = variant_scores.get("and", [])
+    rho_val = 0.0
+    if len(default_scores) == len(and_scores) and len(default_scores) >= 3:
+        rho, _ = sp_stats.spearmanr(default_scores, and_scores)
+        rho_val = float(rho) if not np.isnan(rho) else 0.0
+
+    return {
+        "variant_means": {
+            mode: round(float(np.mean(scores)), 4) if scores else 0.0
+            for mode, scores in variant_scores.items()
+        },
+        "rank_correlation_and_vs_bonferroni": round(rho_val, 4),
+    }
+
+
+def sweep_d4_similarity(data_dir: Path, seeds: list[int], regimes: list[str]) -> dict:
+    """Sweep D4 similarity modes (hash vs L2) and report rank stability."""
+    from adapters.d4 import score_d4
+    from scipy import stats as sp_stats
+
+    modes = ["hash", "l2"]
+    variant_scores: dict[str, list[float]] = {}
+
+    for mode in modes:
+        scores: list[float] = []
+        for regime in regimes:
+            regime_dir = data_dir / regime
+            for seed in seeds:
+                path = regime_dir / f"seed_{seed:03d}.json"
+                if not path.exists():
+                    continue
+                run = json.loads(path.read_text())
+                for fid in discover_family_ids(run):
+                    r = score_d4(run, family_id=fid, similarity_mode=mode)
+                    scores.append(r.score)
+        variant_scores[mode] = scores
+
+    default_scores = variant_scores.get("hash", [])
+    l2_scores = variant_scores.get("l2", [])
+    rho_val = 0.0
+    if len(default_scores) == len(l2_scores) and len(default_scores) >= 3:
+        rho, _ = sp_stats.spearmanr(default_scores, l2_scores)
+        rho_val = float(rho) if not np.isnan(rho) else 0.0
+
+    return {
+        "variant_means": {
+            mode: round(float(np.mean(scores)), 4) if scores else 0.0
+            for mode, scores in variant_scores.items()
+        },
+        "rank_correlation_l2_vs_hash": round(rho_val, 4),
+    }
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -222,9 +341,12 @@ def main() -> None:
 
     output = {
         "d1_weights": sweep_d1_weights(args.data_dir, seeds, regimes),
+        "d1_aggregation": sweep_d1_aggregation(args.data_dir, seeds, regimes),
         "d1_beta_reference": sweep_d1_beta_reference(args.data_dir, seeds, regimes),
         "thresholds": sweep_thresholds(args.data_dir, seeds, regimes),
         "d3_fdr": sweep_d3_fdr(args.data_dir, seeds, regimes),
+        "d3_edge_mode": sweep_d3_edge_mode(args.data_dir, seeds, regimes),
+        "d4_similarity": sweep_d4_similarity(args.data_dir, seeds, regimes),
     }
 
     json_str = json.dumps(output, indent=2)
