@@ -17,63 +17,18 @@ from itertools import combinations
 from pathlib import Path
 
 import numpy as np
-from adapters.common import benjamini_hochberg, discover_family_ids, extract_family_series
+from adapters.common import discover_family_ids, extract_family_series
 from adapters.d3 import (
     N_PROCESSES,
-    PROCESS_VARS,
+    _build_influence_graph,
     _largest_scc_size,
 )
-from analyses.coupling.granger import best_granger_with_lag_correction
-from analyses.coupling.transfer_entropy import transfer_entropy_lag1
 from experiment_common import log, parse_seed_range, safe_path
 from scipy import stats
 
 # Sweep parameters
 BINS_SETTINGS = [5, 10, 20]
 LAG_SETTINGS = [1, 2, 3]
-TE_PERMS = 400
-FDR_Q = 0.05
-
-
-def _build_influence_graph_with_params(
-    series: dict[str, np.ndarray],
-    rng: np.random.Generator,
-    *,
-    bins: int,
-    lag: int,
-    q: float = FDR_Q,
-) -> tuple[list[tuple[int, int]], int]:
-    """Build influence graph with custom bins and lag settings."""
-    pair_results: list[dict] = []
-
-    for i, src_name in enumerate(PROCESS_VARS):
-        for j, tgt_name in enumerate(PROCESS_VARS):
-            if i == j:
-                continue
-            src = series[src_name]
-            tgt = series[tgt_name]
-
-            # TE with custom bins — always uses provided lag via slicing
-            te_result = transfer_entropy_lag1(src, tgt, bins=bins, permutations=TE_PERMS, rng=rng)
-            te_p = te_result["p_value"] if te_result else 1.0
-
-            granger_result = best_granger_with_lag_correction(src, tgt, lag)
-            granger_p = granger_result["best_p_corrected"] if granger_result else 1.0
-
-            min_p = min(1.0, 2.0 * min(te_p, granger_p))
-            pair_results.append({"src_idx": i, "tgt_idx": j, "min_p": min_p})
-
-    raw_ps = [r["min_p"] for r in pair_results]
-    corrected_ps = benjamini_hochberg(raw_ps, q=q)
-
-    edges: list[tuple[int, int]] = []
-    n_significant = 0
-    for r, p_corr in zip(pair_results, corrected_ps, strict=True):
-        if p_corr <= q:
-            edges.append((r["src_idx"], r["tgt_idx"]))
-            n_significant += 1
-
-    return edges, n_significant
 
 
 def sweep_te_robustness(
@@ -105,8 +60,8 @@ def sweep_te_robustness(
                 for bins in BINS_SETTINGS:
                     for lag in LAG_SETTINGS:
                         rng = np.random.default_rng(3026 + fid + bins * 100 + lag * 10000)
-                        edges, _ = _build_influence_graph_with_params(
-                            series, rng, bins=bins, lag=lag
+                        edges, _, _ = _build_influence_graph(
+                            series, rng, bins=bins, lag=lag, granger_max_lag=lag
                         )
                         scc_size = _largest_scc_size(edges)
                         closure = 0.0 if scc_size <= 1 else scc_size / N_PROCESSES

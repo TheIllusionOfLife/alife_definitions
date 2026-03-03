@@ -173,6 +173,69 @@ def compute_surrogate_fpr(
     return n_significant / n_valid
 
 
+def find_all_sccs(edges: list[tuple[int, int]], n_nodes: int) -> list[list[int]]:
+    """Find all strongly connected components using iterative Tarjan's algorithm.
+
+    Args:
+        edges: List of (src, tgt) directed edges.
+        n_nodes: Total number of nodes in the graph.
+
+    Returns:
+        List of SCCs, each a list of node indices. Sorted largest-first.
+    """
+    adj: dict[int, list[int]] = {i: [] for i in range(n_nodes)}
+    for src, tgt in edges:
+        adj[src].append(tgt)
+
+    index_counter = [0]
+    stack: list[int] = []
+    on_stack = [False] * n_nodes
+    index = [-1] * n_nodes
+    lowlink = [-1] * n_nodes
+    sccs: list[list[int]] = []
+
+    def strongconnect(v: int) -> None:
+        work_stack: list[tuple[int, int]] = [(v, 0)]
+        index[v] = lowlink[v] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(v)
+        on_stack[v] = True
+
+        while work_stack:
+            node, ni = work_stack[-1]
+            if ni < len(adj[node]):
+                work_stack[-1] = (node, ni + 1)
+                w = adj[node][ni]
+                if index[w] == -1:
+                    index[w] = lowlink[w] = index_counter[0]
+                    index_counter[0] += 1
+                    stack.append(w)
+                    on_stack[w] = True
+                    work_stack.append((w, 0))
+                elif on_stack[w]:
+                    lowlink[node] = min(lowlink[node], index[w])
+            else:
+                if lowlink[node] == index[node]:
+                    scc: list[int] = []
+                    while True:
+                        w = stack.pop()
+                        on_stack[w] = False
+                        scc.append(w)
+                        if w == node:
+                            break
+                    sccs.append(scc)
+                work_stack.pop()
+                if work_stack:
+                    parent = work_stack[-1][0]
+                    lowlink[parent] = min(lowlink[parent], lowlink[node])
+
+    for v in range(n_nodes):
+        if index[v] == -1:
+            strongconnect(v)
+
+    return sorted(sccs, key=len, reverse=True)
+
+
 def benjamini_hochberg(p_values: list[float], q: float = 0.05) -> list[float]:
     """Apply Benjamini-Hochberg FDR correction.
 

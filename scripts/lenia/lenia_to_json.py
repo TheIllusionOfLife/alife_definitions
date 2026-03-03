@@ -47,28 +47,12 @@ def _pattern_entropy(grid: np.ndarray, n_bins: int = 20) -> float:
 
 
 def _connected_components(grid: np.ndarray, threshold: float = 0.1) -> int:
-    """Count connected components above mass threshold using simple BFS."""
-    binary = grid > threshold
-    visited = np.zeros_like(binary, dtype=bool)
-    count = 0
-    rows, cols = binary.shape
+    """Count connected components above mass threshold."""
+    from scipy.ndimage import label
 
-    for r in range(rows):
-        for c in range(cols):
-            if binary[r, c] and not visited[r, c]:
-                count += 1
-                # BFS flood fill
-                queue = [(r, c)]
-                visited[r, c] = True
-                while queue:
-                    cr, cc = queue.pop(0)
-                    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        nr, nc = cr + dr, cc + dc
-                        if 0 <= nr < rows and 0 <= nc < cols:
-                            if binary[nr, nc] and not visited[nr, nc]:
-                                visited[nr, nc] = True
-                                queue.append((nr, nc))
-    return count
+    binary = grid > threshold
+    _, num_features = label(binary)
+    return int(num_features)
 
 
 def _rolling_autocorrelation(values: list[float], window: int = 10) -> float:

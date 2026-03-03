@@ -61,6 +61,9 @@ def score_d4(
     family_ids = discover_family_ids(run_summary)
     all_families = {fid: extract_family_series(run_summary, fid) for fid in family_ids}
 
+    if similarity_mode not in ("hash", "l2"):
+        raise ValueError(f"Unknown similarity_mode: {similarity_mode!r}")
+
     s_present = _score_info_present(series, all_families)
     s_causal = _score_info_causal(series, rng)
     if similarity_mode == "l2":

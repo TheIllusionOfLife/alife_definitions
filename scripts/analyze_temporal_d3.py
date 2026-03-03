@@ -16,7 +16,12 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from adapters.common import benjamini_hochberg, discover_family_ids, extract_family_series
+from adapters.common import (
+    benjamini_hochberg,
+    discover_family_ids,
+    extract_family_series,
+    find_all_sccs,
+)
 from adapters.d3 import (
     FDR_Q,
     GRANGER_MAX_LAG,
@@ -67,67 +72,11 @@ def _build_windowed_graph(
         if p_corr <= FDR_Q:
             edges.append((r["src_idx"], r["tgt_idx"]))
 
-    # Find SCC members
-    scc_members = _find_largest_scc_members(edges)
-    return scc_members
-
-
-def _find_largest_scc_members(edges: list[tuple[int, int]]) -> set[int]:
-    """Find members of the largest SCC using Tarjan's algorithm."""
-    adj: dict[int, list[int]] = {i: [] for i in range(N_PROCESSES)}
-    for src, tgt in edges:
-        adj[src].append(tgt)
-
-    index_counter = [0]
-    stack: list[int] = []
-    on_stack = [False] * N_PROCESSES
-    index = [-1] * N_PROCESSES
-    lowlink = [-1] * N_PROCESSES
-    sccs: list[list[int]] = []
-
-    def strongconnect(v: int) -> None:
-        work_stack: list[tuple[int, int]] = [(v, 0)]
-        index[v] = lowlink[v] = index_counter[0]
-        index_counter[0] += 1
-        stack.append(v)
-        on_stack[v] = True
-
-        while work_stack:
-            node, ni = work_stack[-1]
-            if ni < len(adj[node]):
-                work_stack[-1] = (node, ni + 1)
-                w = adj[node][ni]
-                if index[w] == -1:
-                    index[w] = lowlink[w] = index_counter[0]
-                    index_counter[0] += 1
-                    stack.append(w)
-                    on_stack[w] = True
-                    work_stack.append((w, 0))
-                elif on_stack[w]:
-                    lowlink[node] = min(lowlink[node], index[w])
-            else:
-                if lowlink[node] == index[node]:
-                    scc: list[int] = []
-                    while True:
-                        w = stack.pop()
-                        on_stack[w] = False
-                        scc.append(w)
-                        if w == node:
-                            break
-                    sccs.append(scc)
-                work_stack.pop()
-                if work_stack:
-                    parent = work_stack[-1][0]
-                    lowlink[parent] = min(lowlink[parent], lowlink[node])
-
-    for v in range(N_PROCESSES):
-        if index[v] == -1:
-            strongconnect(v)
-
-    if not sccs:
+    # Find SCC members using shared utility
+    sccs = find_all_sccs(edges, N_PROCESSES)
+    if not sccs or len(sccs[0]) <= 1:
         return set()
-    largest = max(sccs, key=len)
-    return set(largest) if len(largest) > 1 else set()
+    return set(sccs[0])
 
 
 def analyze_temporal_d3(

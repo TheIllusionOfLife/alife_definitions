@@ -25,7 +25,7 @@ def _cache_key(
 ) -> str:
     """Build a deterministic cache key string."""
     raw = f"{regime}:{seed}:{family_id}:{src_var}:{tgt_var}:lag{lag}:bins{bins}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return hashlib.sha256(raw.encode()).hexdigest()
 
 
 def get_cached(

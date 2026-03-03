@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import numpy as np
 from analyses.coupling.granger import best_granger_with_lag_correction
-from analyses.coupling.transfer_entropy import transfer_entropy_lag1
+from analyses.coupling.transfer_entropy import transfer_entropy
 
 from .common import (
     AdapterResult,
     benjamini_hochberg,
     extract_family_series,
+    find_all_sccs,
 )
 
 # ---------------------------------------------------------------------------
@@ -131,6 +132,9 @@ def _build_influence_graph(
     *,
     q: float = FDR_Q,
     edge_mode: str = "bonferroni",
+    bins: int = TE_BINS,
+    lag: int = 1,
+    granger_max_lag: int = GRANGER_MAX_LAG,
 ) -> tuple[list[tuple[int, int]], int, list[dict]]:
     """Build directed influence graph from TE and Granger tests.
 
@@ -138,6 +142,9 @@ def _build_influence_graph(
         edge_mode: ``"bonferroni"`` — min(1, 2*min(p_TE, p_Granger)).
                    ``"and"`` — max(p_TE, p_Granger), intersection-union test
                    requiring both tests to be significant.
+        bins: Number of bins for TE discretization.
+        lag: Lag for TE computation (default 1).
+        granger_max_lag: Maximum lag for Granger causality.
 
     Returns:
         edges: List of (i, j) directed edges where i→j is significant.
@@ -154,12 +161,12 @@ def _build_influence_graph(
             src = series[src_name]
             tgt = series[tgt_name]
 
-            te_result = transfer_entropy_lag1(
-                src, tgt, bins=TE_BINS, permutations=TE_PERMS, rng=rng
+            te_result = transfer_entropy(
+                src, tgt, bins=bins, lag=lag, permutations=TE_PERMS, rng=rng
             )
             te_p = te_result["p_value"] if te_result else 1.0
 
-            granger_result = best_granger_with_lag_correction(src, tgt, GRANGER_MAX_LAG)
+            granger_result = best_granger_with_lag_correction(src, tgt, granger_max_lag)
             granger_p = granger_result["best_p_corrected"] if granger_result else 1.0
 
             # Combine two tests per pair before global FDR
@@ -199,67 +206,13 @@ def _build_influence_graph(
 
 
 # ---------------------------------------------------------------------------
-# SCC computation (Tarjan's algorithm)
+# SCC computation (delegates to shared utility)
 # ---------------------------------------------------------------------------
 
 
 def _largest_scc_size(edges: list[tuple[int, int]]) -> int:
-    """Find the size of the largest strongly connected component.
-
-    Uses iterative Tarjan's algorithm on a small graph (5 nodes).
-    """
-    # Build adjacency list
-    adj: dict[int, list[int]] = {i: [] for i in range(N_PROCESSES)}
-    for src, tgt in edges:
-        adj[src].append(tgt)
-
-    # Tarjan's iterative
-    index_counter = [0]
-    stack: list[int] = []
-    on_stack = [False] * N_PROCESSES
-    index = [-1] * N_PROCESSES
-    lowlink = [-1] * N_PROCESSES
-    sccs: list[list[int]] = []
-
-    def strongconnect(v: int) -> None:
-        work_stack: list[tuple[int, int]] = [(v, 0)]
-        index[v] = lowlink[v] = index_counter[0]
-        index_counter[0] += 1
-        stack.append(v)
-        on_stack[v] = True
-
-        while work_stack:
-            node, ni = work_stack[-1]
-            if ni < len(adj[node]):
-                work_stack[-1] = (node, ni + 1)
-                w = adj[node][ni]
-                if index[w] == -1:
-                    index[w] = lowlink[w] = index_counter[0]
-                    index_counter[0] += 1
-                    stack.append(w)
-                    on_stack[w] = True
-                    work_stack.append((w, 0))
-                elif on_stack[w]:
-                    lowlink[node] = min(lowlink[node], index[w])
-            else:
-                if lowlink[node] == index[node]:
-                    scc: list[int] = []
-                    while True:
-                        w = stack.pop()
-                        on_stack[w] = False
-                        scc.append(w)
-                        if w == node:
-                            break
-                    sccs.append(scc)
-                work_stack.pop()
-                if work_stack:
-                    parent = work_stack[-1][0]
-                    lowlink[parent] = min(lowlink[parent], lowlink[node])
-
-    for v in range(N_PROCESSES):
-        if index[v] == -1:
-            strongconnect(v)
-
+    """Find the size of the largest strongly connected component."""
+    sccs = find_all_sccs(edges, N_PROCESSES)
     if not sccs:
         return 0
-    return max(len(scc) for scc in sccs)
+    return len(sccs[0])  # sorted largest-first
