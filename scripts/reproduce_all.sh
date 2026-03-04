@@ -2,7 +2,7 @@
 # reproduce_all.sh — Run the full benchmark pipeline from scratch.
 #
 # Usage:
-#   bash scripts/reproduce_all.sh [--seeds 0-4] [--regimes E1,E2]
+#   bash scripts/reproduce_all.sh [--seeds 0-4] [--regimes E1,E2] [--resume]
 #
 # Default: calibration seeds 0-99 + test seeds 100-199, all 5 regimes.
 # For quick testing, use: bash scripts/reproduce_all.sh --seeds 0-4 --regimes E1
@@ -12,6 +12,7 @@ SEEDS="${SEEDS:-0-99}"
 TEST_SEEDS="${TEST_SEEDS:-100-199}"
 REGIMES="${REGIMES:-E1,E2,E3,E4,E5}"
 DATA_DIR="experiments/benchmark"
+RESUME=false
 
 # Parse CLI overrides
 while [[ $# -gt 0 ]]; do
@@ -19,6 +20,7 @@ while [[ $# -gt 0 ]]; do
     --seeds) SEEDS="$2"; shift 2 ;;
     --test-seeds) TEST_SEEDS="$2"; shift 2 ;;
     --regimes) REGIMES="$2"; shift 2 ;;
+    --resume) RESUME=true; shift 1 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -27,17 +29,25 @@ echo "=== ALife Definitions Benchmark Pipeline ==="
 echo "  Calibration seeds: ${SEEDS}"
 echo "  Test seeds: ${TEST_SEEDS}"
 echo "  Regimes: ${REGIMES}"
+echo "  Resume existing outputs: ${RESUME}"
 echo ""
+
+run_benchmark() {
+  local seeds="$1"
+  local benchmark_args=(--seeds "${seeds}" --regimes "${REGIMES}")
+  if [ "${RESUME}" = true ]; then
+    benchmark_args+=(--resume)
+  fi
+  uv run python -m scripts.experiment_benchmark "${benchmark_args[@]}"
+}
 
 # Step 1: Generate benchmark data (calibration)
 echo "--- Step 1: Generate calibration data ---"
-uv run python -m scripts.experiment_benchmark \
-  --seeds "${SEEDS}" --regimes "${REGIMES}" --resume
+run_benchmark "${SEEDS}"
 
 # Step 2: Generate benchmark data (test)
 echo "--- Step 2: Generate test data ---"
-uv run python -m scripts.experiment_benchmark \
-  --seeds "${TEST_SEEDS}" --regimes "${REGIMES}" --resume
+run_benchmark "${TEST_SEEDS}"
 
 # Step 3: Score all runs
 echo "--- Step 3: Score matrix ---"
@@ -64,6 +74,16 @@ uv run python scripts/analyze_predictive.py \
   --regimes "${REGIMES}" \
   -o "${DATA_DIR}/predictive_analysis.json"
 echo "  Wrote ${DATA_DIR}/predictive_analysis.json"
+
+echo "--- Step 5b: Predictive validity (strict leakage-aware mode) ---"
+uv run python scripts/analyze_predictive.py \
+  "${DATA_DIR}" \
+  --cal-seeds "${SEEDS}" \
+  --test-seeds "${TEST_SEEDS}" \
+  --regimes "${REGIMES}" \
+  --evaluation-mode strict \
+  -o "${DATA_DIR}/predictive_analysis_strict.json"
+echo "  Wrote ${DATA_DIR}/predictive_analysis_strict.json"
 
 # Step 6: Generate figures
 echo "--- Step 6: Figures ---"

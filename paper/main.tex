@@ -284,12 +284,12 @@ to its simulator variable and downstream coupling target.
 \toprule
 Criterion & Primary signal & Coupling target \\
 \midrule
-Metabolism     & \texttt{energy\_mean}   & \texttt{waste\_mean} \\
+Metabolism     & \texttt{energy\_mean}   & \texttt{boundary\_mean} \\
 Organization   & \texttt{boundary\_mean} & \texttt{energy\_mean} \\
-Homeostasis    & \texttt{energy\_mean}   & \texttt{alive\_count} \\
+Homeostasis    & \texttt{energy\_mean}   & \texttt{waste\_mean} \\
 Growth         & \texttt{maturity\_mean} & \texttt{alive\_count} \\
 Reproduction   & \texttt{birth\_count}   & \texttt{alive\_count} \\
-Stimuli resp.  & \texttt{boundary\_mean} & \texttt{energy\_mean} \\
+Stimuli resp.  & \texttt{maturity\_mean} & \texttt{energy\_mean} \\
 Evolution      & \texttt{genome\_diversity} & \texttt{alive\_count} \\
 \bottomrule
 \end{tabular}
@@ -332,9 +332,9 @@ evolution'' \citep{joyce_1994_foreword} through three sub-scores:
 \item $S_\text{select}$ --- Differential success via the Price equation
   \citep{price_1970_selection}: $\Delta\bar{z} = \text{Cov}(w,z)/\bar{w}$,
   where $w$ is per-parent offspring count (fitness) and $z$ is mean
-  parent--child genome distance (L2 norm).  This decomposes selection
-  directly from lineage records, replacing the earlier correlation-based
-  proxy.
+  parent--child genome distance (L2 norm).  We use the \emph{selection}
+  component only (transmission term fixed to zero), replacing the earlier
+  correlation-based proxy.
 \end{itemize}
 
 The aggregate is the geometric mean of all three, ensuring that a family
@@ -352,10 +352,10 @@ two-level correction scheme: (1)~per-pair Bonferroni for the two tests
 then (2)~Benjamini--Hochberg FDR control at $q = 0.05$
 \citep{benjamini_1995_controlling} across all $5 \times 4 = 20$ pairs.
 
-Transfer entropy is estimated with 5 equal-width bins on
-$z$-scored series ($\mu = 0$, $\sigma = 1$) at lag~1; significance is
-assessed by 400 time-shifted permutations.  Granger causality uses
-OLS regression at lags 1--5, selecting the lag with the lowest
+Transfer entropy is estimated with 5 \emph{quantile} bins at lag~1;
+significance is assessed by 400 permutation tests over shuffled source
+lags.  Granger causality uses OLS lag regressions
+\citep{granger_1969_causal} at lags 1--5, selecting the lag with the lowest
 Holm--Bonferroni-corrected $F$-test $p$-value.  The 200-sample time
 series ($n = 200$ at 10-step intervals over 2{,}000 steps) provides
 adequate statistical power for both estimators; robustness to
@@ -424,7 +424,7 @@ regeneration)---spatial heterogeneity may advantage organisms with
 better stimulus response.
 
 \paragraph{Data separation.}
-Following pre-registration best practice, we split seeds into
+Following a pre-specified evaluation split, we split seeds into
 \emph{calibration} (seeds 0--99) and \emph{held-out test} (seeds 100--199).
 All threshold tuning and adapter development use only calibration seeds.
 Test seeds are evaluated with frozen thresholds; ``unseen conditions''
@@ -488,6 +488,9 @@ maximize balanced accuracy of predicting whether the alive-count AUC
 over the last 30\% of the run exceeds the calibration-set median.
 Optimal thresholds are frozen, then evaluated on test seeds via
 ROC-AUC, precision, recall, and a $\pm 20\%$ sensitivity analysis.
+To reduce target-coupling leakage in alive-count prediction, we also report
+a strict evaluation mode where alive-count-driven coupling features are
+disabled in D1 and D4 during predictive scoring.
 To test robustness against substrate bias, we additionally evaluate
 two alternative prediction targets: \emph{recovery time} (normalized
 steps to recover population after the deepest dip) and
@@ -620,15 +623,14 @@ The composite (closure $\times$ persistence) shows similar patterns
 but with attenuated scores for non-reproducing families.
 
 \paragraph{Price equation selection.}
-The Price decomposition yields positive selection coefficients for F1
+The (selection-only) Price component yields positive selection coefficients for F1
 (mean $S_\text{select} = 0.30$) and F2 (mean $S_\text{select} = 0.48$),
 confirming that differential reproductive success correlates with genome
 distance.  F3, lacking reproduction, returns zero.  The Price-based
 $S_\text{select}$ sub-score strengthens D2's discrimination: F1 and F2
 show clear selection signals absent in F3.  Importantly, the Price
-decomposition provides a \emph{direct} fitness decomposition from
-lineage records, avoiding proxy-based correlation measures that could
-conflate selection with drift.
+selection component provides a direct lineage-derived signal, avoiding
+proxy-based correlation measures that could conflate selection with drift.
 
 \paragraph{Competition controls.}
 Single-family runs (3 families $\times$ 5 regimes $\times$ 200 seeds)
@@ -683,8 +685,7 @@ generalize to all ecological outcomes.
 \begin{figure}[t]
 \centering
 \includefigure[width=0.85\columnwidth]{figures/predictive_roc.pdf}
-\caption{ROC curves on held-out test seeds (100--199).  Points mark
-the frozen threshold from calibration.}
+\caption{ROC curves on held-out test seeds (100--199).}
 \label{fig:roc}
 \end{figure}
 
@@ -750,8 +751,9 @@ aggregation/edge/similarity modes preserve rank stability
 genomes may favor evolution-centric definitions; alternative targets and
 Lenia (\S\ref{sec:lenia}) partially address this, but fundamentally
 different substrates (chemical networks, protocells) are needed.
-(3)~\emph{Price equation}: only the selection component is reported;
-the full transmission--selection decomposition is left for future work.
+(3)~\emph{Price equation}: only the selection component is reported
+(transmission fixed to zero); the full transmission--selection
+decomposition is left for future work.
 (4)~\emph{Temporal stability}: D3's SCC membership shows moderate
 Jaccard stability across time windows; longer runs may be needed to
 characterize steady-state closure.
@@ -804,7 +806,7 @@ To test whether the D2--D3 disagreement axis generalizes beyond our
 evolution-centric substrate, we apply the D1--D4 adapters to Lenia
 \citep{chan_2019_lenia}, a continuous cellular automaton where
 spatiotemporal patterns self-organize without explicit reproduction.
-We state a pre-registered hypothesis:
+We state a pre-specified hypothesis:
 
 \smallskip\noindent
 \textbf{H\textsubscript{Lenia}}: \emph{In a substrate without explicit
@@ -848,7 +850,7 @@ Code and adapters are available at an anonymous repository (link upon
 acceptance; MIT license); raw benchmark data (${\sim}$10\,GB) on Zenodo
 (CC-BY~4.0; DOI upon acceptance).
 After \texttt{uv sync --frozen \&\& uv run maturin develop},
-\texttt{reproduce\_all.sh} regenerates all scores, analyses, and figures
+\texttt{scripts/reproduce\_all.sh} regenerates all scores, analyses, and figures
 (${\sim}$30\,h on a Mac Mini M2~Pro).
 
 % ============================================================================

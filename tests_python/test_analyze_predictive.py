@@ -78,6 +78,17 @@ class TestRocAuc:
         y_scores = [0.9, 0.8, 0.7]
         assert np.isnan(roc_auc_score(y_true, y_scores))
 
+    def test_roc_curve_points_endpoints(self):
+        from analyze_predictive import roc_curve_points
+
+        y_true = [True, True, False, False]
+        y_scores = [0.9, 0.8, 0.2, 0.1]
+        fpr, tpr = roc_curve_points(y_true, y_scores)
+        assert fpr[0] == pytest.approx(0.0)
+        assert tpr[0] == pytest.approx(0.0)
+        assert fpr[-1] == pytest.approx(1.0)
+        assert tpr[-1] == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # Threshold sweep
@@ -206,16 +217,46 @@ class TestLineageDiversity:
 class TestCalibratePipeline:
     def test_calibrate_single_definition(self, mode_b_run):
         """Calibrate threshold for D1 on a single run, then evaluate."""
-        from analyze_predictive import calibrate_definition, evaluate_definition
+        from analyze_predictive import (
+            _make_labels,
+            _precompute_all_scores,
+            calibrate_definition,
+            evaluate_definition,
+        )
 
         # Use the same run as both calibration and test (smoke test only)
         cal_data = [{"run": mode_b_run, "regime": "E1", "seed": 42}]
+        scores_by_defn, targets = _precompute_all_scores(cal_data, tail_fraction=0.3)
+        labels, _ = _make_labels(targets)
 
-        thresh = calibrate_definition("D1", cal_data, tail_fraction=0.3)
+        thresh = calibrate_definition("D1", scores_by_defn, labels)
         assert 0.0 <= thresh <= 1.0
 
         # Evaluate on same data (smoke test)
-        metrics = evaluate_definition("D1", cal_data, thresh)
+        metrics = evaluate_definition("D1", scores_by_defn, labels, thresh)
         assert "roc_auc" in metrics
         assert "precision" in metrics
         assert "recall" in metrics
+        assert "roc_curve" in metrics
+
+    def test_strict_mode_precompute_runs(self, mode_b_run):
+        from analyze_predictive import _precompute_all_scores
+
+        data = [{"run": mode_b_run, "regime": "E1", "seed": 42}]
+        strict_scores, strict_targets = _precompute_all_scores(
+            data,
+            tail_fraction=0.3,
+            evaluation_mode="strict",
+        )
+        assert len(strict_targets) > 0
+        assert all(defn in strict_scores for defn in ["D1", "D2", "D3", "D4"])
+        assert all(
+            len(strict_scores[defn]) == len(strict_targets) for defn in ["D1", "D2", "D3", "D4"]
+        )
+
+    def test_precompute_rejects_unknown_evaluation_mode(self, mode_b_run):
+        from analyze_predictive import _precompute_all_scores
+
+        data = [{"run": mode_b_run, "regime": "E1", "seed": 42}]
+        with pytest.raises(ValueError, match="Unknown evaluation_mode"):
+            _precompute_all_scores(data, tail_fraction=0.3, evaluation_mode="strcit")  # typo
