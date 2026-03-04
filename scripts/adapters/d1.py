@@ -82,6 +82,7 @@ def score_d1(
     weights: tuple[float, float, float] | None = None,
     beta_reference_families: set[int] | None = None,
     aggregation: str = "geometric",
+    exclude_alive_count_signals: bool = False,
 ) -> AdapterResult:
     """Score a family against D1 (textbook 7-criteria).
 
@@ -124,7 +125,12 @@ def score_d1(
             all_families,
             allowed_families=beta_reference_families,
         )
-        gamma = _score_coupling(criterion, target, rng)
+        gamma = _score_coupling(
+            criterion,
+            target,
+            rng,
+            exclude_alive_count_signals=exclude_alive_count_signals,
+        )
         coupling_scores[criterion] = gamma
 
         if is_ablated:
@@ -252,6 +258,8 @@ def _score_coupling(
     criterion: str,
     series: dict[str, np.ndarray],
     rng: np.random.Generator,
+    *,
+    exclude_alive_count_signals: bool = False,
 ) -> float:
     """γ — Feedback coupling: max(TE score, lagged xcorr score).
 
@@ -260,6 +268,8 @@ def _score_coupling(
     with limited bins might miss.
     """
     src_name, tgt_name = _CRITERION_COUPLING[criterion]
+    if exclude_alive_count_signals and (src_name == "alive_count" or tgt_name == "alive_count"):
+        return 0.0
     src = series[src_name]
     tgt = series[tgt_name]
 

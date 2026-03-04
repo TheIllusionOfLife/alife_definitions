@@ -46,6 +46,7 @@ def score_d4(
     family_id: int,
     threshold: float = DEFAULT_THRESHOLD,
     similarity_mode: str = "hash",
+    causal_fitness_signal: str = "alive_count",
 ) -> AdapterResult:
     """Score a family against D4 (information maintenance).
 
@@ -65,7 +66,7 @@ def score_d4(
         raise ValueError(f"Unknown similarity_mode: {similarity_mode!r}")
 
     s_present = _score_info_present(series, all_families)
-    s_causal = _score_info_causal(series, rng)
+    s_causal = _score_info_causal(series, rng, fitness_signal=causal_fitness_signal)
     if similarity_mode == "l2":
         s_preserved = _score_info_preserved_l2(lineage)
     else:
@@ -90,6 +91,7 @@ def score_d4(
         metadata={
             "n_lineage_events": len(lineage),
             "n_samples": len(run_summary["samples"]),
+            "causal_fitness_signal": causal_fitness_signal,
         },
     )
 
@@ -132,10 +134,14 @@ def _score_info_present(
 def _score_info_causal(
     series: dict[str, np.ndarray],
     rng: np.random.Generator,
+    *,
+    fitness_signal: str = "alive_count",
 ) -> float:
     """S_info_causal — Genome information predicts fitness."""
     genome_div = series["genome_diversity"]
-    alive = series["alive_count"]
+    if fitness_signal not in series:
+        raise ValueError(f"Unknown fitness_signal: {fitness_signal!r}")
+    alive = series[fitness_signal]
 
     if len(genome_div) < 4 or np.std(genome_div) == 0 or np.std(alive) == 0:
         return 0.0

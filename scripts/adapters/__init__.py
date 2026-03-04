@@ -19,6 +19,7 @@ def score_all(
     d3_fdr_q: float | None = None,
     d3_edge_mode: str = "bonferroni",
     d4_similarity_mode: str = "hash",
+    predictive_strict: bool = False,
 ) -> dict[str, AdapterResult]:
     """Score a single family against all four definitions.
 
@@ -52,6 +53,8 @@ def score_all(
             if d1_weights is not None:
                 kwargs["weights"] = d1_weights
             kwargs["aggregation"] = d1_aggregation
+            if predictive_strict:
+                kwargs["exclude_alive_count_signals"] = True
         if name == "D3":
             kwargs["mode"] = d3_mode
             kwargs["edge_mode"] = d3_edge_mode
@@ -59,6 +62,8 @@ def score_all(
                 kwargs["fdr_q"] = d3_fdr_q
         if name == "D4":
             kwargs["similarity_mode"] = d4_similarity_mode
+            if predictive_strict:
+                kwargs["causal_fitness_signal"] = "energy_mean"
         results[name] = fn(run_summary, family_id=family_id, **kwargs)
 
     return results

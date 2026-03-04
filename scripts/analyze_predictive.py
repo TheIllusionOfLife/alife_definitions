@@ -1,8 +1,13 @@
 """Predictive validity analysis for D1–D4 definition scores.
 
 Calibrates thresholds on calibration seeds (0–99), evaluates on test seeds
-(100–199). Reports ROC-AUC, precision/recall at frozen threshold, and
-sensitivity analysis.
+(100–199). Reports ROC-AUC, precision/recall at frozen threshold,
+true ROC curve points, and sensitivity analysis.
+
+Supports two evaluation modes:
+- ``legacy``: historical scoring behavior.
+- ``strict``: leakage-aware mode that suppresses alive_count-driven coupling
+  terms when predicting alive-count AUC.
 
 Usage:
     uv run python scripts/analyze_predictive.py experiments/benchmark/
@@ -14,12 +19,14 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from adapters import score_all
 from adapters.common import discover_family_ids, extract_family_series
 
 DEFINITIONS = ["D1", "D2", "D3", "D4"]
+EvaluationMode = Literal["legacy", "strict"]
 
 # np.trapezoid was added in NumPy 2.0; np.trapz was removed in NumPy 2.0.
 try:
@@ -86,6 +93,35 @@ def roc_auc_score(y_true: list[bool], y_scores: list[float]) -> float:
         fpr_list.append(fp / n_neg)
 
     return float(_trapezoid(tpr_list, fpr_list))
+
+
+def roc_curve_points(y_true: list[bool], y_scores: list[float]) -> tuple[list[float], list[float]]:
+    """Compute full ROC curve points (FPR, TPR) with tie-aware score grouping."""
+    n_pos = sum(y_true)
+    n_neg = len(y_true) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return [0.0, 1.0], [0.0, 1.0]
+
+    pairs = sorted(zip(y_scores, y_true, strict=True), key=lambda x: -x[0])
+
+    tpr_list = [0.0]
+    fpr_list = [0.0]
+    tp = 0
+    fp = 0
+
+    i = 0
+    while i < len(pairs):
+        current_score = pairs[i][0]
+        while i < len(pairs) and pairs[i][0] == current_score:
+            if pairs[i][1]:
+                tp += 1
+            else:
+                fp += 1
+            i += 1
+        tpr_list.append(tp / n_pos)
+        fpr_list.append(fp / n_neg)
+
+    return fpr_list, tpr_list
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +343,7 @@ def _precompute_all_scores(
     data: list[dict],
     tail_fraction: float,
     target: str = "alive_auc",
+    evaluation_mode: EvaluationMode = "legacy",
 ) -> tuple[dict[str, list[float]], list[float]]:
     """Score all runs once and return per-definition scores and target values.
 
@@ -328,7 +365,7 @@ def _precompute_all_scores(
         run = entry["run"]
         family_ids = discover_family_ids(run)
         for fid in family_ids:
-            result = score_all(run, family_id=fid)
+            result = score_all(run, family_id=fid, predictive_strict=(evaluation_mode == "strict"))
             for d in DEFINITIONS:
                 scores_by_defn[d].append(result[d].score)
             # alive_auc uses tail_fraction; others use their own defaults
@@ -374,44 +411,28 @@ def _make_labels(
 
 def calibrate_definition(
     defn: str,
-    cal_data: list[dict],
-    tail_fraction: float = 0.3,
-    target: str = "alive_auc",
+    scores_by_defn: dict[str, list[float]],
+    labels: list[bool],
 ) -> float:
-    """Calibrate threshold for a single definition on calibration data.
-
-    Args:
-        defn: Definition name ("D1", "D2", etc.).
-        cal_data: List of {"run": dict, "regime": str, "seed": int}.
-        tail_fraction: Fraction of run tail for alive_count AUC.
-        target: Prediction target from TARGET_EXTRACTORS.
-
-    Returns:
-        Optimal threshold maximizing balanced accuracy.
-    """
-    scores_by_defn, aucs = _precompute_all_scores(cal_data, tail_fraction, target=target)
+    """Calibrate threshold for a single definition on precomputed scores."""
     scores = scores_by_defn[defn]
     if not scores:
         return 0.5
-    labels, _median = _make_labels(aucs)
     thresh, _ba = sweep_threshold(scores, labels)
     return thresh
 
 
 def evaluate_definition(
     defn: str,
-    test_data: list[dict],
+    scores_by_defn: dict[str, list[float]],
+    labels: list[bool],
     threshold: float,
-    tail_fraction: float = 0.3,
-    target: str = "alive_auc",
 ) -> dict:
     """Evaluate a definition on test data with a frozen threshold.
 
     Returns dict with roc_auc, precision, recall, balanced_accuracy.
     """
-    scores_by_defn, aucs = _precompute_all_scores(test_data, tail_fraction, target=target)
     scores = scores_by_defn[defn]
-    labels, _median = _make_labels(aucs)
 
     if not scores:
         return {
@@ -419,9 +440,11 @@ def evaluate_definition(
             "precision": 0.0,
             "recall": 0.0,
             "balanced_accuracy": 0.0,
+            "roc_curve": {"fpr": [0.0, 1.0], "tpr": [0.0, 1.0]},
         }
 
     auc = roc_auc_score(labels, scores)
+    fpr, tpr = roc_curve_points(labels, scores)
 
     preds = [s >= threshold for s in scores]
     tp = sum(1 for t, p in zip(labels, preds, strict=True) if t and p)
@@ -441,6 +464,7 @@ def evaluate_definition(
         "balanced_accuracy": float(ba),
         "threshold": float(threshold),
         "sensitivity": sensitivity_result,
+        "roc_curve": {"fpr": [float(x) for x in fpr], "tpr": [float(x) for x in tpr]},
     }
 
 
@@ -505,6 +529,12 @@ def main() -> None:
         choices=list(TARGET_EXTRACTORS.keys()),
         help="Prediction target (default: alive_auc)",
     )
+    parser.add_argument(
+        "--evaluation-mode",
+        default="legacy",
+        choices=["legacy", "strict"],
+        help="Scoring mode for predictive evaluation (default: legacy)",
+    )
     parser.add_argument("-o", "--output", type=Path, help="Output JSON (default: stdout)")
     args = parser.parse_args()
 
@@ -540,17 +570,51 @@ def main() -> None:
     else:
         target_corrs = {}
 
-    results = {"definitions": {}, "frozen_thresholds": {}, "target_correlations": target_corrs}
+    cal_scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
+    cal_labels: list[bool] = []
+    if cal_data:
+        cal_scores_by_defn, cal_targets = _precompute_all_scores(
+            cal_data,
+            tail_fraction=0.3,
+            target=args.target,
+            evaluation_mode=args.evaluation_mode,
+        )
+        cal_labels, cal_target_threshold = _make_labels(cal_targets)
+    else:
+        cal_target_threshold = 0.0
+
+    test_scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
+    test_labels: list[bool] = []
+    if test_data:
+        test_scores_by_defn, test_targets = _precompute_all_scores(
+            test_data,
+            tail_fraction=0.3,
+            target=args.target,
+            evaluation_mode=args.evaluation_mode,
+        )
+        test_labels, test_target_threshold = _make_labels(test_targets)
+    else:
+        test_target_threshold = 0.0
+
+    results = {
+        "definitions": {},
+        "frozen_thresholds": {},
+        "target_correlations": target_corrs,
+        "evaluation_mode": args.evaluation_mode,
+        "target": args.target,
+        "calibration_target_threshold": float(cal_target_threshold),
+        "test_target_threshold": float(test_target_threshold),
+    }
 
     for defn in DEFINITIONS:
         log(f"Calibrating {defn}...")
-        thresh = calibrate_definition(defn, cal_data, target=args.target)
+        thresh = calibrate_definition(defn, cal_scores_by_defn, cal_labels)
         results["frozen_thresholds"][defn] = thresh
         log(f"  {defn} threshold: {thresh:.3f}")
 
         if test_data:
             log(f"Evaluating {defn} on test set...")
-            metrics = evaluate_definition(defn, test_data, thresh, target=args.target)
+            metrics = evaluate_definition(defn, test_scores_by_defn, test_labels, thresh)
             results["definitions"][defn] = metrics
             log(f"  ROC-AUC: {metrics['roc_auc']:.3f}")
         else:

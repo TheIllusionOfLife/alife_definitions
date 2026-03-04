@@ -233,7 +233,7 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
     plt = _setup_matplotlib()
 
     fig, ax = plt.subplots(figsize=(4, 3.5))
-    ax.plot([0, 1], [0, 1], "k--", linewidth=0.5, alpha=0.5, label="Random")
+    ax.plot([0, 1], [0, 1], "k--", linewidth=0.7, alpha=0.5, label="Random")
 
     defn_data = predictive_json.get("definitions", {})
     if not defn_data:
@@ -245,17 +245,16 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
     for (defn, metrics), color in zip(defn_data.items(), colors, strict=False):
         auc_val = metrics.get("roc_auc", float("nan"))
         label = f"{defn} (AUC={auc_val:.2f})" if not np.isnan(auc_val) else f"{defn} (n/a)"
-        # Plot a point at (1-specificity, sensitivity) from the frozen threshold
-        ba = metrics.get("balanced_accuracy", 0.5)
-        recall = metrics.get("recall", 0.5)
-        ax.scatter([1 - (2 * ba - recall)], [recall], color=color, s=40, zorder=5)
-        ax.annotate(
-            label,
-            xy=(0.05, 0.95 - 0.08 * DEFINITIONS.index(defn)),
-            xycoords="axes fraction",
-            fontsize=7,
-            color=color,
-        )
+        roc_curve = metrics.get("roc_curve", {})
+        fpr = roc_curve.get("fpr", [])
+        tpr = roc_curve.get("tpr", [])
+        if len(fpr) >= 2 and len(fpr) == len(tpr):
+            ax.plot(fpr, tpr, color=color, linewidth=1.4, label=label)
+        else:
+            # Backward-compatible fallback for legacy JSONs without ROC points
+            ba = metrics.get("balanced_accuracy", 0.5)
+            recall = metrics.get("recall", 0.5)
+            ax.scatter([1 - (2 * ba - recall)], [recall], color=color, s=40, zorder=5, label=label)
 
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
@@ -263,6 +262,7 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.02)
     ax.set_aspect("equal")
+    ax.legend(loc="lower right", fontsize=7)
 
     fig.savefig(out_path, format="pdf")
     plt.close(fig)

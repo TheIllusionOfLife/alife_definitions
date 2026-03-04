@@ -15,6 +15,7 @@
 ## Research Docs
 
 - `research/research-plan.md` — **authoritative benchmark plan** (definitions D1–D4, experimental design, adapter templates)
+- `research/source_audit.md` — high-impact citation audit log (claim-to-source checks)
 - `research/result_manifest_bindings.json`
 - `research/final_graph_manifest_reference.json`
 

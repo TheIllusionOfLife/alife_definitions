@@ -5,6 +5,7 @@ and are the single source of truth — do not edit without re-running the origin
 
 | File | Provenance | Script |
 |------|-----------|--------|
+| `full.json` | Expanded baseline configuration (includes explicit defaults and family-related fields for reproducible full runs) | Maintained manually alongside schema evolution in `crates/alife-defs-core/src/config.rs` |
 | `tuned_baseline.json` | Baseline parameters swept on 2026-02-12, calibration set seeds 0–99 | `scripts/param_sweep_thresholds.py` |
 
 ## Adding a new config

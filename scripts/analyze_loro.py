@@ -18,6 +18,8 @@ from pathlib import Path
 import numpy as np
 from analyze_predictive import (
     TARGET_EXTRACTORS,
+    _make_labels,
+    _precompute_all_scores,
     calibrate_definition,
     evaluate_definition,
 )
@@ -72,9 +74,13 @@ def analyze_loro(
             continue
 
         fold_results: dict[str, dict] = {}
+        train_scores, train_targets = _precompute_all_scores(train_data, 0.3, target=target)
+        train_labels, _ = _make_labels(train_targets)
+        test_scores, test_targets = _precompute_all_scores(test_data, 0.3, target=target)
+        test_labels, _ = _make_labels(test_targets)
         for defn in DEFINITIONS:
-            thresh = calibrate_definition(defn, train_data, target=target)
-            metrics = evaluate_definition(defn, test_data, thresh, target=target)
+            thresh = calibrate_definition(defn, train_scores, train_labels)
+            metrics = evaluate_definition(defn, test_scores, test_labels, thresh)
             fold_results[defn] = {
                 "roc_auc": round(metrics["roc_auc"], 4),
                 "threshold": round(thresh, 4),

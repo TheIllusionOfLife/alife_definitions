@@ -6,10 +6,11 @@ import argparse
 import json
 from pathlib import Path
 
-try:
-    from .analysis_utils import load
-except ImportError:
-    from analysis_utils import load
+
+def load(path: Path) -> list[dict]:
+    """Load a JSON array from disk."""
+    with open(path) as f:
+        return json.load(f)
 
 
 DEFAULT_CONDITIONS = {

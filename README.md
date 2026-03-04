@@ -12,6 +12,13 @@ This repository provides a Rust+Python simulation substrate for empirically comp
 
 - Rust stable toolchain
 - `uv` for Python environment and packaging tasks
+- `tectonic` for building the paper PDF
+
+### Environment Setup (Locked)
+
+```bash
+uv sync --frozen --group dev
+```
 
 ### Build
 
@@ -28,7 +35,7 @@ cargo build -p alife-defs-core -p alife-defs-cli
 ### Python Lint/Test
 
 ```bash
-uv run ruff check scripts tests_python
+uv run ruff check scripts tests_python python
 uv run pytest tests_python
 ```
 
@@ -50,6 +57,17 @@ print(alife_defs.version())
 ```bash
 cargo run -p alife-defs-cli --release -- benchmark
 ```
+
+### Reproduce Paper Artifacts
+
+```bash
+bash scripts/reproduce_all.sh
+```
+
+Notes:
+- Fresh rerun is the default behavior; pass `--resume` only when intentionally reusing existing run JSONs.
+- Full reproduction is long-running (roughly 30 hours on a Mac Mini M2 Pro with 8 workers).
+- Benchmark output is large (around 10 GB); ensure sufficient disk space.
 
 ## Repository Docs
 
