@@ -21,22 +21,51 @@ ZENODO_JSON = Path(__file__).resolve().parent.parent / ".zenodo.json"
 ZENODO_API = "https://zenodo.org/api"
 SANDBOX_API = "https://sandbox.zenodo.org/api"
 
+# Archives that must be present for a valid upload
+REQUIRED_ARCHIVES = [
+    "benchmark_coexistence.tar.gz",
+    "benchmark_single_family.tar.gz",
+    "lenia_cross_substrate.tar.gz",
+]
+
+# (connect_timeout, read_timeout) in seconds
+HTTP_TIMEOUT = (10, 300)
+
+
+class UploadError(Exception):
+    """Raised when upload preparation or execution fails."""
+
 
 def _verify_checksums(staging: Path) -> bool:
     """Verify SHA256 checksums of archives against checksums.sha256."""
     checksum_file = staging / "checksums.sha256"
     if not checksum_file.exists():
-        print("WARNING: checksums.sha256 not found, skipping verification")
-        return True
+        print("ERROR: checksums.sha256 not found. Re-run prepare_zenodo_metadata.py.")
+        return False
 
+    resolved_staging = staging.resolve()
     ok = True
     with open(checksum_file) as f:
-        for line in f:
+        for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
-            expected, name = line.split("  ", 1)
-            path = staging / name
+            parts = line.split("  ", 1)
+            if len(parts) != 2:
+                print(f"  MALFORMED (line {line_num}): {line!r}")
+                ok = False
+                continue
+            expected, name = parts
+
+            # Path traversal protection
+            path = (staging / name).resolve()
+            try:
+                path.relative_to(resolved_staging)
+            except ValueError:
+                print(f"  INVALID PATH: {name}")
+                ok = False
+                continue
+
             if not path.exists():
                 print(f"  MISSING: {name}")
                 ok = False
@@ -55,24 +84,32 @@ def _verify_checksums(staging: Path) -> bool:
 
 
 def upload(*, sandbox: bool = False, dry_run: bool = False, publish: bool = False) -> None:
-    """Upload staging directory to Zenodo."""
-    if not STAGING_DIR.exists():
-        print("ERROR: Staging directory not found. Run prepare_zenodo_metadata.py first.")
-        sys.exit(1)
+    """Upload staging directory to Zenodo.
 
-    # Collect files to upload: archives + logs + checksums (skip .zenodo.json and temp dirs)
+    Raises:
+        UploadError: If staging directory is invalid or checksums fail.
+    """
+    if not STAGING_DIR.exists():
+        raise UploadError("Staging directory not found. Run prepare_zenodo_metadata.py first.")
+
+    # Validate required archives are present
+    missing = [name for name in REQUIRED_ARCHIVES if not (STAGING_DIR / name).exists()]
+    if missing:
+        raise UploadError(
+            f"Required archives missing: {', '.join(missing)}. Re-run prepare_zenodo_metadata.py."
+        )
+
+    # Collect files to upload: archives + logs + checksums (skip .zenodo.json)
     upload_files = sorted(
         f for f in STAGING_DIR.iterdir() if f.is_file() and not f.name.startswith(".")
     )
     if not upload_files:
-        print("ERROR: No files found in staging directory.")
-        sys.exit(1)
+        raise UploadError("No files found in staging directory.")
 
     # Verify checksums before upload
     print("Verifying checksums...")
     if not _verify_checksums(STAGING_DIR):
-        print("ERROR: Checksum verification failed. Re-run prepare_zenodo_metadata.py.")
-        sys.exit(1)
+        raise UploadError("Checksum verification failed. Re-run prepare_zenodo_metadata.py.")
 
     print(f"\nFiles to upload ({len(upload_files)}):")
     total_size = 0
@@ -88,14 +125,14 @@ def upload(*, sandbox: bool = False, dry_run: bool = False, publish: bool = Fals
 
     try:
         import requests
-    except ImportError:
-        print("ERROR: requests package required. Install with: uv sync --extra zenodo")
-        sys.exit(1)
+    except ImportError as err:
+        raise UploadError(
+            "requests package required. Install with: uv sync --extra zenodo"
+        ) from err
 
     token = os.environ.get("ZENODO_TOKEN")
     if not token:
-        print("ERROR: ZENODO_TOKEN environment variable not set")
-        sys.exit(1)
+        raise UploadError("ZENODO_TOKEN environment variable not set")
 
     api = SANDBOX_API if sandbox else ZENODO_API
     headers = {"Authorization": f"Bearer {token}"}
@@ -106,7 +143,12 @@ def upload(*, sandbox: bool = False, dry_run: bool = False, publish: bool = Fals
 
     # Create deposition
     print("\nCreating deposition...")
-    r = requests.post(f"{api}/deposit/depositions", headers=headers, json={"metadata": metadata})
+    r = requests.post(
+        f"{api}/deposit/depositions",
+        headers=headers,
+        json={"metadata": metadata},
+        timeout=HTTP_TIMEOUT,
+    )
     r.raise_for_status()
     deposition = r.json()
     dep_id = deposition["id"]
@@ -123,6 +165,7 @@ def upload(*, sandbox: bool = False, dry_run: bool = False, publish: bool = Fals
                 f"{bucket_url}/{filepath.name}",
                 data=fp,
                 headers={**headers, "Content-Type": "application/octet-stream"},
+                timeout=HTTP_TIMEOUT,
             )
             r.raise_for_status()
         print("done")
@@ -133,6 +176,7 @@ def upload(*, sandbox: bool = False, dry_run: bool = False, publish: bool = Fals
         r = requests.post(
             f"{api}/deposit/depositions/{dep_id}/actions/publish",
             headers=headers,
+            timeout=HTTP_TIMEOUT,
         )
         r.raise_for_status()
         doi = r.json().get("doi", "N/A")
@@ -154,4 +198,8 @@ if __name__ == "__main__":
         help="Publish after upload (default: draft)",
     )
     args = parser.parse_args()
-    upload(sandbox=args.sandbox, dry_run=args.dry_run, publish=args.publish)
+    try:
+        upload(sandbox=args.sandbox, dry_run=args.dry_run, publish=args.publish)
+    except UploadError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)

@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import tarfile
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -49,6 +50,16 @@ ANALYSIS_ARTIFACTS = [
 ]
 
 
+def _is_regime_dir(name: str) -> bool:
+    """Check if name matches E<digits> pattern (e.g. E1, E5)."""
+    return len(name) >= 2 and name[0] == "E" and name[1:].isdigit()
+
+
+def _is_family_dir(name: str) -> bool:
+    """Check if name matches F<digits> pattern (e.g. F1, F3)."""
+    return len(name) >= 2 and name[0] == "F" and name[1:].isdigit()
+
+
 def _sha256(path: Path) -> str:
     """Compute SHA256 hex digest for a file."""
     h = hashlib.sha256()
@@ -73,6 +84,20 @@ def _make_tar(archive_path: Path, base_name: str, source_dir: Path) -> int:
     return count
 
 
+def _archive_and_record(
+    archive_path: Path,
+    base_name: str,
+    source_dir: Path,
+    checksums: list[tuple[str, str]],
+) -> None:
+    """Create archive, compute checksum, append to checksums list, and print stats."""
+    n_files = _make_tar(archive_path, base_name, source_dir)
+    digest = _sha256(archive_path)
+    checksums.append((digest, archive_path.name))
+    size_mb = archive_path.stat().st_size / 1e6
+    print(f"  -> {archive_path.name}: {n_files} files, {size_mb:.1f} MB, sha256={digest[:16]}...")
+
+
 def prepare() -> None:
     """Prepare the staging directory with compressed archives."""
     if STAGING_DIR.exists():
@@ -83,75 +108,77 @@ def prepare() -> None:
 
     # --- Archive 1: benchmark coexistence ---
     if BENCHMARK_DIR.exists():
-        # Stage into a temp dir so we can tar it cleanly
-        tmp = STAGING_DIR / "_tmp_benchmark"
-        tmp.mkdir()
+        with tempfile.TemporaryDirectory(dir=STAGING_DIR) as tmp_str:
+            tmp = Path(tmp_str)
 
-        # Copy regime directories
-        for regime_dir in sorted(BENCHMARK_DIR.iterdir()):
-            if regime_dir.is_dir() and regime_dir.name.startswith("E"):
-                dest = tmp / regime_dir.name
-                dest.mkdir(parents=True)
-                for json_file in sorted(regime_dir.glob("seed_*.json")):
-                    shutil.copy2(json_file, dest / json_file.name)
-                n = len(list(dest.glob("*.json")))
-                print(f"  {regime_dir.name}: {n} seed files")
+            # Copy regime directories
+            for regime_dir in sorted(BENCHMARK_DIR.iterdir()):
+                if regime_dir.is_dir() and _is_regime_dir(regime_dir.name):
+                    dest = tmp / regime_dir.name
+                    dest.mkdir(parents=True)
+                    for json_file in sorted(regime_dir.glob("seed_*.json")):
+                        shutil.copy2(json_file, dest / json_file.name)
+                    n = len(list(dest.glob("*.json")))
+                    print(f"  {regime_dir.name}: {n} seed files")
 
-        # Copy analysis artifacts
-        for name in ANALYSIS_ARTIFACTS:
-            src = BENCHMARK_DIR / name
-            if src.exists():
-                shutil.copy2(src, tmp / name)
-                print(f"  Copied {name}")
+            # Copy analysis artifacts
+            for name in ANALYSIS_ARTIFACTS:
+                src = BENCHMARK_DIR / name
+                if src.exists():
+                    shutil.copy2(src, tmp / name)
+                    print(f"  Copied {name}")
 
-        archive = STAGING_DIR / "benchmark_coexistence.tar.gz"
-        n_files = _make_tar(archive, "benchmark_coexistence", tmp)
-        shutil.rmtree(tmp)
-        digest = _sha256(archive)
-        checksums.append((digest, archive.name))
-        size_mb = archive.stat().st_size / 1e6
-        print(f"  -> {archive.name}: {n_files} files, {size_mb:.1f} MB, sha256={digest[:16]}...")
+            _archive_and_record(
+                STAGING_DIR / "benchmark_coexistence.tar.gz",
+                "benchmark_coexistence",
+                tmp,
+                checksums,
+            )
 
     # --- Archive 2: benchmark single-family controls ---
     if BENCHMARK_SINGLE_DIR.exists():
-        tmp = STAGING_DIR / "_tmp_single"
-        tmp.mkdir()
+        with tempfile.TemporaryDirectory(dir=STAGING_DIR) as tmp_str:
+            tmp = Path(tmp_str)
 
-        for family_dir in sorted(BENCHMARK_SINGLE_DIR.iterdir()):
-            if not family_dir.is_dir() or not family_dir.name.startswith("F"):
-                continue
-            for regime_dir in sorted(family_dir.iterdir()):
-                if not regime_dir.is_dir() or not regime_dir.name.startswith("E"):
+            for family_dir in sorted(BENCHMARK_SINGLE_DIR.iterdir()):
+                if not family_dir.is_dir() or not _is_family_dir(family_dir.name):
                     continue
-                dest = tmp / family_dir.name / regime_dir.name
-                dest.mkdir(parents=True)
-                for json_file in sorted(regime_dir.glob("seed_*.json")):
-                    shutil.copy2(json_file, dest / json_file.name)
-                n = len(list(dest.glob("*.json")))
-                print(f"  {family_dir.name}/{regime_dir.name}: {n} seed files")
+                for regime_dir in sorted(family_dir.iterdir()):
+                    if not regime_dir.is_dir() or not _is_regime_dir(regime_dir.name):
+                        continue
+                    dest = tmp / family_dir.name / regime_dir.name
+                    dest.mkdir(parents=True)
+                    for json_file in sorted(regime_dir.glob("seed_*.json")):
+                        shutil.copy2(json_file, dest / json_file.name)
+                    n = len(list(dest.glob("*.json")))
+                    print(f"  {family_dir.name}/{regime_dir.name}: {n} seed files")
 
-        # Copy manifest
-        manifest = BENCHMARK_SINGLE_DIR / "benchmark_single_manifest.json"
-        if manifest.exists():
-            shutil.copy2(manifest, tmp / manifest.name)
-            print(f"  Copied {manifest.name}")
+            # Copy manifest
+            manifest = BENCHMARK_SINGLE_DIR / "benchmark_single_manifest.json"
+            if manifest.exists():
+                shutil.copy2(manifest, tmp / manifest.name)
+                print(f"  Copied {manifest.name}")
 
-        archive = STAGING_DIR / "benchmark_single_family.tar.gz"
-        n_files = _make_tar(archive, "benchmark_single_family", tmp)
-        shutil.rmtree(tmp)
-        digest = _sha256(archive)
-        checksums.append((digest, archive.name))
-        size_mb = archive.stat().st_size / 1e6
-        print(f"  -> {archive.name}: {n_files} files, {size_mb:.1f} MB, sha256={digest[:16]}...")
+            _archive_and_record(
+                STAGING_DIR / "benchmark_single_family.tar.gz",
+                "benchmark_single_family",
+                tmp,
+                checksums,
+            )
 
-    # --- Archive 3: Lenia cross-substrate ---
+    # --- Archive 3: Lenia cross-substrate (JSON only) ---
     if LENIA_DIR.exists():
-        archive = STAGING_DIR / "lenia_cross_substrate.tar.gz"
-        n_files = _make_tar(archive, "lenia_cross_substrate", LENIA_DIR)
-        digest = _sha256(archive)
-        checksums.append((digest, archive.name))
-        size_mb = archive.stat().st_size / 1e6
-        print(f"  -> {archive.name}: {n_files} files, {size_mb:.1f} MB, sha256={digest[:16]}...")
+        with tempfile.TemporaryDirectory(dir=STAGING_DIR) as tmp_str:
+            tmp = Path(tmp_str)
+            for json_file in sorted(LENIA_DIR.glob("*.json")):
+                shutil.copy2(json_file, tmp / json_file.name)
+
+            _archive_and_record(
+                STAGING_DIR / "lenia_cross_substrate.tar.gz",
+                "lenia_cross_substrate",
+                tmp,
+                checksums,
+            )
 
     # --- Experiment logs ---
     for log_name in LOG_FILES:
