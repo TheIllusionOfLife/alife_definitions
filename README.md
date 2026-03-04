@@ -68,6 +68,10 @@ Notes:
 - Fresh rerun is the default behavior; pass `--resume` only when intentionally reusing existing run JSONs.
 - Full reproduction is long-running (roughly 30 hours on a Mac Mini M2 Pro with 8 workers).
 - Benchmark output is large (around 10 GB); ensure sufficient disk space.
+- To refresh predictive artifacts without re-running simulations, run:
+  `uv run python scripts/analyze_predictive.py experiments/benchmark -o experiments/benchmark/predictive_analysis.json`
+  and
+  `uv run python scripts/analyze_predictive.py experiments/benchmark --evaluation-mode strict -o experiments/benchmark/predictive_analysis_strict.json`.
 
 ## Repository Docs
 

@@ -39,6 +39,7 @@ ANALYSIS_ARTIFACTS = [
     "score_matrix.tsv",
     "agreement_analysis.json",
     "predictive_analysis.json",
+    "predictive_analysis_strict.json",
     "frozen_thresholds.json",
     "benchmark_manifest.json",
     "loro.json",
@@ -47,6 +48,7 @@ ANALYSIS_ARTIFACTS = [
     "te_robustness.json",
     "temporal_d3.json",
     "bootstrap_ci.json",
+    "bootstrap_ci_strict.json",
 ]
 
 

@@ -27,7 +27,7 @@
   \ifthenelse{\equal{#1}{D3D4}}{0.61}{??}}}}}}}
 \newcommand{\fleissK}{0.42}
 \newcommand{\aucD}[1]{%
-  \ifthenelse{\equal{#1}{D1}}{0.84}{%
+  \ifthenelse{\equal{#1}{D1}}{0.85}{%
   \ifthenelse{\equal{#1}{D2}}{0.65}{%
   \ifthenelse{\equal{#1}{D3}}{0.76}{%
   \ifthenelse{\equal{#1}{D4}}{0.78}{??}}}}}
@@ -52,6 +52,16 @@
   \ifthenelse{\equal{#1}{D2}}{[0.62,\,0.67]}{%
   \ifthenelse{\equal{#1}{D3}}{[0.73,\,0.78]}{%
   \ifthenelse{\equal{#1}{D4}}{[0.75,\,0.81]}{??}}}}}
+\newcommand{\aucDstrict}[1]{%
+  \ifthenelse{\equal{#1}{D1}}{0.85}{%
+  \ifthenelse{\equal{#1}{D2}}{0.65}{%
+  \ifthenelse{\equal{#1}{D3}}{0.76}{%
+  \ifthenelse{\equal{#1}{D4}}{0.54}{??}}}}}
+\newcommand{\aucDciStrict}[1]{%
+  \ifthenelse{\equal{#1}{D1}}{[0.82,\,0.87]}{%
+  \ifthenelse{\equal{#1}{D2}}{[0.62,\,0.67]}{%
+  \ifthenelse{\equal{#1}{D3}}{[0.73,\,0.78]}{%
+  \ifthenelse{\equal{#1}{D4}}{[0.50,\,0.57]}{??}}}}}
 \newcommand{\TODO}[1]{\textbf{[#1]}}
 % --- End result values ---
 
@@ -643,7 +653,8 @@ differences.  The D2--D3 disagreement axis is preserved: F3 still
 receives D2 = 0 but D3 $>$ 0 in both conditions.
 
 \paragraph{Predictive validity.}
-Figure~\ref{fig:roc} shows ROC performance on the held-out test set
+Figures~\ref{fig:roc_legacy} and~\ref{fig:roc_strict} show ROC performance
+for legacy and strict predictive evaluation on the held-out test set
 (Table~\ref{tab:predictive}).
 D1 achieves the highest predictive validity
 (AUC = \aucD{D1}, 95\% CI: \aucDci{D1}),
@@ -654,21 +665,31 @@ sub-scores (reproduction, heredity, selection) produce a narrower
 score range than D1's seven criteria, limiting threshold discrimination.
 Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
 component signals captures more variance in population outcomes.
+Under strict predictive evaluation (leakage-aware coupling suppression),
+D1 remains highest (AUC = \aucDstrict{D1}, 95\% CI: \aucDciStrict{D1}),
+while D2 and D3 remain unchanged (\aucDstrict{D2}, \aucDstrict{D3}).
+D4 drops substantially to \aucDstrict{D4} (95\% CI: \aucDciStrict{D4}),
+indicating that its legacy predictive strength was strongly tied to
+alive-count-linked causal fitness signals.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Predictive validity on test seeds (100--199).
+\caption{Predictive validity on test seeds (100--199), side-by-side legacy vs strict.
 Primary target: alive-count AUC.}
 \label{tab:predictive}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
  & D1 & D2 & D3 & D4 \\
 \midrule
-ROC-AUC          & \aucD{D1} & \aucD{D2} & \aucD{D3} & \aucD{D4} \\
-Balanced Acc.\    & 0.84 & 0.66 & 0.74 & 0.78 \\
-Precision         & 0.99 & 0.63 & 0.72 & 1.00 \\
-Recall            & 0.70 & 0.78 & 0.80 & 0.55 \\
+ROC-AUC (legacy)  & \aucD{D1} & \aucD{D2} & \aucD{D3} & \aucD{D4} \\
+ROC-AUC (strict)  & \aucDstrict{D1} & \aucDstrict{D2} & \aucDstrict{D3} & \aucDstrict{D4} \\
+Balanced Acc.\ (legacy) & 0.85 & 0.66 & 0.74 & 0.78 \\
+Balanced Acc.\ (strict) & 0.86 & 0.66 & 0.74 & 0.55 \\
+Precision (legacy) & 0.99 & 0.63 & 0.72 & 1.00 \\
+Precision (strict) & 0.99 & 0.63 & 0.72 & 0.54 \\
+Recall (legacy)    & 0.70 & 0.78 & 0.80 & 0.55 \\
+Recall (strict)    & 0.72 & 0.78 & 0.80 & 0.74 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -685,8 +706,15 @@ generalize to all ecological outcomes.
 \begin{figure}[t]
 \centering
 \includefigure[width=0.85\columnwidth]{figures/predictive_roc.pdf}
-\caption{ROC curves on held-out test seeds (100--199).}
-\label{fig:roc}
+\caption{Legacy-mode ROC curves on held-out test seeds (100--199).}
+\label{fig:roc_legacy}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includefigure[width=0.85\columnwidth]{figures/predictive_roc_strict.pdf}
+\caption{Strict-mode ROC curves on held-out test seeds (100--199).}
+\label{fig:roc_strict}
 \end{figure}
 
 \paragraph{Sensitivity analysis.}
@@ -735,8 +763,11 @@ to comparative definitions; in single-family runs, $\beta$ defaults to
 zero and D1 relies on $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
-D1's seven criteria capture the broadest signal (AUC = \aucD{D1}),
-followed by D4 (\aucD{D4}), D3 (\aucD{D3}), and D2 (\aucD{D2}).
+D1's seven criteria capture the broadest signal in both evaluation modes
+(legacy AUC = \aucD{D1}, strict AUC = \aucDstrict{D1}).
+The largest mode sensitivity appears in D4 (legacy \aucD{D4} to strict
+\aucDstrict{D4}), indicating a stronger reliance on alive-count-linked
+information pathways than D1--D3.
 D2's narrower score range limits threshold discrimination.
 Under lineage diversity all definitions converge (AUC 0.77--0.83),
 confirming complementary information capture; predictive validity

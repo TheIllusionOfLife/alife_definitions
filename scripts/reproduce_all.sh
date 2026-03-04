@@ -95,6 +95,11 @@ uv run python scripts/figure_agreement.py \
   "${DATA_DIR}/score_matrix.tsv" \
   ${CASE_JSON:+--case-study-json "${CASE_JSON}"} \
   --predictive-json "${DATA_DIR}/predictive_analysis.json"
+uv run python scripts/figure_agreement.py \
+  "${DATA_DIR}/score_matrix.tsv" \
+  ${CASE_JSON:+--case-study-json "${CASE_JSON}"} \
+  --predictive-json "${DATA_DIR}/predictive_analysis_strict.json" \
+  --predictive-roc-out "predictive_roc_strict.pdf"
 
 # Step 7: Compile paper
 echo "--- Step 7: Compile paper ---"
