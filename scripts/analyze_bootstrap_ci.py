@@ -29,6 +29,13 @@ RNG_SEED = 2026
 EVAL_MODES = ("legacy", "strict")
 
 
+def _predictive_strict_flag(evaluation_mode: str) -> bool:
+    """Return strict-mode flag after validating evaluation mode."""
+    if evaluation_mode not in EVAL_MODES:
+        raise ValueError(f"Unknown evaluation_mode: {evaluation_mode!r}")
+    return evaluation_mode == "strict"
+
+
 def cohens_kappa(a: list[bool], b: list[bool]) -> float:
     """Compute Cohen's kappa for two binary raters."""
     n = len(a)
@@ -173,9 +180,7 @@ def bootstrap_pairwise_differences(
     from analyze_predictive import _make_labels, roc_auc_score
 
     rng = np.random.default_rng(RNG_SEED + 1)
-    if evaluation_mode not in EVAL_MODES:
-        raise ValueError(f"Unknown evaluation_mode: {evaluation_mode!r}")
-    predictive_strict = evaluation_mode == "strict"
+    predictive_strict = _predictive_strict_flag(evaluation_mode)
 
     try:
         _trapezoid = np.trapezoid  # type: ignore[attr-defined]
@@ -304,9 +309,7 @@ def bootstrap_roc_auc(
     from analyze_predictive import _make_labels, roc_auc_score
 
     rng = np.random.default_rng(RNG_SEED)
-    if evaluation_mode not in EVAL_MODES:
-        raise ValueError(f"Unknown evaluation_mode: {evaluation_mode!r}")
-    predictive_strict = evaluation_mode == "strict"
+    predictive_strict = _predictive_strict_flag(evaluation_mode)
 
     # np.trapezoid was added in NumPy 2.0; np.trapz was removed in NumPy 2.0.
     try:
