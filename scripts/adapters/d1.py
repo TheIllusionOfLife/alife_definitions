@@ -62,7 +62,7 @@ _CRITERION_COUPLING = {
     "metabolism": ("energy_mean", "boundary_mean"),
     "boundary": ("boundary_mean", "energy_mean"),
     "homeostasis": ("energy_mean", "waste_mean"),
-    "response": ("alive_count", "energy_mean"),
+    "response": ("maturity_mean", "energy_mean"),
     "reproduction": ("birth_count", "alive_count"),
     "evolution": ("genome_diversity", "alive_count"),
     "growth": ("maturity_mean", "alive_count"),

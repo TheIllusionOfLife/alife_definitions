@@ -242,7 +242,10 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
         return
 
     colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-    for (defn, metrics), color in zip(defn_data.items(), colors, strict=False):
+    for defn, color in zip(DEFINITIONS, colors, strict=True):
+        metrics = defn_data.get(defn, {})
+        if not metrics:
+            continue
         auc_val = metrics.get("roc_auc", float("nan"))
         label = f"{defn} (AUC={auc_val:.2f})" if not np.isnan(auc_val) else f"{defn} (n/a)"
         roc_curve = metrics.get("roc_curve", {})

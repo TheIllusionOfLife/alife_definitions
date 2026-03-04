@@ -250,3 +250,13 @@ class TestCalibratePipeline:
         )
         assert len(strict_targets) > 0
         assert all(defn in strict_scores for defn in ["D1", "D2", "D3", "D4"])
+        assert all(
+            len(strict_scores[defn]) == len(strict_targets) for defn in ["D1", "D2", "D3", "D4"]
+        )
+
+    def test_precompute_rejects_unknown_evaluation_mode(self, mode_b_run):
+        from analyze_predictive import _precompute_all_scores
+
+        data = [{"run": mode_b_run, "regime": "E1", "seed": 42}]
+        with pytest.raises(ValueError, match="Unknown evaluation_mode"):
+            _precompute_all_scores(data, tail_fraction=0.3, evaluation_mode="strcit")  # typo

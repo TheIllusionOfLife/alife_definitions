@@ -53,6 +53,9 @@ def score_d4(
     Args:
         similarity_mode: ``"hash"`` (default) uses genome hash Jaccard similarity.
             ``"l2"`` uses L2 distance from parent_child_genome_distance.
+        causal_fitness_signal: Series key used as the fitness-like signal in
+            ``S_info_causal``. Default is ``"alive_count"`` (legacy behavior);
+            strict predictive evaluation uses ``"energy_mean"``.
     """
     rng = np.random.default_rng(4026 + family_id)
     series = extract_family_series(run_summary, family_id)
@@ -151,7 +154,7 @@ def _score_info_causal(
     if np.isnan(rho):
         rho = 0.0
 
-    # Transfer entropy: genome_diversity → alive_count
+    # Transfer entropy: genome_diversity → selected fitness signal
     te_result = transfer_entropy_lag1(
         genome_div, alive, bins=TE_BINS, permutations=TE_PERMS, rng=rng
     )

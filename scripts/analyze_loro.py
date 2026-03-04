@@ -74,9 +74,13 @@ def analyze_loro(
             continue
 
         fold_results: dict[str, dict] = {}
-        train_scores, train_targets = _precompute_all_scores(train_data, 0.3, target=target)
+        train_scores, train_targets = _precompute_all_scores(
+            train_data, 0.3, target=target, evaluation_mode="legacy"
+        )
         train_labels, _ = _make_labels(train_targets)
-        test_scores, test_targets = _precompute_all_scores(test_data, 0.3, target=target)
+        test_scores, test_targets = _precompute_all_scores(
+            test_data, 0.3, target=target, evaluation_mode="legacy"
+        )
         test_labels, _ = _make_labels(test_targets)
         for defn in DEFINITIONS:
             thresh = calibrate_definition(defn, train_scores, train_labels)

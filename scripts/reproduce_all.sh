@@ -32,21 +32,22 @@ echo "  Regimes: ${REGIMES}"
 echo "  Resume existing outputs: ${RESUME}"
 echo ""
 
+run_benchmark() {
+  local seeds="$1"
+  local benchmark_args=(--seeds "${seeds}" --regimes "${REGIMES}")
+  if [ "${RESUME}" = true ]; then
+    benchmark_args+=(--resume)
+  fi
+  uv run python -m scripts.experiment_benchmark "${benchmark_args[@]}"
+}
+
 # Step 1: Generate benchmark data (calibration)
 echo "--- Step 1: Generate calibration data ---"
-BENCHMARK_ARGS=(--seeds "${SEEDS}" --regimes "${REGIMES}")
-if [ "${RESUME}" = true ]; then
-  BENCHMARK_ARGS+=(--resume)
-fi
-uv run python -m scripts.experiment_benchmark "${BENCHMARK_ARGS[@]}"
+run_benchmark "${SEEDS}"
 
 # Step 2: Generate benchmark data (test)
 echo "--- Step 2: Generate test data ---"
-BENCHMARK_ARGS=(--seeds "${TEST_SEEDS}" --regimes "${REGIMES}")
-if [ "${RESUME}" = true ]; then
-  BENCHMARK_ARGS+=(--resume)
-fi
-uv run python -m scripts.experiment_benchmark "${BENCHMARK_ARGS[@]}"
+run_benchmark "${TEST_SEEDS}"
 
 # Step 3: Score all runs
 echo "--- Step 3: Score matrix ---"

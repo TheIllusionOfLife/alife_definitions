@@ -357,7 +357,11 @@ def _precompute_all_scores(
         Tuple of (scores_by_defn, target_values) where scores_by_defn maps
         each definition name to a list of scores aligned with target_values.
     """
+    if evaluation_mode not in ("legacy", "strict"):
+        raise ValueError(f"Unknown evaluation_mode: {evaluation_mode!r}")
+
     extractor = TARGET_EXTRACTORS[target]
+    predictive_strict = evaluation_mode == "strict"
     scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
     target_values: list[float] = []
 
@@ -365,7 +369,7 @@ def _precompute_all_scores(
         run = entry["run"]
         family_ids = discover_family_ids(run)
         for fid in family_ids:
-            result = score_all(run, family_id=fid, predictive_strict=(evaluation_mode == "strict"))
+            result = score_all(run, family_id=fid, predictive_strict=predictive_strict)
             for d in DEFINITIONS:
                 scores_by_defn[d].append(result[d].score)
             # alive_auc uses tail_fraction; others use their own defaults
@@ -570,31 +574,21 @@ def main() -> None:
     else:
         target_corrs = {}
 
-    cal_scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
-    cal_labels: list[bool] = []
-    if cal_data:
-        cal_scores_by_defn, cal_targets = _precompute_all_scores(
-            cal_data,
-            tail_fraction=0.3,
-            target=args.target,
-            evaluation_mode=args.evaluation_mode,
-        )
-        cal_labels, cal_target_threshold = _make_labels(cal_targets)
-    else:
-        cal_target_threshold = 0.0
+    def _process_data_split(data: list[dict]) -> tuple[dict[str, list[float]], list[bool], float]:
+        if not data:
+            return ({d: [] for d in DEFINITIONS}, [], 0.0)
 
-    test_scores_by_defn: dict[str, list[float]] = {d: [] for d in DEFINITIONS}
-    test_labels: list[bool] = []
-    if test_data:
-        test_scores_by_defn, test_targets = _precompute_all_scores(
-            test_data,
+        scores_by_defn, targets = _precompute_all_scores(
+            data,
             tail_fraction=0.3,
             target=args.target,
             evaluation_mode=args.evaluation_mode,
         )
-        test_labels, test_target_threshold = _make_labels(test_targets)
-    else:
-        test_target_threshold = 0.0
+        labels, target_threshold = _make_labels(targets)
+        return scores_by_defn, labels, float(target_threshold)
+
+    cal_scores_by_defn, cal_labels, cal_target_threshold = _process_data_split(cal_data)
+    test_scores_by_defn, test_labels, test_target_threshold = _process_data_split(test_data)
 
     results = {
         "definitions": {},
