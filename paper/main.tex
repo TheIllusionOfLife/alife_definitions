@@ -499,7 +499,8 @@ Primary results use default operationalizations (geometric-mean D1,
 Bonferroni edges D3, hash similarity D4).  Alternative modes
 (arithmetic/harmonic/min aggregation, AND-condition edges, L2 similarity,
 q25/q75 thresholds) are \emph{exploratory robustness checks}, not used
-for ranking conclusions.
+for ranking conclusions.  The primary prediction target is alive-count
+AUC; recovery time and lineage diversity are secondary targets.
 
 \paragraph{Sensitivity analysis.}
 Three sweeps assess robustness of adapter parameterization:
@@ -636,7 +637,8 @@ confirm the F1 $>$ F2 $>$ F3 ordering on D1 in isolation
 F3's D3 closure rises without competition
 (0.37 vs.\ 0.21 in E1, $\Delta = +0.16$); F2's D1 also rises
 (0.80 vs.\ 0.34), showing competition amplifies apparent capability
-differences.  The D2--D3 disagreement axis is preserved in both conditions.
+differences.  The D2--D3 disagreement axis is preserved: F3 still
+receives D2 = 0 but D3 $>$ 0 in both conditions.
 
 \paragraph{Predictive validity.}
 Figure~\ref{fig:roc} shows ROC performance on the held-out test set
@@ -696,8 +698,9 @@ structure.
 \paragraph{Surrogate false positive rate.}
 Phase-randomized surrogate analysis (100 surrogates per pair,
 50 seeds, E1) yields mean FPR = 0.078 $<$ 0.10 target; no pair
-exceeds 0.11.  Only the source series is randomized, preserving the
-target's autocorrelation to test directional TE specifically.
+exceeds 0.11.  Only the source is randomized, preserving the
+target's autocorrelation; at $n = 200$ points with 5 bins, TE-based
+coupling detection is not systematically producing false positives.
 
 % ============================================================================
 \section{Discussion}
@@ -735,8 +738,9 @@ zero and D1 relies on $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
 D1's seven criteria capture the broadest signal (AUC = \aucD{D1}),
-while D2's three components produce a narrower score range limiting
-threshold discrimination (AUC = \aucD{D2}).
+followed by D4 (\aucD{D4}), D3 (\aucD{D3}), and D2 (\aucD{D2}).
+D2's three components produce a narrower score range limiting
+threshold discrimination.
 Under lineage diversity, all definitions converge to a narrow
 AUC band (0.77--0.83), confirming complementary information capture.
 Predictive validity should not be interpreted as a ranking of
@@ -747,10 +751,10 @@ Predictive validity should not be interpreted as a ranking of
 agreement patterns; $\pm 20\%$ weight perturbation and alternative
 aggregation/edge/similarity modes preserve rank stability
 (Table~\ref{tab:threats}).
-(2)~\emph{Substrate bias}: explicit reproduction mechanisms may favor
-evolution-centric definitions; alternative targets and the Lenia test
-(\S\ref{sec:lenia}) partially address this, but fundamentally different
-substrates (chemical networks, protocells) are needed.
+(2)~\emph{Substrate bias}: explicit reproduction and continuous 256-float
+genomes may favor evolution-centric definitions; alternative targets and
+Lenia (\S\ref{sec:lenia}) partially address this, but fundamentally
+different substrates (chemical networks, protocells) are needed.
 (3)~\emph{Price equation}: only the selection component is reported;
 the full transmission--selection decomposition is left for future work.
 (4)~\emph{Temporal stability}: D3's SCC membership shows moderate
@@ -828,7 +832,8 @@ birth count fixed at zero (no reproduction).
 
 Since no adapter code changes are required---\texttt{score\_all()} operates
 on any conforming JSON---the Lenia results test generalization of the
-scoring framework itself.
+scoring framework itself.  We report the D2 vs.\ D3 comparison
+regardless of outcome; a null result would indicate substrate-specificity.
 
 \paragraph{Results.}
 Across all three creatures and five seeds, D3 consistently scores
