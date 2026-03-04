@@ -40,7 +40,10 @@ alife-definitions-benchmark-v1.0/
 ├── score_matrix.tsv
 ├── agreement_analysis.json
 ├── predictive_analysis.json
+├── predictive_analysis_strict.json
 ├── frozen_thresholds.json
+├── bootstrap_ci.json
+├── bootstrap_ci_strict.json
 └── benchmark_manifest.json
 ```
 
@@ -53,7 +56,8 @@ Estimated size: ~2.7 GB (benchmark: ~1.1 GB + single-family controls: ~1.6 GB + 
 | Fig 1 (disagreement heatmap) | `score_matrix.tsv` |
 | Fig 2 (agreement matrix) | `score_matrix.tsv` → `agreement_analysis.json` |
 | Fig 3 (case study) | `benchmark/E1/seed_042.json` |
-| Fig 4 (predictive ROC) | `predictive_analysis.json` |
+| Fig 4 (predictive ROC, legacy) | `predictive_analysis.json` |
+| Fig 4b (predictive ROC, strict) | `predictive_analysis_strict.json` |
 
 ## Submission Sequence Checklist
 
@@ -62,6 +66,7 @@ Estimated size: ~2.7 GB (benchmark: ~1.1 GB + single-family controls: ~1.6 GB + 
 3. [ ] Generate score matrix TSV
 4. [ ] Run agreement analysis → JSON
 5. [ ] Run predictive validity (calibrate on cal, evaluate on test) → JSON
+5b. [ ] Run predictive validity (strict leakage-aware mode) → JSON
 6. [ ] Freeze thresholds → `frozen_thresholds.json`
 7. [ ] Generate all 4 figures
 8. [ ] Compile paper, verify all figures render

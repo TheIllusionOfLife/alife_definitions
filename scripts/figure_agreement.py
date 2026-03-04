@@ -1,4 +1,4 @@
-"""Generate 4 publication-quality figures for the agreement analysis.
+"""Generate publication-quality figures for the agreement analysis.
 
 1. disagreement_heatmap.pdf — Rows: (regime × family); Cols: D1–D4; Color: mean score
 2. agreement_matrix.pdf — 4×4: κ (lower triangle), ρ (upper triangle)
@@ -383,6 +383,11 @@ def main() -> None:
     parser.add_argument("tsv_file", type=Path, help="Score matrix TSV")
     parser.add_argument("--case-study-json", type=Path, help="Single run JSON for case study")
     parser.add_argument("--predictive-json", type=Path, help="Predictive analysis JSON")
+    parser.add_argument(
+        "--predictive-roc-out",
+        default="predictive_roc.pdf",
+        help="Output filename in paper/figures for predictive ROC (default: predictive_roc.pdf)",
+    )
     parser.add_argument("--sensitivity-json", type=Path, help="Sensitivity analysis JSON")
     parser.add_argument(
         "--pareto-json", type=Path, help="Multi-target predictive JSON for Pareto figure"
@@ -418,7 +423,7 @@ def main() -> None:
     if args.predictive_json and args.predictive_json.exists():
         with open(args.predictive_json) as f:
             pred_data = json.load(f)
-    figure_predictive_roc(pred_data, FIGURE_DIR / "predictive_roc.pdf")
+    figure_predictive_roc(pred_data, FIGURE_DIR / args.predictive_roc_out)
 
     # Robustness bar chart
     sens_data = None

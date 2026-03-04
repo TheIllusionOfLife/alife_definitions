@@ -26,6 +26,14 @@ DEFINITIONS = ["D1", "D2", "D3", "D4"]
 N_BOOT = 2000
 ALPHA = 0.05
 RNG_SEED = 2026
+EVAL_MODES = ("legacy", "strict")
+
+
+def _predictive_strict_flag(evaluation_mode: str) -> bool:
+    """Return strict-mode flag after validating evaluation mode."""
+    if evaluation_mode not in EVAL_MODES:
+        raise ValueError(f"Unknown evaluation_mode: {evaluation_mode!r}")
+    return evaluation_mode == "strict"
 
 
 def cohens_kappa(a: list[bool], b: list[bool]) -> float:
@@ -157,6 +165,7 @@ def bootstrap_pairwise_differences(
     data_dir: Path,
     test_seeds: list[int],
     regimes: list[str],
+    evaluation_mode: str = "legacy",
     n_boot: int = N_BOOT,
 ) -> dict:
     """Block-bootstrap paired AUC differences: AUC(Di) - AUC(Dj) for all 6 pairs.
@@ -171,6 +180,7 @@ def bootstrap_pairwise_differences(
     from analyze_predictive import _make_labels, roc_auc_score
 
     rng = np.random.default_rng(RNG_SEED + 1)
+    predictive_strict = _predictive_strict_flag(evaluation_mode)
 
     try:
         _trapezoid = np.trapezoid  # type: ignore[attr-defined]
@@ -192,7 +202,7 @@ def bootstrap_pairwise_differences(
 
             family_ids = discover_family_ids(run)
             for fid in family_ids:
-                result = score_all(run, family_id=fid)
+                result = score_all(run, family_id=fid, predictive_strict=predictive_strict)
 
                 if seed not in seed_data:
                     seed_data[seed] = {d: [] for d in DEFINITIONS}
@@ -285,6 +295,7 @@ def bootstrap_roc_auc(
     data_dir: Path,
     test_seeds: list[int],
     regimes: list[str],
+    evaluation_mode: str = "legacy",
     n_boot: int = N_BOOT,
 ) -> dict:
     """Block-bootstrap over test seeds for ROC-AUC CIs.
@@ -298,6 +309,7 @@ def bootstrap_roc_auc(
     from analyze_predictive import _make_labels, roc_auc_score
 
     rng = np.random.default_rng(RNG_SEED)
+    predictive_strict = _predictive_strict_flag(evaluation_mode)
 
     # np.trapezoid was added in NumPy 2.0; np.trapz was removed in NumPy 2.0.
     try:
@@ -320,7 +332,7 @@ def bootstrap_roc_auc(
 
             family_ids = discover_family_ids(run)
             for fid in family_ids:
-                result = score_all(run, family_id=fid)
+                result = score_all(run, family_id=fid, predictive_strict=predictive_strict)
 
                 if seed not in seed_data:
                     seed_data[seed] = {d: [] for d in DEFINITIONS}
@@ -430,6 +442,12 @@ def main() -> None:
     )
     parser.add_argument("--test-seeds", default="100-199", help="Test seed range")
     parser.add_argument("--regimes", default="E1,E2,E3,E4,E5")
+    parser.add_argument(
+        "--evaluation-mode",
+        default="legacy",
+        choices=list(EVAL_MODES),
+        help="Predictive scoring mode for ROC/AUC bootstraps (default: legacy)",
+    )
     parser.add_argument("-o", "--output", type=Path)
     parser.add_argument("--agreement-only", action="store_true", help="Skip ROC-AUC bootstrap")
     args = parser.parse_args()
@@ -438,7 +456,7 @@ def main() -> None:
     rows = load_score_matrix(args.score_matrix)
     agreement = bootstrap_agreement(rows)
 
-    result = {"agreement": agreement}
+    result = {"agreement": agreement, "evaluation_mode": args.evaluation_mode}
 
     if args.data_dir and not args.agreement_only:
         print("\n=== ROC-AUC bootstrap ===", file=sys.stderr)
@@ -449,11 +467,21 @@ def main() -> None:
 
         test = parse_range(args.test_seeds)
         regimes = args.regimes.split(",")
-        roc = bootstrap_roc_auc(args.data_dir.resolve(), test, regimes)
+        roc = bootstrap_roc_auc(
+            args.data_dir.resolve(),
+            test,
+            regimes,
+            evaluation_mode=args.evaluation_mode,
+        )
         result["roc_auc"] = roc
 
         print("\n=== Pairwise AUC differences ===", file=sys.stderr)
-        diffs = bootstrap_pairwise_differences(args.data_dir.resolve(), test, regimes)
+        diffs = bootstrap_pairwise_differences(
+            args.data_dir.resolve(),
+            test,
+            regimes,
+            evaluation_mode=args.evaluation_mode,
+        )
         result["pairwise_differences"] = diffs
 
     output = json.dumps(result, indent=2)
