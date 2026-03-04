@@ -721,14 +721,11 @@ Under E2 (resource scarcity), even F1 shows reduced D3 closure as stress
 disrupts feedback coupling.  Under E4 (sensing noise), D1 drops more
 sharply than D2 because noisy inputs degrade TE coupling ($\gamma$)
 while discrete reproductive statistics remain robust.
-Definition-level sensitivity to perturbation is itself an informative
-diagnostic.
 
 \paragraph{Competition vs.\ capability.}
-Single-family controls confirm that the disagreement structure persists
-without competition.  F3's D3 closure improves modestly in isolation,
-but the D2--D3 divergence axis is preserved, confirming that definition
-disagreements reflect capability differences, not competition artifacts.
+Single-family controls confirm the disagreement structure persists
+without competition; F3's D3 closure improves modestly in isolation,
+but the D2--D3 divergence axis is preserved.
 
 \paragraph{D1 cross-family dependence.}
 D1's $\beta$ condition compares families against ablated counterparts,
@@ -739,12 +736,10 @@ zero and D1 relies on $\alpha$ and $\gamma$ alone.
 \paragraph{Predictive validity trade-offs.}
 D1's seven criteria capture the broadest signal (AUC = \aucD{D1}),
 followed by D4 (\aucD{D4}), D3 (\aucD{D3}), and D2 (\aucD{D2}).
-D2's three components produce a narrower score range limiting
-threshold discrimination.
-Under lineage diversity, all definitions converge to a narrow
-AUC band (0.77--0.83), confirming complementary information capture.
-Predictive validity should not be interpreted as a ranking of
-``correctness''---it is substrate- and target-dependent.
+D2's narrower score range limits threshold discrimination.
+Under lineage diversity all definitions converge (AUC 0.77--0.83),
+confirming complementary information capture; predictive validity
+is substrate- and target-dependent, not a ``correctness'' ranking.
 
 \paragraph{Limitations.}
 (1)~\emph{Adapter dependence}: different operationalizations could shift
@@ -841,26 +836,20 @@ higher than D2 (Orbium: $\bar{D3} = 0.80$; Geminium: $0.60$;
 Scutium: $0.80$; all $\bar{D2} = 0.00$), confirming
 H\textsubscript{Lenia}.  D1 $\approx 0.52$ (partial criteria met);
 D4 $= 0.00$ (no heritable information without reproduction).
-Lenia creatures exhibit self-maintaining spatial organization
-(captured by D3's closure score) but lack reproduction or heritable
-variation (required by D2), confirming that the D2--D3 disagreement
-axis reflects a genuine conceptual divide rather than a substrate artifact.
+Lenia creatures exhibit self-maintaining organization (D3) but lack
+reproduction (D2), confirming the D2--D3 axis reflects a genuine
+conceptual divide rather than a substrate artifact.
 
 % ============================================================================
 \section{Artifact Release}
 \label{sec:artifact}
 
-Code, adapters, and raw benchmark data are available at an anonymous
-repository (link provided upon acceptance; code under MIT license)
-and Zenodo (data, CC-BY~4.0; DOI to be assigned upon acceptance).
-
-\paragraph{Reproduction.}
+Code and adapters are available at an anonymous repository (link upon
+acceptance; MIT license); raw benchmark data (${\sim}$10\,GB) on Zenodo
+(CC-BY~4.0; DOI upon acceptance).
 After \texttt{uv sync --frozen \&\& uv run maturin develop},
-\texttt{reproduce\_all.sh} runs the full pipeline
+\texttt{reproduce\_all.sh} regenerates all scores, analyses, and figures
 (${\sim}$30\,h on a Mac Mini M2~Pro).
-Dependencies are pinned via \texttt{uv.lock} and \texttt{rust-toolchain.toml}.
-Raw benchmark JSONs (${\sim}$10\,GB) are archived on Zenodo;
-the score matrix TSV and analysis JSONs are included in the repository.
 
 % ============================================================================
 \section*{Acknowledgments}
