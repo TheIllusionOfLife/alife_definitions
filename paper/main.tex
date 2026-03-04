@@ -688,8 +688,9 @@ the frozen threshold from calibration.}
 
 \paragraph{Sensitivity analysis.}
 D1 weight perturbation ($\pm 20\%$) changes mean scores by $\leq 0.019$,
-preserving family ordering.  D3 FDR sweep ($q$: 0.01--0.10) increases
-mean closure from 0.48 to 0.61 but preserves the qualitative agreement
+preserving family ordering.  Binary threshold sweep (0.1--0.9) yields
+monotonically decreasing pass rates.  D3 FDR sweep ($q$: 0.01--0.10)
+increases mean closure from 0.48 to 0.61 but preserves the agreement
 structure.
 
 \paragraph{Surrogate false positive rate.}
@@ -849,11 +850,10 @@ repository (link provided upon acceptance; code under MIT license)
 and Zenodo (data, CC-BY~4.0; DOI to be assigned upon acceptance).
 
 \paragraph{Reproduction.}
-A single script (\texttt{reproduce\_all.sh}) runs the full pipeline:
-benchmark generation (${\sim}$30\,h on a Mac Mini M2~Pro),
-scoring, analysis, and figure generation.
-All Python dependencies are pinned via \texttt{uv.lock}; the Rust
-toolchain is recorded in \texttt{rust-toolchain.toml}.
+After \texttt{uv sync --frozen \&\& uv run maturin develop},
+\texttt{reproduce\_all.sh} runs the full pipeline
+(${\sim}$30\,h on a Mac Mini M2~Pro).
+Dependencies are pinned via \texttt{uv.lock} and \texttt{rust-toolchain.toml}.
 Raw benchmark JSONs (${\sim}$10\,GB) are archived on Zenodo;
 the score matrix TSV and analysis JSONs are included in the repository.
 
