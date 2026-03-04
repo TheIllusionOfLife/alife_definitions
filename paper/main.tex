@@ -13,19 +13,19 @@
 % --- Result values (from analysis pipeline; calibration: seeds 0--99, held-out test: seeds 100--199, 5 regimes) ---
 \newcommand{\kappaDD}[1]{%
   \ifthenelse{\equal{#1}{D1D2}}{0.89}{%
-  \ifthenelse{\equal{#1}{D1D3}}{0.48}{%
-  \ifthenelse{\equal{#1}{D1D4}}{0.31}{%
-  \ifthenelse{\equal{#1}{D2D3}}{0.42}{%
-  \ifthenelse{\equal{#1}{D2D4}}{0.25}{%
-  \ifthenelse{\equal{#1}{D3D4}}{0.16}{??}}}}}}}
+  \ifthenelse{\equal{#1}{D1D3}}{0.44}{%
+  \ifthenelse{\equal{#1}{D1D4}}{0.29}{%
+  \ifthenelse{\equal{#1}{D2D3}}{0.39}{%
+  \ifthenelse{\equal{#1}{D2D4}}{0.24}{%
+  \ifthenelse{\equal{#1}{D3D4}}{0.17}{??}}}}}}}
 \newcommand{\rhoDD}[1]{%
-  \ifthenelse{\equal{#1}{D1D2}}{0.68}{%
+  \ifthenelse{\equal{#1}{D1D2}}{0.67}{%
   \ifthenelse{\equal{#1}{D1D3}}{0.78}{%
-  \ifthenelse{\equal{#1}{D1D4}}{0.75}{%
-  \ifthenelse{\equal{#1}{D2D3}}{0.59}{%
-  \ifthenelse{\equal{#1}{D2D4}}{0.42}{%
-  \ifthenelse{\equal{#1}{D3D4}}{0.62}{??}}}}}}}
-\newcommand{\fleissK}{0.43}
+  \ifthenelse{\equal{#1}{D1D4}}{0.74}{%
+  \ifthenelse{\equal{#1}{D2D3}}{0.58}{%
+  \ifthenelse{\equal{#1}{D2D4}}{0.39}{%
+  \ifthenelse{\equal{#1}{D3D4}}{0.61}{??}}}}}}}
+\newcommand{\fleissK}{0.42}
 \newcommand{\aucD}[1]{%
   \ifthenelse{\equal{#1}{D1}}{0.84}{%
   \ifthenelse{\equal{#1}{D2}}{0.65}{%
@@ -33,20 +33,20 @@
   \ifthenelse{\equal{#1}{D4}}{0.78}{??}}}}}
 % --- 95% bootstrap CIs (2000 block-bootstrap resamples over seeds) ---
 \newcommand{\kappaDDci}[1]{%
-  \ifthenelse{\equal{#1}{D1D2}}{[0.86,\,0.91]}{%
-  \ifthenelse{\equal{#1}{D1D3}}{[0.42,\,0.54]}{%
-  \ifthenelse{\equal{#1}{D1D4}}{[0.24,\,0.36]}{%
-  \ifthenelse{\equal{#1}{D2D3}}{[0.36,\,0.47]}{%
-  \ifthenelse{\equal{#1}{D2D4}}{[0.20,\,0.30]}{%
-  \ifthenelse{\equal{#1}{D3D4}}{[0.09,\,0.22]}{??}}}}}}}
+  \ifthenelse{\equal{#1}{D1D2}}{[0.87,\,0.91]}{%
+  \ifthenelse{\equal{#1}{D1D3}}{[0.39,\,0.48]}{%
+  \ifthenelse{\equal{#1}{D1D4}}{[0.25,\,0.33]}{%
+  \ifthenelse{\equal{#1}{D2D3}}{[0.35,\,0.42]}{%
+  \ifthenelse{\equal{#1}{D2D4}}{[0.21,\,0.28]}{%
+  \ifthenelse{\equal{#1}{D3D4}}{[0.12,\,0.22]}{??}}}}}}}
 \newcommand{\rhoDDci}[1]{%
-  \ifthenelse{\equal{#1}{D1D2}}{[0.66,\,0.71]}{%
+  \ifthenelse{\equal{#1}{D1D2}}{[0.66,\,0.69]}{%
   \ifthenelse{\equal{#1}{D1D3}}{[0.76,\,0.79]}{%
-  \ifthenelse{\equal{#1}{D1D4}}{[0.71,\,0.77]}{%
-  \ifthenelse{\equal{#1}{D2D3}}{[0.56,\,0.62]}{%
-  \ifthenelse{\equal{#1}{D2D4}}{[0.37,\,0.46]}{%
-  \ifthenelse{\equal{#1}{D3D4}}{[0.59,\,0.65]}{??}}}}}}}
-\newcommand{\fleissKci}{[0.40,\,0.46]}
+  \ifthenelse{\equal{#1}{D1D4}}{[0.72,\,0.76]}{%
+  \ifthenelse{\equal{#1}{D2D3}}{[0.56,\,0.61]}{%
+  \ifthenelse{\equal{#1}{D2D4}}{[0.36,\,0.42]}{%
+  \ifthenelse{\equal{#1}{D3D4}}{[0.58,\,0.63]}{??}}}}}}}
+\newcommand{\fleissKci}{[0.39,\,0.44]}
 \newcommand{\aucDci}[1]{%
   \ifthenelse{\equal{#1}{D1}}{[0.82,\,0.87]}{%
   \ifthenelse{\equal{#1}{D2}}{[0.62,\,0.67]}{%
@@ -495,15 +495,12 @@ steps to recover population after the deepest dip) and
 to total birth events in the final 20\% of the lineage).
 
 \paragraph{Confirmatory vs.\ exploratory analysis.}
-Primary (confirmatory) results use the default operationalizations defined
-above: geometric-mean aggregation for D1, Bonferroni edge combination for
-D3, and hash-based genome similarity for D4.  Alternative
-operationalizations---arithmetic/harmonic/min aggregation (D1), AND-condition
-edge detection (D3), L2-distance genome similarity (D4), and alternative
-binarization thresholds (q25/q75)---are reported as \emph{exploratory
-robustness checks} and are not used for ranking conclusions.  The primary
-prediction target is alive-count AUC; recovery time and lineage diversity
-are secondary targets.
+Primary results use default operationalizations (geometric-mean D1,
+Bonferroni edges D3, hash similarity D4).  Alternative modes
+(arithmetic/harmonic/min aggregation, AND-condition edges, L2 similarity,
+q25/q75 thresholds) are \emph{exploratory robustness checks}, not used
+for ranking conclusions.  The primary prediction target is alive-count
+AUC; recovery time and lineage diversity are secondary targets.
 
 \paragraph{Sensitivity analysis.}
 Three sweeps assess robustness of adapter parameterization:
@@ -635,15 +632,13 @@ conflate selection with drift.
 
 \paragraph{Competition controls.}
 Single-family runs (3 families $\times$ 5 regimes $\times$ 200 seeds)
-confirm that the F1 $>$ F2 $>$ F3 ordering on D1 holds in isolation
-across all regimes (E1: 0.88 $>$ 0.80 $>$ 0.47).
-F3's D3 closure score is \emph{higher} without competition
-(0.37 vs.\ 0.21 in E1, $\Delta = +0.16$), confirming that resource
-deprivation from F1 partially suppresses F3's self-maintenance in
-coexistence.  F2's D1 score also rises substantially in isolation
-(0.80 vs.\ 0.34 in E1), showing that competition amplifies apparent
-capability differences.  Crucially, the D2--D3 disagreement axis is
-preserved: F3 still receives D2 = 0 but D3 $>$ 0 in both conditions.
+confirm the F1 $>$ F2 $>$ F3 ordering on D1 in isolation
+(E1: 0.88 $>$ 0.80 $>$ 0.47).
+F3's D3 closure rises without competition
+(0.37 vs.\ 0.21 in E1, $\Delta = +0.16$); F2's D1 also rises
+(0.80 vs.\ 0.34), showing competition amplifies apparent capability
+differences.  The D2--D3 disagreement axis is preserved: F3 still
+receives D2 = 0 but D3 $>$ 0 in both conditions.
 
 \paragraph{Predictive validity.}
 Figure~\ref{fig:roc} shows ROC performance on the held-out test set
@@ -694,23 +689,17 @@ the frozen threshold from calibration.}
 \end{figure}
 
 \paragraph{Sensitivity analysis.}
-D1 weight perturbation ($\pm 20\%$) changes mean scores by at most
-0.019 but preserves the F1 $>$ F2 $>$ F3 ordering across all
-tested perturbation vectors.
-The binary threshold sweep shows monotonically decreasing pass rates
-as thresholds increase from 0.1 to 0.9 for all definitions.
-D3 FDR sweep: relaxing $q$ from 0.01 to 0.10 increases mean significant
-edges from 6.9 to 8.7 and mean closure from 0.48 to 0.61, but the
-qualitative agreement structure is preserved.
+D1 weight perturbation ($\pm 20\%$) changes mean scores by $\leq 0.019$,
+preserving family ordering.  Binary threshold sweep (0.1--0.9) yields
+monotonically decreasing pass rates.  D3 FDR sweep ($q$: 0.01--0.10)
+increases mean closure from 0.48 to 0.61 but preserves the agreement
+structure.
 
 \paragraph{Surrogate false positive rate.}
-Phase-randomized surrogate analysis (100 surrogates per variable pair,
-50 seeds, E1 regime) yields an overall mean FPR of 0.078, below the
-0.10 target; no individual coupling pair's mean FPR exceeds 0.11,
-within acceptable margin of the nominal threshold.
-Only the source series is randomized, preserving the real target's
-autocorrelation structure to test directional TE specifically.
-This confirms that at $n = 200$ sample points with 5 bins, the TE-based
+Phase-randomized surrogate analysis (100 surrogates per pair,
+50 seeds, E1) yields mean FPR = 0.078 $<$ 0.10 target; no pair
+exceeds 0.11.  Only the source is randomized, preserving the
+target's autocorrelation; at $n = 200$ points with 5 bins, TE-based
 coupling detection is not systematically producing false positives.
 
 % ============================================================================
@@ -728,73 +717,44 @@ D1, by requiring \emph{all} seven criteria, subsumes both perspectives
 but is too strict to distinguish borderline cases.
 
 \paragraph{Regime dependence.}
-Under E2 (resource scarcity), even F1 shows reduced D3 closure because
-stress disrupts feedback coupling.  Under E4 (sensing noise), D1 scores
-drop more sharply than D2 scores, because noisy sensory inputs degrade
-the transfer-entropy coupling ($\gamma$) condition while leaving
-reproductive statistics intact.  Specifically, E4's Gaussian noise
-($\sigma = 0.5$) on neural inputs degrades resource harvesting
-efficiency, reducing the energy--waste coupling signal that D1's
-metabolism criterion relies on; D2's reproduction and selection
-sub-scores, computed from discrete lineage events, are comparatively
-robust to continuous sensory perturbation.
-This suggests that definition-level
-sensitivity to environment perturbation is itself an informative
-diagnostic.
+Under E2 (resource scarcity), even F1 shows reduced D3 closure as stress
+disrupts feedback coupling.  Under E4 (sensing noise), D1 drops more
+sharply than D2 because noisy inputs degrade TE coupling ($\gamma$)
+while discrete reproductive statistics remain robust.
 
 \paragraph{Competition vs.\ capability.}
-Single-family controls confirm that the qualitative disagreement structure
-persists when inter-family competition is removed.  F3's D3 closure score
-improves modestly in isolation, indicating that resource competition with
-F1 partially suppresses self-maintenance in coexistence runs.  However,
-the D2--D3 divergence axis is preserved, confirming that definition
-disagreements reflect capability differences, not competition artifacts.
+Single-family controls confirm the disagreement structure persists
+without competition; F3's D3 closure improves modestly in isolation,
+but the D2--D3 divergence axis is preserved.
 
 \paragraph{D1 cross-family dependence.}
-The $\beta$ condition of D1 compares a family against one that lacks the
-criterion being tested.  This means D1 scores depend on the composition
-of co-existing families; adding a new family type could shift scores.
-We view this as inherent to comparative definitions: the ``measurable
-degradation'' test requires a reference.  In single-family runs where
-no ablation partner exists, $\beta$ defaults to zero, and D1 relies on
-$\alpha$ and $\gamma$ alone.
+D1's $\beta$ condition compares families against ablated counterparts,
+so scores depend on co-existing family composition.  This is inherent
+to comparative definitions; in single-family runs, $\beta$ defaults to
+zero and D1 relies on $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
-D1 achieves the highest predictive validity for population robustness
-(ROC-AUC = \aucD{D1}), followed by D4 (\aucD{D4}), D3 (\aucD{D3}),
-and D2 (\aucD{D2}).  D1's seven criteria capture the broadest signal, while D2's three
-components (reproduction, heredity, selection) produce a narrower score
-range that limits threshold discrimination.  Alternative targets
-partially mitigate substrate bias:
-under lineage diversity all four definitions converge to a narrow
-AUC band (0.77--0.83), confirming complementary information capture.
-We caution against interpreting
-predictive validity as a ranking of definitions' ``correctness''---it is
-substrate- and target-dependent.
+D1's seven criteria capture the broadest signal (AUC = \aucD{D1}),
+followed by D4 (\aucD{D4}), D3 (\aucD{D3}), and D2 (\aucD{D2}).
+D2's narrower score range limits threshold discrimination.
+Under lineage diversity all definitions converge (AUC 0.77--0.83),
+confirming complementary information capture; predictive validity
+is substrate- and target-dependent, not a ``correctness'' ranking.
 
 \paragraph{Limitations.}
-(1)~\emph{Adapter dependence}: each definition's score depends on its
-operationalization.  Different operationalizations of the same definition
-could shift agreement patterns.  Sensitivity analysis shows that
-$\pm 20\%$ weight perturbation preserves family ordering; exploratory
-robustness sweeps over alternative aggregation modes (arithmetic,
-harmonic, min for D1), edge combination modes (AND-condition for D3),
-and genome similarity metrics (L2-distance for D4) confirm rank stability
-across variants (see Table~\ref{tab:threats}).
-(2)~\emph{Substrate bias}: the digital ecology's design choices (e.g.,
-explicit reproduction mechanism, continuous-valued 256-float genomes)
-may favor evolution-centric definitions.  Alternative prediction targets
-and the Lenia cross-substrate test (\S\ref{sec:lenia}) partially address
-this, but testing on fundamentally different substrates
-(e.g., chemical reaction networks, wet-lab protocells) is needed.
-(3)~\emph{Price equation transmission}: we report only the selection
-component of the Price equation; the full transmission--selection
-decomposition (requiring multi-generation lineage tracking with
-parent--offspring trait regression) is left for future work.
+(1)~\emph{Adapter dependence}: different operationalizations could shift
+agreement patterns; $\pm 20\%$ weight perturbation and alternative
+aggregation/edge/similarity modes preserve rank stability
+(Table~\ref{tab:threats}).
+(2)~\emph{Substrate bias}: explicit reproduction and continuous 256-float
+genomes may favor evolution-centric definitions; alternative targets and
+Lenia (\S\ref{sec:lenia}) partially address this, but fundamentally
+different substrates (chemical networks, protocells) are needed.
+(3)~\emph{Price equation}: only the selection component is reported;
+the full transmission--selection decomposition is left for future work.
 (4)~\emph{Temporal stability}: D3's SCC membership shows moderate
-Jaccard stability across time windows, suggesting that organizational
-closure is a persistent but not perfectly stationary property; longer
-runs may be needed to characterize steady-state closure.
+Jaccard stability across time windows; longer runs may be needed to
+characterize steady-state closure.
 
 \paragraph{Threats to validity.}
 Table~\ref{tab:threats} maps each identified threat to the mitigations
@@ -832,11 +792,9 @@ Multiple comparisons &
 \end{table}
 
 \paragraph{Extensibility.}
-The adapter API is designed for community extension.  Adding a fifth
-definition (e.g., agency-based, thermodynamic) requires implementing a
-single function with signature \texttt{score(run\_summary, family\_id)
-$\to$ AdapterResult}.  The benchmark harness handles data loading,
-scoring, and analysis automatically.
+Adding a fifth definition requires implementing a single
+\texttt{score(run\_summary, family\_id) $\to$ AdapterResult} function;
+the benchmark harness handles data loading, scoring, and analysis.
 
 % ============================================================================
 \subsection{Cross-Substrate Validation: Lenia}
@@ -870,40 +828,28 @@ birth count fixed at zero (no reproduction).
 Since no adapter code changes are required---\texttt{score\_all()} operates
 on any conforming JSON---the Lenia results test generalization of the
 scoring framework itself.  We report the D2 vs.\ D3 comparison
-(Cohen's $d$ and sign) regardless of outcome; a null result would
-indicate that the D2--D3 axis is substrate-specific, which is equally
-informative.
+regardless of outcome; a null result would indicate substrate-specificity.
+
+\paragraph{Results.}
+Across all three creatures and five seeds, D3 consistently scores
+higher than D2 (Orbium: $\bar{D3} = 0.80$; Geminium: $0.60$;
+Scutium: $0.80$; all $\bar{D2} = 0.00$), confirming
+H\textsubscript{Lenia}.  D1 $\approx 0.52$ (partial criteria met);
+D4 $= 0.00$ (no heritable information without reproduction).
+Lenia creatures exhibit self-maintaining organization (D3) but lack
+reproduction (D2), confirming the D2--D3 axis reflects a genuine
+conceptual divide rather than a substrate artifact.
 
 % ============================================================================
 \section{Artifact Release}
 \label{sec:artifact}
 
-Code, adapters, and raw benchmark data are available at an anonymous
-repository (link provided upon acceptance; code under MIT license)
-and Zenodo (data, CC-BY~4.0; DOI to be assigned upon acceptance).
-
-\paragraph{Reproduction.}
-\begin{verbatim}
-git clone <repo> && cd alife_definitions
-uv sync && uv run maturin develop
-bash scripts/reproduce_all.sh
-\end{verbatim}
-
-The single script runs the full pipeline: benchmark generation
-(${\sim}$30\,h for coexistence + single-family controls on a Mac Mini
-M2 Pro), scoring, agreement analysis, predictive validity, sensitivity
-analysis, and figure generation.
-
-\paragraph{Version pinning.}
-All Python dependencies are pinned via \texttt{uv.lock}; the Rust
-toolchain version is recorded in \texttt{rust-toolchain.toml}.
-Deterministic builds are ensured by \texttt{uv sync --frozen}.
-
-\paragraph{Data availability.}
-Raw benchmark JSONs (${\sim}$10\,GB for 5 regimes $\times$ 200 seeds
-$\times$ coexistence + single-family at 200 sample points each)
-are archived on Zenodo.  The score matrix TSV and analysis JSONs are
-included in the repository.
+Code and adapters are available at an anonymous repository (link upon
+acceptance; MIT license); raw benchmark data (${\sim}$10\,GB) on Zenodo
+(CC-BY~4.0; DOI upon acceptance).
+After \texttt{uv sync --frozen \&\& uv run maturin develop},
+\texttt{reproduce\_all.sh} regenerates all scores, analyses, and figures
+(${\sim}$30\,h on a Mac Mini M2~Pro).
 
 % ============================================================================
 \section*{Acknowledgments}
