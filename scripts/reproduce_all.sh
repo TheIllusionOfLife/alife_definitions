@@ -85,6 +85,37 @@ uv run python scripts/analyze_predictive.py \
   -o "${DATA_DIR}/predictive_analysis_strict.json"
 echo "  Wrote ${DATA_DIR}/predictive_analysis_strict.json"
 
+# Step 5c: Bootstrap confidence intervals (legacy)
+echo "--- Step 5c: Bootstrap CIs (legacy) ---"
+uv run python scripts/analyze_bootstrap_ci.py \
+  "${DATA_DIR}/score_matrix.tsv" \
+  "${DATA_DIR}" \
+  --test-seeds "${TEST_SEEDS}" \
+  --regimes "${REGIMES}" \
+  -o "${DATA_DIR}/bootstrap_ci.json"
+echo "  Wrote ${DATA_DIR}/bootstrap_ci.json"
+
+# Step 5d: Bootstrap confidence intervals (strict)
+echo "--- Step 5d: Bootstrap CIs (strict) ---"
+uv run python scripts/analyze_bootstrap_ci.py \
+  "${DATA_DIR}/score_matrix.tsv" \
+  "${DATA_DIR}" \
+  --test-seeds "${TEST_SEEDS}" \
+  --regimes "${REGIMES}" \
+  --evaluation-mode strict \
+  -o "${DATA_DIR}/bootstrap_ci_strict.json"
+echo "  Wrote ${DATA_DIR}/bootstrap_ci_strict.json"
+
+# Step 5e: Bonferroni-adjusted AUC CIs
+echo "--- Step 5e: Bonferroni AUC analysis ---"
+uv run python scripts/analyze_auc_bonferroni.py "${DATA_DIR}"
+echo "  Wrote ${DATA_DIR}/auc_bonferroni.json"
+
+# Step 5f: Operationalization robustness table
+echo "--- Step 5f: Robustness table ---"
+uv run python scripts/analyze_robustness_table.py "${DATA_DIR}"
+echo "  Wrote ${DATA_DIR}/robustness_table.json"
+
 # Step 6: Generate figures
 echo "--- Step 6: Figures ---"
 CASE_JSON="${DATA_DIR}/E1/seed_042.json"

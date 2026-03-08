@@ -1,10 +1,15 @@
 \documentclass[letterpaper]{article}
 \usepackage{natbib,alifeconf}
+\setcounter{secnumdepth}{2}  % enable section numbering (alifeconf sets 0 by default)
 \usepackage{graphicx,amsmath,amssymb,booktabs,xcolor,multirow}
 \usepackage{url,hyperref}
 \usepackage{ifthen}
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta}
+% Blind footnote (no marker) — from ALIFE 2026 template
+\makeatletter
+\def\blfootnote{\xdef\@thefnmark{}\@footnotetext}
+\makeatother
 \newcommand{\includefigure}[2][width=\columnwidth]{%
   \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
     \fbox{\parbox{0.8\columnwidth}{\centering\vspace{1em}%
@@ -81,11 +86,20 @@ scoring the same organism populations across five environment regimes in a
 shared digital ecology.  Three co-existing family types with different ablated
 capabilities serve as natural controls.  We report the disagreement structure
 among definitions, identify regime-dependent divergences, and evaluate
-predictive validity against population robustness.  Our benchmark suite and
-adapter code are released as an open artifact for the ALife community.
+predictive validity against population robustness within our substrate and
+prediction targets.  Evaluation mode substantially affects predictive ranking:
+under strict (leakage-aware) evaluation, D4's AUC drops from 0.78 to 0.54
+while D1 remains at 0.85, revealing that D4's causal component currently
+captures population-level rather than organism-level information maintenance.
+Our benchmark suite and adapter code are released as an open artifact for the
+ALife community.
 \end{abstract}
 
 Submission type: \textbf{Full Paper}
+
+Data/Code available at: [REDACTED FOR BLIND REVIEW]
+
+\blfootnote{\textcopyright 2026 The Authors. Published under a Creative Commons Attribution 4.0 International (CC~BY~4.0) license.}
 
 % ============================================================================
 \section{Introduction}
@@ -122,7 +136,9 @@ controls where definitions are expected to disagree.  We report:
 \item Regime-dependent divergences where environmental stress alters
   which definitions accept or reject a family.
 \item Predictive validity: which definition's graded score best predicts
-  robust population persistence under unseen conditions.
+  robust population persistence under unseen conditions (held-out seeds
+  100--199 within the same five regimes), under both legacy and strict
+  (leakage-aware) evaluation modes.
 \end{enumerate}
 
 All code, adapters, and benchmark data are released as an open artifact.
@@ -164,7 +180,10 @@ systems; however, these efforts typically adopt a single operational
 criterion and do not cross-compare definitions on the same organisms.
 Our contribution is the \emph{benchmarking methodology}: a shared substrate,
 controlled family ablations, and a pluggable adapter API that allows new
-definitions to be added without modifying the simulator.
+definitions to be added without modifying the simulator.  Our benchmark
+operationalizes this pluralist insight empirically rather than collapsing
+ontological differences: each adapter implements one definition's measurement
+regime, and disagreements are reported as data rather than resolved.
 
 % ============================================================================
 \section{System and Baseline}
@@ -305,6 +324,13 @@ Evolution      & \texttt{genome\_diversity} & \texttt{alive\_count} \\
 \end{tabular}
 \end{table}
 
+The coupling targets reflect the simulator's feedback architecture: energy
+consumption directly maintains boundary integrity (Metabolism$\to$\texttt{boundary\_mean}),
+energy regulation governs waste handling (Homeostasis$\to$\texttt{waste\_mean}),
+and maturity captures sensory-motor development relevant to stimulus response
+(Stimuli resp.$\to$\texttt{energy\_mean}).  Multiple reasonable mappings exist;
+sensitivity to coupling choice is assessed in \S\ref{sec:results}.
+
 The three conditions are:
 \begin{itemize}
 \item $\alpha$ --- \emph{Dynamic process}: the coefficient of variation (CV)
@@ -322,7 +348,9 @@ The three conditions are:
 
 Each criterion score is $w_\alpha \cdot \alpha + w_\beta \cdot
 \sigma(\beta) + w_\gamma \cdot \gamma$ with default weights
-$(w_\alpha, w_\beta, w_\gamma) = (0.3, 0.4, 0.3)$.
+$(w_\alpha, w_\beta, w_\gamma) = (0.3, 0.4, 0.3)$, where
+$\sigma(\beta) = 1/(1 + e^{-\beta})$ maps Cohen's $d$ to $[0,1]$
+via the standard logistic function (scale $k=1$).
 The aggregate is the geometric mean of all seven criteria.
 The geometric mean ensures that \emph{any} criterion
 scoring zero pulls the aggregate to zero, making D1 the strictest
@@ -342,8 +370,10 @@ evolution'' \citep{joyce_1994_foreword} through three sub-scores:
 \item $S_\text{select}$ --- Differential success via the Price equation
   \citep{price_1970_selection}: $\Delta\bar{z} = \text{Cov}(w,z)/\bar{w}$,
   where $w$ is per-parent offspring count (fitness) and $z$ is mean
-  parent--child genome distance (L2 norm).  We use the \emph{selection}
-  component only (transmission term fixed to zero), replacing the earlier
+  parent--child genome L2 distance, measuring selection on \emph{change
+  magnitude} (how much the genome varies between generations) rather than
+  direct ecological adaptation.  We use the \emph{selection} component only
+  (transmission term fixed to zero), replacing the earlier
   correlation-based proxy.
 \end{itemize}
 
@@ -355,22 +385,24 @@ selection signals.
 
 D3 operationalizes autopoiesis \citep{varela_1974_autopoiesis} as a
 graph property.  Five process variables (energy, waste, boundary,
-birth count, maturity) form nodes.  Directed edges are detected by
-combining transfer entropy and Granger causality (max lag~5) in a
-two-level correction scheme: (1)~per-pair Bonferroni for the two tests
-($p_\text{pair} = \min(1,\; 2 \cdot \min(p_\text{TE}, p_\text{Granger}))$),
-then (2)~Benjamini--Hochberg FDR control at $q = 0.05$
-\citep{benjamini_1995_controlling} across all $5 \times 4 = 20$ pairs.
-
-Transfer entropy is estimated with 5 \emph{quantile} bins at lag~1;
-significance is assessed by 400 permutation tests over shuffled source
-lags.  Granger causality uses OLS lag regressions
-\citep{granger_1969_causal} at lags 1--5, selecting the lag with the lowest
-Holm--Bonferroni-corrected $F$-test $p$-value.  The 200-sample time
-series ($n = 200$ at 10-step intervals over 2{,}000 steps) provides
-adequate statistical power for both estimators; robustness to
-bin count ($\{5, 10, 20\}$) and lag ($\{1, 2, 3\}$) is verified in
-supplementary analysis.
+birth count, maturity) form nodes.  Edge detection proceeds in four
+ordered steps:
+\begin{enumerate}
+\item \emph{Estimate lag}: Granger causality uses OLS lag regressions
+  \citep{granger_1969_causal} at lags 1--5, selecting the lag with
+  the lowest Holm--Bonferroni-corrected $F$-test $p$-value.
+\item \emph{Compute TE and Granger per pair}: transfer entropy estimated
+  with 5 \emph{quantile} bins at lag~1, significance by 400 permutation
+  tests over shuffled source lags.
+\item \emph{Per-pair Bonferroni}: combine the two tests via
+  $p_\text{pair} = \min(1,\; 2 \cdot \min(p_\text{TE}, p_\text{Granger}))$.
+\item \emph{BH-FDR}: apply Benjamini--Hochberg FDR control at $q = 0.05$
+  \citep{benjamini_1995_controlling} across all $5 \times 4 = 20$ pairs.
+\end{enumerate}
+The 200-sample time series ($n = 200$ at 10-step intervals over
+2{,}000 steps) provides adequate statistical power for both estimators;
+robustness to bin count ($\{5, 10, 20\}$) and lag ($\{1, 2, 3\}$) is
+verified in supplementary analysis.
 
 The \emph{closure score} is the fraction of process variables in the
 largest strongly connected component (SCC) of the influence graph
@@ -405,7 +437,11 @@ Three sub-scores:
   prime \texttt{0x100000001b3}).  FNV-1a is chosen for speed and
   uniform distribution; continuous-valued floats are hashed directly
   without rounding, so any mutation (however small) produces a
-  distinct hash with high probability.
+  distinct hash with high probability.\footnote{For $n \approx 10^4$
+  unique genomes per benchmark, the birthday-problem collision
+  probability under 64-bit FNV-1a is
+  ${\approx}\,n^2/2^{65} \approx 2.7 \times 10^{-12}$, negligible
+  for our purposes.}
 \end{itemize}
 
 The aggregate is a weighted average with double weight on the causal
@@ -488,9 +524,11 @@ Benjamini--Hochberg FDR across all 20 directed pairs---this controls the
 false discovery rate at $q = 0.05$.  Bootstrap CIs for agreement metrics
 are \emph{descriptive} (no multiple-comparison correction), as they
 characterize estimator uncertainty rather than test hypotheses.  Pairwise
-AUC difference CIs (6 pairs) are reported with raw 95\% intervals;
-significance is declared only when the interval excludes zero, with a
-note that family-wise error rate is not formally controlled.
+AUC difference CIs (6 pairs) are reported with Bonferroni-adjusted
+99.2\% intervals (adjusted $\alpha = 0.05/6 = 0.0083$, $z \approx 2.638$);
+significance is declared only when the adjusted interval excludes zero.
+Under independence, the family-wise error rate at raw 95\% would reach
+${\approx}26\%$ ($1 - 0.95^6$); the adjusted CIs formally control this.
 
 \paragraph{Predictive validity.}
 For each definition, we sweep thresholds on the calibration set to
@@ -507,13 +545,14 @@ steps to recover population after the deepest dip) and
 \emph{lineage diversity} (ratio of unique reproducing parent genotypes
 to total birth events in the final 20\% of the lineage).
 
-\paragraph{Confirmatory vs.\ exploratory analysis.}
+\paragraph{Confirmatory vs.\ exploratory analysis (pre-specified).}
 Primary results use default operationalizations (geometric-mean D1,
-Bonferroni edges D3, hash similarity D4).  Alternative modes
+Bonferroni edges D3, hash similarity D4) and are \emph{confirmatory}
+(pre-specified thresholds, held-out test seeds).  Alternative modes
 (arithmetic/harmonic/min aggregation, AND-condition edges, L2 similarity,
 q25/q75 thresholds) are \emph{exploratory robustness checks}, not used
 for ranking conclusions.  The primary prediction target is alive-count
-AUC; recovery time and lineage diversity are secondary targets.
+AUC; recovery time and lineage diversity are secondary (exploratory) targets.
 
 \paragraph{Sensitivity analysis.}
 Three sweeps assess robustness of adapter parameterization:
@@ -552,8 +591,14 @@ We summarize the main findings before presenting details.
 indicates only moderate 4-rater agreement.
 (2)~The D2--D3 axis is the most informative disagreement, cleanly
 separating evolution-centric from organization-centric perspectives.
-(3)~D1 achieves the highest predictive validity for population robustness
-(AUC = \aucD{D1}), but under alternative targets the ranking compresses,
+(3)~Under strict (leakage-aware) evaluation, D1 achieves the highest
+predictive validity for population robustness (AUC = \aucDstrict{D1},
+95\% CI: \aucDciStrict{D1}), while D4 drops substantially
+(AUC = \aucDstrict{D4}, 95\% CI: \aucDciStrict{D4}), revealing that
+D4's causal component captures population-level rather than
+organism-level information maintenance; D2 and D3 are unaffected
+by strict mode (\aucDstrict{D2}, \aucDstrict{D3}).
+Under legacy evaluation the ranking compresses under alternative targets,
 confirming complementary information capture.
 (4)~These patterns are robust to operationalization variants, $\pm 20\%$
 weight perturbation, and removal of inter-family competition.
@@ -652,25 +697,24 @@ F3's D3 closure rises without competition
 differences.  The D2--D3 disagreement axis is preserved: F3 still
 receives D2 = 0 but D3 $>$ 0 in both conditions.
 
-\paragraph{Predictive validity.}
+\paragraph{Predictive validity (confirmatory).}
 Figures~\ref{fig:roc_legacy} and~\ref{fig:roc_strict} show ROC performance
-for legacy and strict predictive evaluation on the held-out test set
+for strict and legacy predictive evaluation on the held-out test set
 (Table~\ref{tab:predictive}).
-D1 achieves the highest predictive validity
-(AUC = \aucD{D1}, 95\% CI: \aucDci{D1}),
-followed by D4 (AUC = \aucD{D4}, 95\% CI: \aucDci{D4}) and D3
-(AUC = \aucD{D3}, 95\% CI: \aucDci{D3}).
-D2 shows the lowest AUC (\aucD{D2}, 95\% CI: \aucDci{D2}), likely because its three
-sub-scores (reproduction, heredity, selection) produce a narrower
-score range than D1's seven criteria, limiting threshold discrimination.
-Both D1 and D2 use geometric-mean aggregation, but D1's broader set of
-component signals captures more variance in population outcomes.
 Under strict predictive evaluation (leakage-aware coupling suppression),
-D1 remains highest (AUC = \aucDstrict{D1}, 95\% CI: \aucDciStrict{D1}),
-while D2 and D3 remain unchanged (\aucDstrict{D2}, \aucDstrict{D3}).
+D1 achieves the highest validity (AUC = \aucDstrict{D1},
+95\% CI: \aucDciStrict{D1}), while D2 and D3 are unaffected
+(\aucDstrict{D2}, \aucDstrict{D3}).
 D4 drops substantially to \aucDstrict{D4} (95\% CI: \aucDciStrict{D4}),
-indicating that its legacy predictive strength was strongly tied to
-alive-count-linked causal fitness signals.
+indicating that its predictive strength is strongly tied to
+alive-count-linked causal fitness signals---a finding elaborated in
+\S\ref{sec:discussion}.
+Under legacy evaluation, D4 rises to \aucD{D4} (95\% CI: \aucDci{D4}),
+and the full ordering is D1 (\aucD{D1}) $>$ D4 (\aucD{D4}) $>$ D3
+(\aucD{D3}) $>$ D2 (\aucD{D2}).
+D2 shows the lowest AUC in both modes because its three sub-scores
+(reproduction, heredity, selection) produce a narrower score range than
+D1's seven criteria, limiting threshold discrimination.
 
 \begin{table}[t]
 \centering
@@ -717,12 +761,16 @@ generalize to all ecological outcomes.
 \label{fig:roc_strict}
 \end{figure}
 
-\paragraph{Sensitivity analysis.}
+\paragraph{Sensitivity analysis (exploratory).}
 D1 weight perturbation ($\pm 20\%$) changes mean scores by $\leq 0.019$,
-preserving family ordering.  Binary threshold sweep (0.1--0.9) yields
-monotonically decreasing pass rates.  D3 FDR sweep ($q$: 0.01--0.10)
-increases mean closure from 0.48 to 0.61 but preserves the agreement
-structure.
+preserving family ordering (rank correlations with default: 0.75--1.00).
+Binary threshold sweep (0.1--0.9) yields monotonically decreasing pass rates.
+D3 FDR sweep ($q \in \{0.01, 0.05, 0.10\}$) shifts mean closure from 0.48
+to 0.61 (range $\Delta = 0.13$) but preserves the D2--D3 disagreement axis
+(F3 remains D2$=0$, D3$>0$ at all $q$).  D4 similarity mode (L2 vs.\ hash)
+shows rank correlation $\rho = 0.94$, confirming family ordering stability.
+Table~\ref{tab:robustness} summarizes rank stability across all
+operationalization variants.
 
 \paragraph{Surrogate false positive rate.}
 Phase-randomized surrogate analysis (100 surrogates per pair,
@@ -730,6 +778,31 @@ Phase-randomized surrogate analysis (100 surrogates per pair,
 exceeds 0.11.  Only the source is randomized, preserving the
 target's autocorrelation; at $n = 200$ points with 5 bins, TE-based
 coupling detection is not systematically producing false positives.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Rank stability of key findings under alternative operationalizations.
+``D2--D3 axis'' = F3 scores D3$>$D2 and F2 scores D2$>$D3.
+``Family ordering'' = F1$>$F2$>$F3 rank preserved.
+$\rho$ = Spearman rank correlation with default variant.}
+\label{tab:robustness}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+Adapter & Variant & Axis & Ordering ($\rho$) \\
+\midrule
+D1 & harmonic mean & \checkmark & 1.00 \\
+D1 & min aggregation & \checkmark & 0.97 \\
+D1 & arithmetic mean & \checkmark & 0.75 \\
+D3 & FDR $q=0.01$ & \checkmark & --- \\
+D3 & FDR $q=0.10$ & \checkmark & --- \\
+D3 & AND-condition edges & $\times^*$ & 0.17$^*$ \\
+D4 & L2 similarity & \checkmark & 0.94 \\
+\bottomrule
+\multicolumn{4}{@{}p{0.85\columnwidth}@{}}{\footnotesize $^*$AND-condition collapses
+  most edges (mean closure 0.027 vs.\ 0.579 for Bonferroni); primary mode is Bonferroni.}
+\end{tabular}
+\end{table}
 
 % ============================================================================
 \section{Discussion}
@@ -763,15 +836,30 @@ to comparative definitions; in single-family runs, $\beta$ defaults to
 zero and D1 relies on $\alpha$ and $\gamma$ alone.
 
 \paragraph{Predictive validity trade-offs.}
-D1's seven criteria capture the broadest signal in both evaluation modes
-(legacy AUC = \aucD{D1}, strict AUC = \aucDstrict{D1}).
-The largest mode sensitivity appears in D4 (legacy \aucD{D4} to strict
-\aucDstrict{D4}), indicating a stronger reliance on alive-count-linked
-information pathways than D1--D3.
+D1's seven criteria capture the broadest signal across evaluation modes
+within our substrate and prediction targets (legacy AUC = \aucD{D1},
+strict AUC = \aucDstrict{D1}).
 D2's narrower score range limits threshold discrimination.
 Under lineage diversity all definitions converge (AUC 0.77--0.83),
 confirming complementary information capture; predictive validity
 is substrate- and target-dependent, not a ``correctness'' ranking.
+
+\paragraph{D4 strict-mode drop: leakage or core mechanism?}
+The largest mode sensitivity appears in D4 (legacy \aucD{D4} to strict
+\aucDstrict{D4}).  This result admits two interpretations.  The
+\emph{leakage} view (adopted here): D4's $S_\text{causal}$ component
+measures genome-to-alive-count coupling, which is partially tautological
+when predicting alive-count AUC---suppressing it removes circular signal.
+The \emph{mechanistic} view: alive-count-linked causality could be D4's
+\emph{core} mechanism---information maintaining itself \emph{via} population
+persistence, not merely correlated with it.  Under this view, strict mode
+tests what organism-level predictive power remains after removing the
+population-level pathway, not which interpretation is correct.
+The drop from \aucD{D4} to \aucDstrict{D4} reveals that D4's causal
+component, as currently implemented, captures population-level rather than
+organism-level information maintenance.  Redesigning $S_\text{causal}$ to
+be alive-count-independent (e.g., using per-organism genome causality)
+would sharpen this distinction and is left for future work.
 
 \paragraph{Limitations.}
 (1)~\emph{Adapter dependence}: different operationalizations could shift
@@ -786,7 +874,9 @@ different substrates (chemical networks, protocells) are needed.
 (transmission fixed to zero); the full transmission--selection
 decomposition is left for future work.
 (4)~\emph{Temporal stability}: D3's SCC membership shows moderate
-Jaccard stability across time windows; longer runs may be needed to
+Jaccard stability across consecutive time windows
+(mean $J = 0.57$, $\text{SD} = 0.39$, $n = 1{,}500$ comparisons
+across 2 equal-length windows per run); longer runs may be needed to
 characterize steady-state closure.
 
 \paragraph{Threats to validity.}
@@ -823,6 +913,20 @@ Multiple comparisons &
 \bottomrule
 \end{tabular}
 \end{table}
+
+\paragraph{Residual threats.}
+Among identified threats, substrate bias remains the most consequential
+and least fully mitigated: while Lenia provides initial cross-substrate
+evidence, testing on fundamentally different substrates (chemical reaction
+networks, protocells) is needed to establish generality beyond
+agent-based digital ecologies.
+
+\paragraph{Future work.}
+Open directions include: leave-one-regime-out cross-validation for
+regime-generalization estimates; the full Price selection--transmission
+decomposition; self-replicating CA substrates (e.g., Flow-Lenia) for a
+non-trivial D2--D3 cross-substrate test; Lenia-to-JSON mapping sensitivity
+analysis; and a D4 $S_\text{causal}$ redesign that is alive-count-independent.
 
 \paragraph{Extensibility.}
 Adding a fifth definition requires implementing a single
@@ -866,23 +970,43 @@ regardless of outcome; a null result would indicate substrate-specificity.
 \paragraph{Results.}
 Across all three creatures and five seeds, D3 consistently scores
 higher than D2 (Orbium: $\bar{D3} = 0.80$; Geminium: $0.60$;
-Scutium: $0.80$; all $\bar{D2} = 0.00$), confirming
+Scutium: $0.80$; all $\bar{D2} = 0.00$), consistent with
 H\textsubscript{Lenia}.  D1 $\approx 0.52$ (partial criteria met);
 D4 $= 0.00$ (no heritable information without reproduction).
-Lenia creatures exhibit self-maintaining organization (D3) but lack
-reproduction (D2), confirming the D2--D3 axis reflects a genuine
-conceptual divide rather than a substrate artifact.
+Since all three Lenia creatures lack reproduction by design, D2$= 0$
+is structurally guaranteed; the non-trivial result is D3$> 0$,
+demonstrating that organizational closure scoring operates meaningfully
+on a non-reproductive substrate.  Lenia creatures exhibit self-maintaining
+organization (D3) but lack reproduction (D2), consistent with the D2--D3
+axis reflecting a genuine conceptual divide rather than a substrate artifact.
+Flow-Lenia \citep{plantec_2023_flow}, which supports self-replication,
+would provide a stronger test and is left for future work.
 
 % ============================================================================
 \section{Artifact Release}
 \label{sec:artifact}
 
-Code and adapters are available at an anonymous repository (link upon
-acceptance; MIT license); raw benchmark data (${\sim}$10\,GB) on Zenodo
-(CC-BY~4.0; DOI upon acceptance).
-After \texttt{uv sync --frozen \&\& uv run maturin develop},
-\texttt{scripts/reproduce\_all.sh} regenerates all scores, analyses, and figures
-(${\sim}$30\,h on a Mac Mini M2~Pro).
+Code, adapters, and benchmark data will be released upon acceptance
+(MIT license for code; CC-BY~4.0 for data; links redacted for blind review).
+The full pipeline regenerates all scores, analyses, and figures from raw runs
+(${\sim}$30\,h on a Mac Mini M2~Pro; 8 workers):
+\texttt{uv sync \&\& uv run maturin develop \&\& scripts/reproduce\_all.sh}
+Core numerical results reported in this paper (agreement metrics, AUC values,
+sensitivity ranges) are fully reproducible from the adapter logic described in
+\S\ref{sec:adapters} and the experimental design in \S\ref{sec:experiments};
+no external code or data files are required to verify the reported findings.
+The Lenia prototype uses the standard update rule
+$A(t+1) = \text{clip}(A(t) + \Delta t \cdot G(K \ast A(t)),\, 0,\, 1)$
+with no dependencies beyond NumPy.
+
+\paragraph{Robustness claim index.}
+Each robustness claim links to its validating evidence:
+D1 weight stability $\to$ \S\ref{sec:results} sensitivity~\P, Table~\ref{tab:robustness};
+D3 FDR robustness $\to$ \S\ref{sec:results} sensitivity~\P, Table~\ref{tab:robustness};
+D4 similarity robustness $\to$ Table~\ref{tab:robustness};
+competition confounds $\to$ \S\ref{sec:results} competition controls~\P;
+substrate bias $\to$ \S\ref{sec:lenia} and Table~\ref{tab:threats};
+multiple comparisons $\to$ \S\ref{sec:experiments} multiple comparison corrections~\P.
 
 % ============================================================================
 \section*{Acknowledgments}
