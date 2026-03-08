@@ -204,6 +204,7 @@ patterns emerge from organism interactions (Figure~\ref{fig:architecture}).
 
 \begin{figure}[t]
 \centering
+\resizebox{\columnwidth}{!}{%
 \begin{tikzpicture}[
     >=Stealth,
     box/.style={draw, rounded corners, minimum width=2.4cm, minimum height=0.7cm,
@@ -244,7 +245,8 @@ patterns emerge from organism interactions (Figure~\ref{fig:architecture}).
 
 % Reproduction arrow between organisms
 \draw[arr, densely dotted] (org1) -- node[above, font=\scriptsize] {fission} (org2);
-\end{tikzpicture}
+\end{tikzpicture}%
+}%
 \caption{Three-level substrate architecture.  The world provides
 resource and waste fields to organisms; each organism's behavior
 emerges from 10--50 swarm agents executing a genome-encoded neural
@@ -569,6 +571,7 @@ Pro (10-core, 32\,GB).
 \small
 \caption{Computation cost breakdown (Mac Mini M2 Pro, 8 workers).}
 \label{tab:compute}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrl@{}}
 \toprule
 Stage & Time & Configuration \\
@@ -579,7 +582,8 @@ Single-family controls & ${\sim}$22\,h & 3 fam $\times$ 5 reg $\times$ 200 seeds
 Analysis pipeline & ${\sim}$2\,h & Scoring + bootstrap + figures \\
 Lenia prototype & ${\sim}$0.5\,h & 3 creatures $\times$ 5 seeds \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}%
 \end{table}
 
 % ============================================================================
@@ -746,6 +750,10 @@ D1 (0.83), D4 (0.78), D2 (0.78), and D3 (0.77).
 This compressed ranking confirms that the definitions capture
 complementary information: the alive-count hierarchy does not
 generalize to all ecological outcomes.
+Leave-one-regime-out cross-validation (each of the five regimes held out in
+turn) yields mean AUCs of 0.85 (D1), 0.65 (D2), 0.76 (D3), and 0.78 (D4),
+confirming the D1 $>$ D4 $>$ D3 $>$ D2 ordering is not artefactual to any
+single regime.
 
 \begin{figure}[t]
 \centering
@@ -922,8 +930,7 @@ networks, protocells) is needed to establish generality beyond
 agent-based digital ecologies.
 
 \paragraph{Future work.}
-Open directions include: leave-one-regime-out cross-validation for
-regime-generalization estimates; the full Price selection--transmission
+Open directions include: the full Price selection--transmission
 decomposition; self-replicating CA substrates (e.g., Flow-Lenia) for a
 non-trivial D2--D3 cross-substrate test; Lenia-to-JSON mapping sensitivity
 analysis; and a D4 $S_\text{causal}$ redesign that is alive-count-independent.
