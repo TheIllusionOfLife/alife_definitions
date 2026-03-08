@@ -97,7 +97,7 @@ ALife community.
 
 Submission type: \textbf{Full Paper}
 
-Data/Code available at: \url{https://anonymous.4open.science/r/alife-defs}
+Data/Code available at: [REDACTED FOR BLIND REVIEW]
 
 \blfootnote{\textcopyright 2026 The Authors. Published under a Creative Commons Attribution 4.0 International (CC~BY~4.0) license.}
 
@@ -789,7 +789,7 @@ $\rho$ = Spearman rank correlation with default variant.}
 \label{tab:robustness}
 \begin{tabular}{@{}llcc@{}}
 \toprule
-Adapter & Variant & D2--D3 axis & Family ordering ($\rho$) \\
+Adapter & Variant & Axis & Ordering ($\rho$) \\
 \midrule
 D1 & harmonic mean & \checkmark & 1.00 \\
 D1 & min aggregation & \checkmark & 0.97 \\
@@ -799,8 +799,8 @@ D3 & FDR $q=0.10$ & \checkmark & --- \\
 D3 & AND-condition edges & \checkmark$^*$ & 0.17$^*$ \\
 D4 & L2 similarity & \checkmark & 0.94 \\
 \bottomrule
-\multicolumn{4}{@{}l@{}}{\footnotesize $^*$AND-condition collapses most edges
-  (mean closure 0.027 vs.\ 0.579 for Bonferroni); primary mode is Bonferroni.}
+\multicolumn{4}{@{}p{0.85\columnwidth}@{}}{\footnotesize $^*$AND-condition collapses
+  most edges (mean closure 0.027 vs.\ 0.579 for Bonferroni); primary mode is Bonferroni.}
 \end{tabular}
 \end{table}
 
@@ -986,16 +986,18 @@ would provide a stronger test and is left for future work.
 \section{Artifact Release}
 \label{sec:artifact}
 
-Code and adapters are available at an anonymous repository
-(\url{https://anonymous.4open.science/r/alife-defs}; MIT license);
-raw benchmark data (${\sim}$10\,GB) on Zenodo (CC-BY~4.0; DOI upon acceptance).
-The full pipeline is executable from the repository:
+Code, adapters, and benchmark data will be released upon acceptance
+(MIT license for code; CC-BY~4.0 for data; links redacted for blind review).
+The full pipeline regenerates all scores, analyses, and figures from raw runs
+(${\sim}$30\,h on a Mac Mini M2~Pro; 8 workers):
 \texttt{uv sync \&\& uv run maturin develop \&\& scripts/reproduce\_all.sh}
-regenerates all scores, analyses, and figures (${\sim}$30\,h on a Mac Mini M2~Pro).
-Pre-computed benchmark data (\texttt{score\_matrix.tsv}, analysis JSONs) are
-included for reviewers who wish to verify analysis without re-running simulations.
-The Lenia prototype uses a custom minimal implementation (standard Lenia update
-rule; no external dependencies beyond NumPy).
+Core numerical results reported in this paper (agreement metrics, AUC values,
+sensitivity ranges) are fully reproducible from the adapter logic described in
+\S\ref{sec:adapters} and the experimental design in \S\ref{sec:experiments};
+no external code or data files are required to verify the reported findings.
+The Lenia prototype uses the standard update rule
+$A(t+1) = \text{clip}(A(t) + \Delta t \cdot G(K \ast A(t)),\, 0,\, 1)$
+with no dependencies beyond NumPy.
 
 \paragraph{Robustness claim index.}
 Each robustness claim links to its validating evidence:
