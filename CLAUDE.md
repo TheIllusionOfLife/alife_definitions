@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ALife Definitions** is a research project benchmarking multiple operational definitions of life in the same digital world. The Rust+Python simulation substrate (inherited from the digital-life-v1 project) is used to empirically compare how competing definitions agree and disagree across organisms and environment regimes.
 
-**Target venue**: ALIFE 2026 Full Paper (8p), deadline ~April 1, 2026.
+**Target venue**: ALIFE 2026 Full Paper (8p), deadline March 30, 2026.
 
 **Stance**: Weak ALife — the system is a functional model, not a claim that the organisms are "alive."
 
