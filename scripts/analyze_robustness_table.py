@@ -66,9 +66,7 @@ def d4_causal_weight_sensitivity() -> dict:
         ordering_d1_gt_d4 = 0.85 > d4_auc_approx
         ordering_d4_gt_d3 = d4_auc_approx > 0.76
         ordering_d3_gt_d2 = 0.76 > 0.65
-        full_ordering_preserved = (
-            ordering_d1_gt_d4 and ordering_d4_gt_d3 and ordering_d3_gt_d2
-        )
+        full_ordering_preserved = ordering_d1_gt_d4 and ordering_d4_gt_d3 and ordering_d3_gt_d2
         results[f"{w}x"] = {
             "weight": w,
             "d4_auc_approx": round(d4_auc_approx, 3),
@@ -131,12 +129,9 @@ def main(benchmark_dir: Path) -> None:
         print(f"  q={q_key[2:]}: mean_closure = {v['mean_closure']:.4f}")
     print(
         f"  Closure range: {closure_range[0]:.4f} – {closure_range[1]:.4f} "
-        f"(Δ = {closure_range[1]-closure_range[0]:.4f})"
+        f"(Δ = {closure_range[1] - closure_range[0]:.4f})"
     )
-    print(
-        "  D2-D3 disagreement axis preserved across all q values: ✓"
-        " (F3 D2=0 regardless of q)"
-    )
+    print("  D2-D3 disagreement axis preserved across all q values: ✓ (F3 D2=0 regardless of q)")
 
     print()
     # --- D4 causal weight sensitivity ---
@@ -149,9 +144,7 @@ def main(benchmark_dir: Path) -> None:
         ordering = "D1>D4>D3>D2" if v["full_ordering_preserved"] else "CHANGED"
         d4_gt = "✓" if v["d4_gt_d3"] else "✗"
         d1_gt = "✓" if v["d1_gt_d4"] else "✓ (always)"
-        print(
-            f"  {label:<8} {v['d4_auc_approx']:<20.3f} {d1_gt:<8} {d4_gt:<8} {ordering}"
-        )
+        print(f"  {label:<8} {v['d4_auc_approx']:<20.3f} {d1_gt:<8} {d4_gt:<8} {ordering}")
     print()
     print("  Key finding: D1 > D4 ordering preserved at all weights.")
     print("  At w=1×, D4 AUC ≈ 0.66 (close to D3=0.76); ordering still D1>D3>D4>D2.")

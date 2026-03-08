@@ -22,9 +22,7 @@ PAIRS = [(a, b) for i, a in enumerate(DEFINITIONS) for b in DEFINITIONS[i + 1 :]
 N_PAIRS = len(PAIRS)  # 6
 
 
-def bonferroni_adjusted_ci(
-    lower: float, upper: float, n_comparisons: int
-) -> tuple[float, float]:
+def bonferroni_adjusted_ci(lower: float, upper: float, n_comparisons: int) -> tuple[float, float]:
     """Widen a raw 95% CI to Bonferroni-adjusted CI.
 
     Approximation: if the raw CI corresponds to z=1.96 (95%),
@@ -101,8 +99,8 @@ def main(benchmark_dir: Path) -> None:
 
     print("=" * 60)
     print("AUC Bonferroni-Adjusted Pairwise Comparisons")
-    print(f"N pairs = {N_PAIRS}, adjusted alpha = 0.05/{N_PAIRS} = {0.05/N_PAIRS:.4f}")
-    print(f"Adjusted CI level = {(1 - 0.05/N_PAIRS)*100:.1f}%  (z ≈ 2.638)")
+    print(f"N pairs = {N_PAIRS}, adjusted alpha = 0.05/{N_PAIRS} = {0.05 / N_PAIRS:.4f}")
+    print(f"Adjusted CI level = {(1 - 0.05 / N_PAIRS) * 100:.1f}%  (z ≈ 2.638)")
     print("=" * 60)
 
     for mode_name, auc_data in [("legacy", legacy_auc), ("strict", strict_auc)]:
@@ -133,7 +131,7 @@ def main(benchmark_dir: Path) -> None:
     print(f"\nFWER under independence (raw 95%): {output['fwer_under_independence']:.3f}")
     print(
         "→ Paper note: 'For the 6 pairwise AUC comparisons, family-wise error rate "
-        f"under independence would reach ~{output['fwer_under_independence']*100:.0f}% "
+        f"under independence would reach ~{output['fwer_under_independence'] * 100:.0f}% "
         f"(1 − 0.95^6); Bonferroni-adjusted {output['adjusted_ci_level_pct']:.1f}% CIs "
         "are reported.'"
     )
