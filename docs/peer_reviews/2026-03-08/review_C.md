@@ -2,7 +2,7 @@
 
 **Venue:** ALife Conference — Full Paper  
 **Reviewer Expertise:** Artificial Life, computational evolution, digital ecology  
-**Date:** 2026-03-06
+**Date:** 2026-03-08
 
 ---
 

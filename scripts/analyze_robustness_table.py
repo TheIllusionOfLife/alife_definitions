@@ -143,10 +143,10 @@ def main(benchmark_dir: Path) -> None:
     for label, v in d4_sens.items():
         ordering = "D1>D4>D3>D2" if v["full_ordering_preserved"] else "CHANGED"
         d4_gt = "✓" if v["d4_gt_d3"] else "✗"
-        d1_gt = "✓" if v["d1_gt_d4"] else "✓ (always)"
+        d1_gt = "✓" if v["d1_gt_d4"] else "✗"
         print(f"  {label:<8} {v['d4_auc_approx']:<20.3f} {d1_gt:<8} {d4_gt:<8} {ordering}")
     print()
-    print("  Key finding: D1 > D4 ordering preserved at all weights.")
+    print("  Key finding: D1>D4>D3>D2 ordering holds only at default w=2.")
     print("  At w=1×, D4 AUC ≈ 0.66 (close to D3=0.76); ordering still D1>D3>D4>D2.")
     print("  At w=3×, D4 AUC ≈ 0.90 (above D1); D4>D1>D3>D2.")
     print("  → The D1>D4>D3>D2 ordering is specific to the default w=2 weight.")
