@@ -73,7 +73,7 @@ def figure_disagreement_heatmap(rows: list[dict], out_path: Path) -> None:
     matrix = np.array([[np.mean(groups[k][d]) for d in DEFINITIONS] for k in keys])
 
     fig, ax = plt.subplots(figsize=(4.5, max(2.5, len(keys) * 0.35)))
-    im = ax.imshow(matrix, aspect="auto", cmap="RdYlGn", vmin=0, vmax=1)
+    im = ax.imshow(matrix, aspect="auto", cmap="YlOrRd", vmin=0, vmax=1)
     ax.set_xticks(range(len(DEFINITIONS)))
     ax.set_xticklabels(DEFINITIONS)
     ax.set_yticks(range(len(labels)))
@@ -147,7 +147,7 @@ def figure_agreement_matrix(rows: list[dict], out_path: Path) -> None:
             else:
                 display[i, j] = rho_mat[i, j]  # upper: rho
 
-    im = ax.imshow(display, cmap="coolwarm", vmin=-1, vmax=1)
+    im = ax.imshow(display, cmap="Reds", vmin=0, vmax=1)
     ax.set_xticks(range(n))
     ax.set_xticklabels(DEFINITIONS)
     ax.set_yticks(range(n))
@@ -224,7 +224,12 @@ def figure_case_study(run_summary: dict | None, out_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
+def figure_predictive_roc(
+    predictive_json: dict | None,
+    out_path: Path,
+    *,
+    title: str = "Predictive Validity (ROC)",
+) -> None:
     """ROC curves per definition on test set."""
     if predictive_json is None:
         print("SKIP: no predictive data for ROC figure")
@@ -261,7 +266,7 @@ def figure_predictive_roc(predictive_json: dict | None, out_path: Path) -> None:
 
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
-    ax.set_title("Predictive Validity (ROC)")
+    ax.set_title(title)
     ax.set_xlim(-0.02, 1.02)
     ax.set_ylim(-0.02, 1.02)
     ax.set_aspect("equal")
@@ -388,6 +393,11 @@ def main() -> None:
         default="predictive_roc.pdf",
         help="Output filename in paper/figures for predictive ROC (default: predictive_roc.pdf)",
     )
+    parser.add_argument(
+        "--predictive-roc-title",
+        default="Predictive Validity (ROC)",
+        help="Title for the predictive ROC figure",
+    )
     parser.add_argument("--sensitivity-json", type=Path, help="Sensitivity analysis JSON")
     parser.add_argument(
         "--pareto-json", type=Path, help="Multi-target predictive JSON for Pareto figure"
@@ -423,7 +433,9 @@ def main() -> None:
     if args.predictive_json and args.predictive_json.exists():
         with open(args.predictive_json) as f:
             pred_data = json.load(f)
-    figure_predictive_roc(pred_data, FIGURE_DIR / args.predictive_roc_out)
+    figure_predictive_roc(
+        pred_data, FIGURE_DIR / args.predictive_roc_out, title=args.predictive_roc_title
+    )
 
     # Robustness bar chart
     sens_data = None

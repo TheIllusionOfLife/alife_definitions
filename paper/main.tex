@@ -67,7 +67,6 @@
   \ifthenelse{\equal{#1}{D2}}{[0.62,\,0.67]}{%
   \ifthenelse{\equal{#1}{D3}}{[0.73,\,0.78]}{%
   \ifthenelse{\equal{#1}{D4}}{[0.50,\,0.57]}{??}}}}}
-\newcommand{\TODO}[1]{\textbf{[#1]}}
 % --- End result values ---
 
 \title{Life Definitions Disagree: An Empirical Benchmark\\of Competing Operationalizations in a Shared Digital Ecology}
@@ -91,7 +90,7 @@ prediction targets.  Evaluation mode substantially affects predictive ranking:
 under strict (leakage-aware) evaluation, D4's AUC drops from 0.78 to 0.54
 while D1 remains at 0.85, revealing that D4's causal component currently
 captures population-level rather than organism-level information maintenance.
-Our benchmark suite and adapter code are released as an open artifact for the
+Our benchmark suite and adapter code will be released as an open artifact for the
 ALife community.
 \end{abstract}
 
@@ -141,7 +140,7 @@ controls where definitions are expected to disagree.  We report:
   (leakage-aware) evaluation modes.
 \end{enumerate}
 
-All code, adapters, and benchmark data are released as an open artifact.
+All code, adapters, and benchmark data will be released as an open artifact.
 
 % ============================================================================
 \section{Related Work}
@@ -181,9 +180,9 @@ criterion and do not cross-compare definitions on the same organisms.
 Our contribution is the \emph{benchmarking methodology}: a shared substrate,
 controlled family ablations, and a pluggable adapter API that allows new
 definitions to be added without modifying the simulator.  Our benchmark
-operationalizes this pluralist insight empirically rather than collapsing
-ontological differences: each adapter implements one definition's measurement
-regime, and disagreements are reported as data rather than resolved.
+instruments all four definitions on shared organisms, reporting disagreements
+as empirical data rather than collapsing ontological differences: each adapter
+implements one definition's measurement regime independently.
 
 % ============================================================================
 \section{System and Baseline}
@@ -404,7 +403,7 @@ ordered steps:
 The 200-sample time series ($n = 200$ at 10-step intervals over
 2{,}000 steps) provides adequate statistical power for both estimators;
 robustness to bin count ($\{5, 10, 20\}$) and lag ($\{1, 2, 3\}$) is
-verified in supplementary analysis.
+verified in exploratory robustness checks (not shown for space).
 
 The \emph{closure score} is the fraction of process variables in the
 largest strongly connected component (SCC) of the influence graph
@@ -512,6 +511,8 @@ D4 & 0.30 & 0.58 \\
 \end{tabular}
 \end{table}
 
+Strict-mode thresholds, calibrated separately on the same seed split: D1\,=\,0.33, D2\,=\,0.29, D3\,=\,0.61, D4\,=\,0.25.
+
 \paragraph{Agreement metrics.}
 Pairwise agreement: Cohen's $\kappa$ (binary), Spearman $\rho$ (graded),
 percent agreement.  Aggregate: Fleiss' $\kappa$ for 4-rater agreement.
@@ -539,8 +540,10 @@ over the last 30\% of the run exceeds the calibration-set median.
 Optimal thresholds are frozen, then evaluated on test seeds via
 ROC-AUC, precision, recall, and a $\pm 20\%$ sensitivity analysis.
 To reduce target-coupling leakage in alive-count prediction, we also report
-a strict evaluation mode where alive-count-driven coupling features are
-disabled in D1 and D4 during predictive scoring.
+a strict evaluation mode where D1 zeroes alive-count-targeted coupling
+terms ($\gamma$ scores for Growth, Reproduction, and Evolution) and D4
+replaces \texttt{alive\_count} with \texttt{energy\_mean} in
+$S_\text{causal}$; D2 and D3 are unchanged.
 To test robustness against substrate bias, we additionally evaluate
 two alternative prediction targets: \emph{recovery time} (normalized
 steps to recover population after the deepest dip) and
@@ -574,7 +577,7 @@ Pro (10-core, 32\,GB).
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrl@{}}
 \toprule
-Stage & Time & Configuration \\
+Stage & Time (CPU) & Configuration \\
 \midrule
 Single run (2k steps) & ${\sim}$25--30\,s & 30 organisms, 25 agents \\
 Main benchmark & ${\sim}$8\,h & 5 regimes $\times$ 200 seeds \\
@@ -591,11 +594,11 @@ Lenia prototype & ${\sim}$0.5\,h & 3 creatures $\times$ 5 seeds \\
 \label{sec:results}
 
 We summarize the main findings before presenting details.
-(1)~Definitions disagree substantially: Fleiss' $\kappa = $ \fleissK{}
+Definitions disagree substantially: Fleiss' $\kappa = $ \fleissK{}
 indicates only moderate 4-rater agreement.
-(2)~The D2--D3 axis is the most informative disagreement, cleanly
+The D2--D3 axis is the most informative disagreement, cleanly
 separating evolution-centric from organization-centric perspectives.
-(3)~Under strict (leakage-aware) evaluation, D1 achieves the highest
+Under strict (leakage-aware) evaluation, D1 achieves the highest
 predictive validity for population robustness (AUC = \aucDstrict{D1},
 95\% CI: \aucDciStrict{D1}), while D4 drops substantially
 (AUC = \aucDstrict{D4}, 95\% CI: \aucDciStrict{D4}), revealing that
@@ -604,7 +607,7 @@ organism-level information maintenance; D2 and D3 are unaffected
 by strict mode (\aucDstrict{D2}, \aucDstrict{D3}).
 Under legacy evaluation the ranking compresses under alternative targets,
 confirming complementary information capture.
-(4)~These patterns are robust to operationalization variants, $\pm 20\%$
+These patterns are robust to operationalization variants, $\pm 20\%$
 weight perturbation, and removal of inter-family competition.
 
 \paragraph{Disagreement heatmap.}
@@ -664,13 +667,13 @@ while D2 assigns zero due to absent reproduction.
 diversity, earning high D2 scores, but its broken boundary--energy
 feedback loop reduces D3 closure.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includefigure{figures/case_study_timeseries.pdf}
+\includefigure[width=\textwidth]{figures/case_study_timeseries.pdf}
 \caption{Case study time series.  Left: F3 (D3 $>$ D2).
 Right: F2 (D2 $>$ D3).}
 \label{fig:casestudy}
-\end{figure}
+\end{figure*}
 
 \paragraph{D3 closure-only vs.\ composite.}
 Separating closure from persistence resolves the circularity concern.
@@ -684,10 +687,10 @@ but with attenuated scores for non-reproducing families.
 \paragraph{Price equation selection.}
 The (selection-only) Price component yields positive selection coefficients for F1
 (mean $S_\text{select} = 0.30$) and F2 (mean $S_\text{select} = 0.48$),
-confirming that differential reproductive success correlates with genome
-distance.  F3, lacking reproduction, returns zero.  The Price-based
+consistent with the expectation that differential reproductive success
+correlates with genome distance.  F3, lacking reproduction, returns zero.  The Price-based
 $S_\text{select}$ sub-score strengthens D2's discrimination: F1 and F2
-show clear selection signals absent in F3.  Importantly, the Price
+show clear selection signals absent in F3.  The Price
 selection component provides a direct lineage-derived signal, avoiding
 proxy-based correlation measures that could conflate selection with drift.
 
@@ -747,13 +750,14 @@ highest AUC (0.92), while D4 rises to second (0.87), ahead of D3 (0.79)
 and D2 (0.67).  Under the \emph{lineage diversity} target (parent
 reproductive diversity), all definitions achieve comparable AUC:
 D1 (0.83), D4 (0.78), D2 (0.78), and D3 (0.77).
-This compressed ranking confirms that the definitions capture
+This compressed ranking indicates that the definitions capture
 complementary information: the alive-count hierarchy does not
 generalize to all ecological outcomes.
 Leave-one-regime-out cross-validation (each of the five regimes held out in
-turn) yields mean AUCs of 0.85 (D1), 0.65 (D2), 0.76 (D3), and 0.78 (D4),
-confirming the D1 $>$ D4 $>$ D3 $>$ D2 ordering is not artefactual to any
-single regime.
+turn) yields mean AUCs of 0.85 (D1), 0.65 (D2), 0.76 (D3), and 0.78
+(D4)---values that, at two-decimal precision, coincide with the
+full-evaluation AUCs---supporting the D1 $>$ D4 $>$ D3 $>$ D2 ordering as
+not artefactual to any single regime.
 
 \begin{figure}[t]
 \centering
@@ -849,8 +853,9 @@ within our substrate and prediction targets (legacy AUC = \aucD{D1},
 strict AUC = \aucDstrict{D1}).
 D2's narrower score range limits threshold discrimination.
 Under lineage diversity all definitions converge (AUC 0.77--0.83),
-confirming complementary information capture; predictive validity
-is substrate- and target-dependent, not a ``correctness'' ranking.
+consistent with each definition measuring a distinct facet of viability;
+predictive validity is substrate- and target-dependent, not a ``correctness''
+ranking.
 
 \paragraph{D4 strict-mode drop: leakage or core mechanism?}
 The largest mode sensitivity appears in D4 (legacy \aucD{D4} to strict
@@ -1008,12 +1013,12 @@ with no dependencies beyond NumPy.
 
 \paragraph{Robustness claim index.}
 Each robustness claim links to its validating evidence:
-D1 weight stability $\to$ \S\ref{sec:results} sensitivity~\P, Table~\ref{tab:robustness};
-D3 FDR robustness $\to$ \S\ref{sec:results} sensitivity~\P, Table~\ref{tab:robustness};
+D1 weight stability $\to$ \S\ref{sec:results} sensitivity analysis, Table~\ref{tab:robustness};
+D3 FDR robustness $\to$ \S\ref{sec:results} sensitivity analysis, Table~\ref{tab:robustness};
 D4 similarity robustness $\to$ Table~\ref{tab:robustness};
-competition confounds $\to$ \S\ref{sec:results} competition controls~\P;
+competition confounds $\to$ \S\ref{sec:results} competition controls;
 substrate bias $\to$ \S\ref{sec:lenia} and Table~\ref{tab:threats};
-multiple comparisons $\to$ \S\ref{sec:experiments} multiple comparison corrections~\P.
+multiple comparisons $\to$ \S\ref{sec:experiments} multiple comparison corrections.
 
 % ============================================================================
 \section*{Acknowledgments}
