@@ -85,7 +85,7 @@ def figure_disagreement_heatmap(rows: list[dict], out_path: Path) -> None:
     for i in range(matrix.shape[0]):
         for j in range(matrix.shape[1]):
             val = matrix[i, j]
-            color = "white" if val < 0.4 or val > 0.8 else "black"
+            color = "white" if val > 0.7 else "black"
             ax.text(j, i, f"{val:.2f}", ha="center", va="center", fontsize=6, color=color)
 
     fig.colorbar(im, ax=ax, label="Score", shrink=0.8)
@@ -147,7 +147,7 @@ def figure_agreement_matrix(rows: list[dict], out_path: Path) -> None:
             else:
                 display[i, j] = rho_mat[i, j]  # upper: rho
 
-    im = ax.imshow(display, cmap="Reds", vmin=0, vmax=1)
+    im = ax.imshow(display, cmap="RdBu_r", vmin=-1, vmax=1)
     ax.set_xticks(range(n))
     ax.set_xticklabels(DEFINITIONS)
     ax.set_yticks(range(n))
