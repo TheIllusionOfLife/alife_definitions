@@ -197,8 +197,10 @@ def figure_case_study(run_summary: dict | None, out_path: Path) -> None:
     # F3 (family_id=2): passes D3 / fails D2
     f3 = extract_family_series(run_summary, 2)
     ax1.plot(f3["alive_count"], label="alive", linewidth=1)
-    ax1.plot(f3["energy_mean"] * 10, label="energy (×10)", linewidth=0.8, alpha=0.7)
-    ax1.plot(f3["boundary_mean"] * 10, label="boundary (×10)", linewidth=0.8, alpha=0.7)
+    ax1.plot(f3["energy_mean"] * 10, label="energy (×10)", linewidth=0.8, alpha=0.7, linestyle="--")
+    ax1.plot(
+        f3["boundary_mean"] * 10, label="boundary (×10)", linewidth=0.8, alpha=0.7, linestyle=":"
+    )
     ax1.set_title("F3: autonomy (D3 > D2)", fontsize=9)
     ax1.set_xlabel("Sample step")
     ax1.set_ylabel("Value")
@@ -207,8 +209,14 @@ def figure_case_study(run_summary: dict | None, out_path: Path) -> None:
     # F2 (family_id=1): passes D2 / lower D3
     f2 = extract_family_series(run_summary, 1)
     ax2.plot(f2["alive_count"], label="alive", linewidth=1)
-    ax2.plot(f2["birth_count"], label="births", linewidth=0.8, alpha=0.7)
-    ax2.plot(f2["genome_diversity"] * 10, label="diversity (×10)", linewidth=0.8, alpha=0.7)
+    ax2.plot(f2["birth_count"], label="births", linewidth=0.8, alpha=0.7, linestyle="--")
+    ax2.plot(
+        f2["genome_diversity"] * 10,
+        label="diversity (×10)",
+        linewidth=0.8,
+        alpha=0.7,
+        linestyle=":",
+    )
     ax2.set_title("F2: Darwinian (D2 > D3)", fontsize=9)
     ax2.set_xlabel("Sample step")
     ax2.legend(fontsize=6)
