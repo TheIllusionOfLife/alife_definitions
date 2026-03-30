@@ -56,7 +56,6 @@ paper/*.synctex.gz
 /docs/research/
 /docs/peer_reviews/
 /docs/archive/
-/docs/data-contract.md
 /docs/artifact_publication_policy.md
 
 # AI/project scaffolding (not for reviewers)

@@ -6,6 +6,8 @@ authors:
     given-names: Yuya
     affiliation: Mukai Entertainment
     email: mukaiyuya@gmail.com
+version: "1.0.0"
+date-released: "2026-03-31"
 conference:
   name: "Artificial Life Conference 2026 (ALIFE 2026)"
 publisher: "MIT Press"
