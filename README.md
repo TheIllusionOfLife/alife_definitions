@@ -4,7 +4,7 @@
 
 This repository provides a Rust+Python simulation substrate for empirically comparing how competing operational definitions of life agree and disagree when applied to the same digital organisms across different environment regimes.
 
-**Target venue**: ALIFE 2026 Full Paper.
+**Paper**: "Life Definitions Disagree: An Empirical Benchmark of Competing Operationalizations in a Shared Digital Ecology" — ALIFE 2026.
 
 ## Quick Start
 
@@ -73,15 +73,6 @@ Notes:
   and
   `uv run python scripts/analyze_predictive.py experiments/benchmark --evaluation-mode strict -o experiments/benchmark/predictive_analysis_strict.json`.
 
-## Repository Docs
-
-- `AGENTS.md`: instructions for coding agents and contributors
-- `PRODUCT.md`: product goals and user value
-- `TECH.md`: technology stack and technical constraints
-- `STRUCTURE.md`: code/documentation layout and conventions
-- `docs/README.md`: documentation index
-- `docs/research/research-plan.md`: authoritative research plan (new benchmark direction)
-
 ## Architecture (High-Level)
 
 - `crates/alife-defs-core`: simulation core (world, metabolism, genome, NN, spatial systems)
@@ -95,6 +86,20 @@ Notes:
 - Keep commits focused and test-backed
 - Open PRs against `main` with test evidence (`fmt`, `clippy`, `test`)
 
-## Current Status
+## Citation
 
-Active research prototype targeting ALIFE 2026. APIs may evolve as the benchmark design is finalized.
+If you use this code or data, please cite:
+
+```bibtex
+@inproceedings{mukai2026life,
+  title={Life Definitions Disagree: An Empirical Benchmark of Competing Operationalizations in a Shared Digital Ecology},
+  author={Mukai, Yuya},
+  booktitle={Artificial Life Conference 2026 (ALIFE 2026)},
+  year={2026},
+  publisher={MIT Press}
+}
+```
+
+## License
+
+MIT (code), CC-BY 4.0 (data).

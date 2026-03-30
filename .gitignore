@@ -52,6 +52,20 @@ paper/*.synctex.gz
 # Zenodo staging
 /zenodo_staging/
 
+# Internal research & planning documents
+/docs/research/
+/docs/peer_reviews/
+/docs/archive/
+/docs/data-contract.md
+/docs/artifact_publication_policy.md
+
+# AI/project scaffolding (not for reviewers)
+CLAUDE.md
+AGENTS.md
+PRODUCT.md
+STRUCTURE.md
+TECH.md
+
 # IDE/editor
 .idea/
 .vscode/
