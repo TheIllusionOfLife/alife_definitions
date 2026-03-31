@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "alife-defs-cli"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "alife-defs-core",
  "anyhow",
@@ -17,7 +17,7 @@ dependencies = [
 
 [[package]]
 name = "alife-defs-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "proptest",
  "rand",
@@ -31,7 +31,7 @@ dependencies = [
 
 [[package]]
 name = "alife-defs-py"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "alife-defs-core",
  "pyo3",

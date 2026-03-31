@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+type: conference-paper
+title: "Life Definitions Disagree: An Empirical Benchmark of Competing Operationalizations in a Shared Digital Ecology"
+authors:
+  - family-names: Mukai
+    given-names: Yuya
+    affiliation: Mukai Entertainment
+    email: mukaiyuya@gmail.com
+version: "1.0.0"
+date-released: "2026-03-31"
+conference:
+  name: "Artificial Life Conference 2026 (ALIFE 2026)"
+publisher: "MIT Press"
+license: MIT
+repository-code: https://github.com/TheIllusionOfLife/alife_definitions

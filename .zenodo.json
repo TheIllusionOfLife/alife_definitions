@@ -3,10 +3,11 @@
   "description": "Empirical benchmark comparing four operational definitions of life (textbook 7-criteria, Darwinian/NASA, autonomy/organizational closure, information maintenance) on the same digital organisms across five environment regimes. Includes simulation code, definition adapters, raw benchmark data (coexistence and single-family controls), score matrices, analysis scripts, and reproducibility logs.",
   "creators": [
     {
-      "name": "Anonymous"
+      "name": "Mukai, Yuya",
+      "affiliation": "Mukai Entertainment"
     }
   ],
-  "upload_type": "dataset",
+  "upload_type": "software",
   "access_right": "open",
   "license": "MIT",
   "keywords": [
@@ -16,6 +17,11 @@
     "digital evolution",
     "operational definitions"
   ],
-  "related_identifiers": [],
-  "notes": "Anonymized for double-blind review. Creator names and affiliations will be added post-acceptance."
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/TheIllusionOfLife/alife_definitions",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
 }
