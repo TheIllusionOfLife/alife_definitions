@@ -1,7 +1,7 @@
 # ALife Definitions
 
-[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19351498.svg)](https://doi.org/10.5281/zenodo.19351498)
-[![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19397019.svg)](https://doi.org/10.5281/zenodo.19397019)
+[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19351497.svg)](https://doi.org/10.5281/zenodo.19351497)
+[![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19397018.svg)](https://doi.org/10.5281/zenodo.19397018)
 
 **Benchmarking Multiple Definitions of Life in a Shared Digital World.**
 
