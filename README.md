@@ -1,5 +1,7 @@
 # ALife Definitions
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19351498.svg)](https://doi.org/10.5281/zenodo.19351498)
+
 **Benchmarking Multiple Definitions of Life in a Shared Digital World.**
 
 This repository provides a Rust+Python simulation substrate for empirically comparing how competing operational definitions of life agree and disagree when applied to the same digital organisms across different environment regimes.

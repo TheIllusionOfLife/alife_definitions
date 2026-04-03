@@ -11,5 +11,6 @@ date-released: "2026-03-31"
 conference:
   name: "Artificial Life Conference 2026 (ALIFE 2026)"
 publisher: "MIT Press"
+doi: 10.5281/zenodo.19351498
 license: MIT
 repository-code: https://github.com/TheIllusionOfLife/alife_definitions
