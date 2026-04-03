@@ -22,6 +22,11 @@
       "identifier": "https://github.com/TheIllusionOfLife/alife_definitions",
       "relation": "isSupplementTo",
       "scheme": "url"
+    },
+    {
+      "identifier": "10.5281/zenodo.19397019",
+      "relation": "isSupplementedBy",
+      "scheme": "doi"
     }
   ]
 }
